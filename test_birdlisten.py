@@ -32,6 +32,32 @@ def test_redacted_hides_password():
     assert cam.redacted().startswith("rtsp://admin:***@192.168.1.5")
 
 
+@pytest.mark.parametrize("text", [
+    "Error opening input: rtsp://admin:s3cret@192.168.1.5:554/x",
+    "rtsp://admin:s3cret@192.168.1.5:554/x?tcp: Connection refused",
+    "two urls rtsp://a:pw1@h1/x and rtsps://b:pw2@h2/y here",
+    "percent rtsp://admin:s3%40cret@192.168.1.5/x",
+])
+def test_scrub_redacts_any_url_form(text):
+    out = bl.scrub(text)
+    for secret in ("s3cret", "pw1", "pw2", "s3%40cret"):
+        assert secret not in out
+    assert "***@" in out
+
+
+def test_capture_error_is_scrubbed(tmp_path: Path, monkeypatch):
+    cam = bl.Camera("c", "rtsp://admin:s3cret@10.0.0.1:554/x")
+
+    class Proc:
+        returncode = 1
+        stderr = "rtsp://admin:s3cret@10.0.0.1:554/x?tcp: Connection refused\n"
+
+    monkeypatch.setattr(bl.subprocess, "run", lambda *a, **k: Proc())
+    with pytest.raises(RuntimeError) as exc:
+        bl.capture(cam, 3, tmp_path / "o.wav")
+    assert "s3cret" not in str(exc.value) and "Connection refused" in str(exc.value)
+
+
 def test_load_config_defaults_and_required():
     env = {"CAMERAS": "c=rtsp://x", "LATITUDE": "47.6", "LONGITUDE": "-122.3"}
     cfg = bl.load_config(env)

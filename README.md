@@ -18,8 +18,9 @@ camera, cameras in turn, so the Mac only ever runs one analysis at a time.
 
 Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
-synthetic clip runs through analysis and storage; 12 unit tests cover config
-parsing, dedupe, cooldown, storage, and the per-pass error handling. NOT yet
+synthetic clip runs through analysis and storage; 9 test functions (12 cases
+with parametrization) cover config parsing, dedupe, cooldown, storage, and the
+per-pass error handling. NOT yet
 verified: an actual Reolink RTSP stream, and real bird detections. Expect to
 tune `MIN_CONFIDENCE` once you see what the yard sounds like to BirdNET.
 
@@ -36,14 +37,15 @@ tune `MIN_CONFIDENCE` once you see what the yard sounds like to BirdNET.
 4. `cp .env.example .env`, fill in `CAMERAS`, `LATITUDE`, `LONGITUDE`.
 5. Prove it:
    ```
-   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--check" app     # config, ffmpeg, model
+   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--check" app     # config, ffmpeg, model, 3 s probe of each camera
    docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--dry-run" app   # one real capture+analysis, no writes
    docker compose run --rm -e LOOP_ONCE=1 app                            # one real pass
    docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--report 7" app  # what was heard this week
    ```
-6. Fleet: uncomment the `birdlisten` block in `fleet/compose.yaml`, create
-   `~/.config/fleet/birdlisten.env` on the Mac with the same content as `.env`,
-   push fleet.
+6. Fleet: on the Mac, create `~/.config/fleet/birdlisten.env` with the same
+   content as `.env`. Then in `fleet/compose.yaml` change `services: {}` to
+   `services:`, uncomment the `birdlisten` block and the `volumes:` block, push
+   fleet.
 
 ## Notifications
 
@@ -62,8 +64,10 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
 ## Tuning
 
 * `MIN_CONFIDENCE` 0.5 is a reasonable start. BirdNET's location/date filter
-  already removes implausible species; the remaining false positives are
-  usually mechanical noise scored as a bird at 0.3–0.5.
+  already removes implausible species (for Seattle in September it considers
+  ~160 of the model's 6,500); the remaining false positives are usually
+  mechanical noise scored as a bird at 0.3–0.5. birdnetlib clamps the value to
+  0.01–0.99 and the comparison is strict (a detection at exactly 0.5 is dropped).
 * `CLIP_SECONDS` 30 gives ten 3-second BirdNET windows per camera per pass.
   Longer clips catch more but delay notifications.
 * CPU: on the 2017 Intel MacBook a 30 s clip analyzes in a few seconds.

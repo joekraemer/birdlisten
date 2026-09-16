@@ -37,6 +37,7 @@ import argparse
 import datetime as dt
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -53,6 +54,16 @@ class ConfigError(RuntimeError):
     pass
 
 
+# rtsp://user:PASSWORD@host -> rtsp://user:***@host, wherever it appears in a
+# string. ffmpeg echoes the URL in several forms (percent-encoded, with a
+# query string, mid-sentence), so scrub by pattern rather than exact match.
+_CRED_RE = re.compile(r"(rtsps?://[^:/@\s]+:)[^@\s]+@")
+
+
+def scrub(text: str) -> str:
+    return _CRED_RE.sub(r"\1***@", text)
+
+
 # ----------------------------------------------------------------- config
 @dataclass(frozen=True)
 class Camera:
@@ -61,12 +72,7 @@ class Camera:
 
     def redacted(self) -> str:
         """rtsp://user:pass@host/... -> rtsp://user:***@host/... for logs."""
-        if "@" in self.rtsp and "://" in self.rtsp:
-            scheme, rest = self.rtsp.split("://", 1)
-            creds, host = rest.rsplit("@", 1)
-            user = creds.split(":", 1)[0]
-            return f"{scheme}://{user}:***@{host}"
-        return self.rtsp
+        return scrub(self.rtsp)
 
 
 @dataclass(frozen=True)
@@ -148,11 +154,16 @@ def capture(cam: Camera, seconds: int, out: Path) -> None:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"ffmpeg timed out after {seconds + 30}s") from exc
     if proc.returncode != 0:
-        # ffmpeg's stderr contains the URL with credentials; redact before logging.
-        err = proc.stderr.strip().replace(cam.rtsp, cam.redacted()) or f"exit {proc.returncode}"
-        raise RuntimeError(f"ffmpeg failed: {err.splitlines()[-1] if err else err}")
-    if not out.exists() or out.stat().st_size < 48000:  # < ~0.5 s of audio
-        raise RuntimeError("ffmpeg produced no audio; is 'Record Audio' enabled on the camera?")
+        # ffmpeg's stderr echoes the URL, credentials included, in whatever
+        # form it likes; scrub by pattern, never by matching the known URL.
+        err = scrub(proc.stderr.strip()) or f"exit {proc.returncode}"
+        raise RuntimeError(f"ffmpeg failed: {err.splitlines()[-1]}")
+    size = out.stat().st_size if out.exists() else 0
+    if size < 48000:  # pcm_s16le 48 kHz mono: 96 kB/s, so this is < 0.5 s
+        raise RuntimeError(
+            f"ffmpeg produced {size} bytes of audio (< 0.5 s). Either the camera's"
+            " 'Record Audio' setting is off, or the stream dropped immediately."
+        )
 
 
 # ----------------------------------------------------------------- analyze
@@ -293,7 +304,7 @@ def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) ->
                 capture(cam, cfg.clip_seconds, wav)
                 dets = analyze(wav, cfg, when)
             except Exception as exc:  # noqa: BLE001 -- one camera failing must not stop the others
-                log.error("%s: %s", cam.name, exc)
+                log.error("%s: %s", cam.name, scrub(str(exc)))
                 continue
             ok += 1
 
@@ -352,6 +363,9 @@ def main() -> int:
 
 
 def check(cfg: Config) -> int:
+    """Pre-flight: ffmpeg present, model loads, and every camera actually
+    yields audio (a 3 s capture each). The camera probe is what catches the
+    real first-run failures: wrong RTSP path, bad password, Record Audio off."""
     problems = 0
     if shutil.which("ffmpeg") is None:
         print("ffmpeg: NOT FOUND", file=sys.stderr); problems += 1
@@ -362,7 +376,13 @@ def check(cfg: Config) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"birdnet model: FAILED ({exc})", file=sys.stderr); problems += 1
     for cam in cfg.cameras:
-        print(f"camera {cam.name}: {cam.redacted()}")
+        with tempfile.TemporaryDirectory(prefix="birdlisten-check-") as tmp:
+            try:
+                capture(cam, 3, Path(tmp) / "probe.wav")
+                print(f"camera {cam.name}: ok ({cam.redacted()})")
+            except Exception as exc:  # noqa: BLE001
+                print(f"camera {cam.name}: FAILED {scrub(str(exc))} ({cam.redacted()})", file=sys.stderr)
+                problems += 1
     print(f"location: {cfg.lat}, {cfg.lon}; clip {cfg.clip_seconds}s; min_conf {cfg.min_conf}")
     print(f"notify: {'ntfy ' + cfg.ntfy_server if cfg.ntfy_topic else 'off'}")
     return 1 if problems else 0
@@ -370,6 +390,8 @@ def check(cfg: Config) -> int:
 
 def report(cfg: Config, days: int) -> int:
     conn = open_db(cfg.data_dir)
+    # TEXT comparison is chronological only because every heard_at is written
+    # by record() as a UTC-aware, fixed-width ISO string with +00:00. Keep it so.
     since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat(timespec="seconds")
     rows = conn.execute(
         "SELECT common_name, COUNT(*), MAX(confidence), MAX(heard_at) FROM detections"

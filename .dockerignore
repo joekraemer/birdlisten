@@ -20,4 +20,3 @@ compose.yaml
 .gitignore
 
 # app-specific
-test_*.py
