@@ -1,0 +1,77 @@
+# Build the container image on every push to main and publish it to GHCR as
+# ghcr.io/<owner>/<repo>:main. The fleet host pulls that tag every 10 minutes,
+# so "push to main" IS the deploy.
+#
+# Also pushes :sha-<short> so a bad release can be pinned back in
+# fleet/compose.yaml by changing one tag.
+#
+# Platforms: linux/amd64 only (the A1708 is Intel). To also run on a Raspberry
+# Pi / Apple Silicon, add linux/arm64 to `platforms` and uncomment the QEMU
+# step; Python-only images build fine under emulation, just slower.
+name: build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # - uses: docker/setup-qemu-action@v3      # only for arm64 cross-builds
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=main,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=ref,event=pr
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Smoke test: the image must at least start and import the app. Catches
+      # a broken lockfile or a bad module name before the fleet pulls it.
+      # The tag is read from metadata-action's output rather than rebuilt by
+      # hand, so the two can never drift.
+      - name: Smoke test
+        if: github.event_name != 'pull_request'
+        run: |
+          tag=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | grep ':sha-' | head -1)
+          echo "testing $tag"
+          docker run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--help" "$tag" 2>&1 | tail -20

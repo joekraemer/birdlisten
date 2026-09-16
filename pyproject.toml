@@ -1,0 +1,23 @@
+[project]
+name = "birdlisten"
+version = "0.1.0"
+description = "Listen to Reolink cameras and log which birds BirdNET hears"
+# 3.11, not 3.12: tflite-runtime (the small BirdNET inference backend) ships
+# wheels up to 3.11. The alternative is full tensorflow (~600 MB image).
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "birdnetlib==0.18.0",
+    "tflite-runtime==2.14.0",
+    # birdnetlib's audio stack; pinned so uv.lock is the only moving part
+    "librosa==0.10.2.post1",
+    "resampy==0.4.3",
+    # tflite-runtime 2.14 was compiled against NumPy 1.x; NumPy 2 fails at
+    # import with "_ARRAY_API not found".
+    "numpy<2",
+]
+
+[dependency-groups]
+dev = ["pytest==8.3.4"]
+
+[tool.uv]
+package = false

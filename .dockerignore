@@ -1,0 +1,23 @@
+# .dockerignore for a fleet app: keep the image small and the build cache
+# stable. Anything listed here never reaches the build context.
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+*.md
+tests/
+test_*.py
+*_test.py
+.pytest_cache
+.ruff_cache
+# build-only files; the image does not need to carry them
+Dockerfile
+compose.yaml
+.dockerignore
+.gitignore
+
+# app-specific
+test_*.py

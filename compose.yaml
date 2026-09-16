@@ -1,0 +1,26 @@
+# For running birdlisten on a dev laptop exactly as the fleet runs it.
+#
+#   cp .env.example .env && $EDITOR .env
+#   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--check" app      # config + ffmpeg + model
+#   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--dry-run" app    # one pass, writes nothing
+#   docker compose run --rm -e LOOP_ONCE=1 app                            # one real pass
+#   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--report 7" app   # what was heard this week
+#   docker compose up                                                      # the real loop
+#
+# Not used by the fleet host; it has its own compose.yaml listing every app.
+services:
+  app:
+    build: .
+    image: ghcr.io/joekraemer/birdlisten:dev
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      # Back-to-back passes: each main() call is one listen window per camera.
+      LOOP_INTERVAL: "1"
+      LOOP_JITTER: "0"
+    volumes:
+      - birdlisten-data:/data
+    restart: "no"
+
+volumes:
+  birdlisten-data:
