@@ -865,3 +865,104 @@ def test_vignette_card_draws_and_drops_corrupt(tmp_path: Path):
     p.write_bytes(b"junk")
     assert frame._vignette_card(im, ImageDraw.Draw(im), p, 10, 10, 200, 200) is False
     assert not p.exists()
+
+
+# ----------------------------------------------------------------- audubon in the renderer
+def _fixture_fetch(calls):
+    """Fugleramme 404s, Commons serves the plate 8 fixture, meta files 404."""
+    data = (FIXTURES / "8.jpg").read_bytes()
+
+    def fake(url, timeout=None):
+        calls.append(url)
+        if "Special:FilePath" in url:
+            return data
+        raise frame.NotFound(url)
+    return fake
+
+
+def test_priority_fugleramme_then_audubon_then_card(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(frame, "fetch_url", _fixture_fetch(calls))
+    aud = audubon(tmp_path)
+    art = frame.Artwork(tmp_path / "artwork", audubon=aud)
+    drawn = []
+    real_card, real_vig = frame._plate_card, frame._vignette_card
+    monkeypatch.setattr(frame, "_plate_card", lambda *a: (drawn.append("card"), real_card(*a))[1])
+    monkeypatch.setattr(frame, "_vignette_card", lambda *a: (drawn.append("vignette"), real_vig(*a))[1])
+
+    # 1. A Fugleramme plate on disk beats an Audubon entry: no Commons fetch.
+    p = art.plate_path("Meleagris gallopavo")
+    p.parent.mkdir(parents=True)
+    p.write_bytes(tiny_webp())
+    frame.render([sp("Meleagris gallopavo", "Wild Turkey")], art, 800, 600, 24, now=T0)
+    assert art.art_kind("Meleagris gallopavo") == "fugleramme" and drawn == []
+    assert not any("Special:FilePath" in u for u in calls)
+
+    # 2. Fugleramme 404 + an Audubon entry: the vignette.
+    out = frame.render([sp("Cyanocitta stelleri", "Steller's Jay")], art, 800, 600, 24, now=T0)
+    assert art.art_kind("Cyanocitta stelleri") == "audubon" and drawn == ["vignette"]
+    assert art.marker_path("Cyanocitta stelleri").read_text().startswith("404")
+    assert out.deferred == 0 and art.has_art("Cyanocitta stelleri")
+
+    # 3. Neither source: the placeholder.
+    drawn.clear()
+    out = frame.render([sp("Turdus migratorius", "American Robin")], art, 800, 600, 24, now=T0)
+    assert art.art_kind("Turdus migratorius") is None and drawn == ["card"] and out.deferred == 0
+
+
+def test_corrupt_vignette_falls_back_to_card(tmp_path: Path):
+    aud = audubon(tmp_path)
+    art = frame.Artwork(tmp_path / "artwork", audubon=aud)
+    v = aud.vignette_path("Meleagris gallopavo")
+    v.parent.mkdir(parents=True)
+    v.write_bytes(b"junk")
+    out = frame.render([sp("Meleagris gallopavo", "Wild Turkey")], art, 800, 600, 24, now=T0)
+    assert out.shown == 1 and not v.exists()
+
+
+def test_cache_rerenders_when_vignette_then_cutout_appear(tmp_path: Path, monkeypatch):
+    aud = audubon(tmp_path)
+    art = frame.Artwork(tmp_path / "artwork", audubon=aud)
+    cache = frame.RenderCache(art)
+    species = [sp("Meleagris gallopavo", "Wild Turkey")]
+    cache.get(species, 800, 600, 24, now=T0)
+    cache.get(species, 800, 600, 24, now=T0)
+    assert cache.renders == 1
+    calls = []
+    monkeypatch.setattr(frame, "fetch_url", _fixture_fetch(calls))
+    aud.ensure("Meleagris gallopavo", T0 + dt.timedelta(days=2))     # vignette arrives
+    cache.get(species, 800, 600, 24, now=T0)
+    assert cache.renders == 2 and art.art_kind("Meleagris gallopavo") == "audubon"
+    p = art.plate_path("Meleagris gallopavo")                          # later, a cut-out
+    p.write_bytes(tiny_webp())
+    cache.get(species, 800, 600, 24, now=T0)
+    assert cache.renders == 3 and art.art_kind("Meleagris gallopavo") == "fugleramme"
+
+
+def test_budget_defers_audubon(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(frame, "fetch_url", _fixture_fetch(calls))
+    aud = audubon(tmp_path)
+    art = frame.Artwork(tmp_path / "artwork", audubon=aud)
+    species = [sp("Meleagris gallopavo", "Wild Turkey"), sp("Cyanocitta stelleri", "Steller's Jay")]
+    # Fugleramme already said 404 for both, but Audubon was never tried.
+    for s in species:
+        m = art.marker_path(s.scientific_name)
+        m.parent.mkdir(parents=True, exist_ok=True)
+        frame._write_marker(m, "404", T0)
+    monkeypatch.setattr(frame, "FETCH_BUDGET", 0)
+    out = frame.render(species, art, 800, 600, 24, now=T0)
+    assert calls == [] and out.deferred == 2
+    monkeypatch.setattr(frame, "FETCH_BUDGET", 15)
+    out = frame.render(species, art, 800, 600, 24, now=T0)
+    assert out.deferred == 0 and sum("Special:FilePath" in u for u in calls) == 2
+
+
+def test_audubon_off_renders_like_fugleramme_only(tmp_path: Path):
+    """Artwork without Audubon, and with an Audubon table that has none of
+    the species, draw identical pages: the fallback adds nothing when off."""
+    species = many(5) + [sp("Meleagris gallopavo", "Wild Turkey")]
+    off = frame.render(species, frame.Artwork(tmp_path / "a"), 800, 600, 24, now=T0).png
+    empty = audubon(tmp_path, {})
+    on = frame.render(species, frame.Artwork(tmp_path / "b", audubon=empty), 800, 600, 24, now=T0).png
+    assert off == on

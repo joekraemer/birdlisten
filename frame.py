@@ -1,13 +1,17 @@
-"""Recent-species query, Fugleramme plate cache, and the Pillow collage.
+"""Recent-species query, plate caches (Fugleramme, Audubon), and the Pillow collage.
 
 Everything that produces pixels for the collage page lives here; serve.py
 owns HTTP. Nothing in this module is reached unless SERVE_PORT is set, so the
 capture loop never fetches artwork or renders anything.
 
-Plates are from the Fugleramme project (CC BY-SA 4.0), fetched lazily one
+Cut-outs are from the Fugleramme project (CC BY-SA 4.0), fetched lazily one
 species at a time from raw.githubusercontent.com at a pinned commit and cached
 under ARTWORK_DIR. A species Fugleramme does not have gets a `<stem>.missing`
-marker (retried daily) and a plain paper card in its place.
+marker (retried daily). If audubon.json maps it to a Havell plate of Audubon's
+*Birds of America* (public domain), a 960 px Wikimedia Commons thumbnail is
+fetched, cropped to its picture and recoloured into a vignette, cached under
+ARTWORK_DIR/audubon/v1/, and drawn in the placeholder's frame. With neither,
+a plain paper card stands in. Priority: cut-out, vignette, card.
 """
 
 from __future__ import annotations
@@ -191,6 +195,19 @@ _meta_tried: dict[Path, float] = {}      # artwork dir -> time.monotonic() of la
 class Artwork:
     dir: Path
     ref: str = DEFAULT_ARTWORK_REF
+    audubon: Audubon | None = None      # fallback source; None = Fugleramme only
+
+    def art_kind(self, scientific_name: str) -> str | None:
+        """'fugleramme', 'audubon' or None, from disk only. Fugleramme wins."""
+        if self.has_plate(scientific_name):
+            return "fugleramme"
+        if self.audubon is not None and self.audubon.has_art(scientific_name):
+            return "audubon"
+        return None
+
+    def has_art(self, scientific_name: str) -> bool:
+        """Any artwork on disk; what /api/recent reports as has_plate."""
+        return self.art_kind(scientific_name) is not None
 
     def url(self, rel: str) -> str:
         return RAW_BASE.format(ref=self.ref) + rel
@@ -929,23 +946,22 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
     draw.text((cx, round(9 * unit)), sub, font=sub_font, fill=GREY, anchor="ms")
     _ornament(draw, cx, round(11 * unit), round(5 * unit), RULE, rule_w)
 
-    # Fetch (within budget) or look up each shown species' plate.
+    # Fetch (within budget) each shown species' art: Fugleramme first, then
+    # Audubon. Past the deadline only what is on disk is drawn.
     deferred = 0
-    paths: list[Path | None] = []
+    aud = art.audubon
     for sp in species[:len(boxes)]:
         name = sp.scientific_name
         if not stem(name):
-            paths.append(None)
-        elif time.monotonic() < deadline:
-            paths.append(art.ensure_plate(name, now))
-        else:
-            p = art.plate_path(name)
-            if p.exists():
-                paths.append(p)
-            else:
-                paths.append(None)
-                if not art.marker_path(name).exists():
-                    deferred += 1
+            continue
+        if time.monotonic() < deadline:
+            p = art.ensure_plate(name, now)
+            if p is None and aud is not None and time.monotonic() < deadline:
+                aud.ensure(name, now)
+        if art.art_kind(name) is None and (
+                not art.marker_path(name).exists()
+                or (aud is not None and aud.entry(name) is not None and not aud.marker_path(name).exists())):
+            deferred += 1   # a source was not tried yet
     if deferred:
         log.info("fetch budget exhausted, %d plates deferred", deferred)
 
@@ -959,10 +975,13 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
                               min(round(cell / 10), round(2.3 * unit)))   # never rivals the title
     ascent, descent = font.getmetrics()
     line_h = round((ascent + descent) * 1.1)
-    for sp, box, path, lines in zip(species, boxes, paths, names):
+    for sp, box, lines in zip(species, boxes, names):
         px, py, pw, ph = box.x + inset, box.y + inset, cell - 2 * inset, cell - 2 * inset
+        name = sp.scientific_name
+        kind = art.art_kind(name) if stem(name) else None
         drawn = False
-        if path is not None:
+        if kind == "fugleramme":
+            path = art.plate_path(name)
             try:
                 with Image.open(path) as im:
                     im = ImageOps.contain(im.convert("RGBA"), (pw, ph))
@@ -974,6 +993,8 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
                     path.unlink()
                 except OSError:
                     pass
+        if not drawn and aud is not None and aud.has_art(name):
+            drawn = _vignette_card(img, draw, aud.vignette_path(name), px, py, pw, ph)
         if not drawn:
             _plate_card(draw, px, py, pw, ph)
         # Names hang from the same line in every cell; a wrapped name adds a
@@ -988,10 +1009,11 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
 
 # ----------------------------------------------------------------- cache
 def cache_key(species: list[Species], art: Artwork) -> tuple:
-    """Everything that changes a pixel: species order, names, and whether a
-    plate is on disk. Cameras, times and first_ever are JSON-only."""
+    """Everything that changes a pixel: species order, names, and which art
+    is on disk (cut-out, vignette or none). Cameras, times and first_ever
+    are JSON-only."""
     return tuple(
-        (s.scientific_name, s.common_name, art.has_plate(s.scientific_name))
+        (s.scientific_name, s.common_name, art.art_kind(s.scientific_name))
         for s in species
     )
 
