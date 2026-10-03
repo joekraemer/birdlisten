@@ -1,0 +1,10 @@
+Libre Baskerville (regular and italic), used for the collage labels.
+
+Source: Google Fonts, ofl/librebaskerville at commit 9710da1eacb3be272583c3224dcb70f9da6eadbb
+  https://github.com/google/fonts/tree/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/librebaskerville
+Files: LibreBaskerville[wght].ttf and LibreBaskerville-Italic[wght].ttf,
+renamed to LibreBaskerville.ttf and LibreBaskerville-Italic.ttf. The font
+data is unmodified; frame.py uses the default (Regular 400) instance.
+
+Licence: SIL Open Font License 1.1, see OFL.txt in this directory.
+Upstream project: https://github.com/impallari/Libre-Baskerville
