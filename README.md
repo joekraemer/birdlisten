@@ -18,9 +18,10 @@ camera, cameras in turn, so the Mac only ever runs one analysis at a time.
 
 Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
-synthetic clip runs through analysis and storage; 9 test functions (12 cases
-with parametrization) cover config parsing, dedupe, cooldown, storage, and the
-per-pass error handling. NOT yet
+synthetic clip runs through analysis and storage; 39 test functions (81 cases
+with parametrization) cover config parsing, dedupe, cooldown, storage, the
+per-pass error handling, and the collage page (query, packer, renderer,
+plate cache, HTTP routes). NOT yet
 verified: an actual Reolink RTSP stream, and real bird detections. Expect to
 tune `MIN_CONFIDENCE` once you see what the yard sounds like to BirdNET.
 
@@ -73,6 +74,106 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
 * CPU: on the 2017 Intel MacBook a 30 s clip analyzes in a few seconds.
   Two cameras is comfortable; six would still be fine.
 
+## Collage page
+
+Optional. Set `SERVE_PORT` and the container also serves a "recently heard
+birds" collage: one plate per species heard in the last N hours (default 24),
+most recent first, with the camera(s) and local time of the last detection
+under each, and a red `NEW` badge on any species never heard before in this
+yard. It is meant to sit in a Home Assistant Webpage card (below). The server
+is a daemon thread beside the capture loop and reads the SQLite db through its
+own read-only connection; it never changes what the loop records or notifies.
+
+| route | what |
+|---|---|
+| `GET /` | HTML page showing `/collage.png`, swaps the image every 60 s (meta refresh fallback without JS). `?hours=` |
+| `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
+| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, cameras, first_ever, has_plate}]}`. `?hours=` |
+| `GET /attribution` | artwork credit plus Fugleramme's `ATTRIBUTION.md` |
+| `GET /favicon.ico` | 204 |
+
+Plates are fetched lazily, one species at a time on first need, into
+`$ARTWORK_DIR` (`/data/artwork` in the container, so they live on the same
+volume as the db) and never re-fetched. A species that Fugleramme has no plate
+for, or whose BirdNET scientific name differs from Fugleramme's file name,
+shows as a dashed placeholder card with the scientific name inside; the miss
+is remembered in a `<stem>.missing` marker and retried after a day (an hour
+after a network error). The PNG is re-rendered only when something visible
+changed (a species, a camera, a last-heard minute, a plate arriving), so the
+60 s page refresh normally costs nothing.
+
+Capacity: cells shrink to an 80 px minimum, then the oldest species are
+dropped and the header shows `+N more`; that is 32 species at 800x600 and 135
+at the default 1600x1200 (`frame.capacity(w, h)` computes it). Labels use
+Pillow's bundled font, which has no accented Latin letters or the Hawaiian
+okina; names containing those show boxes for those characters.
+
+### Artwork credit
+
+Bird plates are from the [Fugleramme](https://github.com/arnegiacomo/fugleramme)
+project (`assets/artwork/classic`), licensed
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Full
+per-plate sources are in the project's ATTRIBUTION.md, which the server
+fetches and exposes at `/attribution`. Because the plates are BY-SA, the
+generated collage inherits CC BY-SA 4.0 for the plate content. The collage
+layout here is this repo's own code, not Fugleramme's renderer; `ARTWORK_REF`
+pins the Fugleramme commit the plates come from.
+
+### Home Assistant
+
+Webpage card (Lovelace, "Manual" card or YAML mode):
+
+```yaml
+type: iframe
+url: http://192.168.1.10:8085/
+aspect_ratio: 75%     # 4:3, matches the default 1600x1200 collage
+title: Birds heard today
+```
+
+If HA is opened over https the browser blocks a plain-http iframe (mixed
+content); open HA over http on the LAN or put the collage behind the same TLS
+proxy. Optional REST sensor for the species count:
+
+```yaml
+sensor:
+  - platform: rest
+    name: birdlisten_species_24h
+    resource: http://192.168.1.10:8085/api/recent?hours=24
+    value_template: "{{ value_json.species | count }}"
+    scan_interval: 300
+```
+
+### Configuration
+
+| var | default | meaning |
+|---|---|---|
+| `SERVE_PORT` | unset | port for the collage server. Unset or empty = no server, no network traffic, nothing changes. |
+| `COLLAGE_HOURS` | `24` | window for `/` and `/collage.png`, 1..720 |
+| `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
+| `ARTWORK_DIR` | `$DATA_DIR/artwork` | plate cache, a few hundred KB per species |
+
+A bad value logs `config error: ... (server disabled)` and the loop runs on
+without the server; a busy port logs `cannot bind SERVE_PORT=...` and does the
+same. The server never changes the loop's exit code.
+
+### Running it on the fleet host
+
+Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
+`SERVE_PORT=8085` to the birdlisten service, and note that the existing
+`/data` volume now also holds `artwork/` (a few hundred KB per species).
+
+## Tests
+
+```
+uv run --group dev pytest -q                     # Linux / inside the image
+uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q   # arm64 macOS
+```
+
+The second form exists because `tflite-runtime` has no macOS arm64 wheel, so
+the project environment cannot resolve there; the tests only need stdlib plus
+Pillow (`birdnetlib` is imported lazily by the analyzer). Both must pass. No
+test touches the network: artwork fetches are monkeypatched to 404.
+
 ## Ideas not built
 
 * Write detections to a Notion database (the movie-review pattern) or a
@@ -82,16 +183,28 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
   scikit-learn, making it ~2.5 GB. A slimmer inference path (`ai-edge-litert`
   + hand-rolled spectrogram) would be ~300 MB but is real work.
 * Detect and alert on *new* species for the yard (first ever sighting) as a
-  separate notification tier.
+  separate notification tier. (The collage already badges them; this is about
+  a push.)
+* MQTT / Home Assistant discovery for the collage data. The REST sensor above
+  covers the species count.
+* E-ink output. Fugleramme already does this well; this project stops at a PNG.
+* Scaling plates by body mass so a crow is bigger than a chickadee. Needs a
+  mass table, and Fugleramme's manifest has none.
+* A BirdNET-to-Fugleramme name alias table for species whose scientific names
+  differ between the two (today they get a placeholder).
+* An index on `detections(scientific_name, heard_at)` if the db ever grows
+  enough for the recent-species query to show up in render time.
 
 ## Files
 
 | file | role |
 |---|---|
 | `birdlisten.py` | the app; `main() -> int`, `--check`, `--dry-run`, `--report N` |
-| `loop.py` | container entrypoint (fleet template), runs `main()` back to back |
+| `frame.py` | collage: recent-species query, Fugleramme plate cache, packer, Pillow renderer, render cache |
+| `serve.py` | the collage HTTP server; `start_from_env()` is what `loop.py` calls |
+| `loop.py` | container entrypoint (fleet template), runs `main()` back to back; starts the server when `SERVE_PORT` is set |
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
-| `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2 |
+| `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main` |
-| `test_birdlisten.py` | `uv run --group dev pytest -q` |
+| `test_birdlisten.py`, `test_frame.py`, `test_serve.py` | see Tests |
