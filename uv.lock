@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.*"
 
 [[package]]
@@ -19,6 +19,7 @@ dependencies = [
     { name = "birdnetlib" },
     { name = "librosa" },
     { name = "numpy" },
+    { name = "pillow" },
     { name = "resampy" },
     { name = "tflite-runtime" },
 ]
@@ -33,6 +34,7 @@ requires-dist = [
     { name = "birdnetlib", specifier = "==0.18.0" },
     { name = "librosa", specifier = "==0.10.2.post1" },
     { name = "numpy", specifier = "<2" },
+    { name = "pillow", specifier = "==12.3.0" },
     { name = "resampy", specifier = "==0.4.3" },
     { name = "tflite-runtime", specifier = "==2.14.0" },
 ]

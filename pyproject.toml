@@ -14,6 +14,8 @@ dependencies = [
     # tflite-runtime 2.14 was compiled against NumPy 1.x; NumPy 2 fails at
     # import with "_ARRAY_API not found".
     "numpy<2",
+    # collage renderer; already a transitive dep of birdnetlib via matplotlib
+    "pillow==12.3.0",
 ]
 
 [dependency-groups]
