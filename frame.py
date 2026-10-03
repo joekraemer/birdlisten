@@ -422,6 +422,11 @@ DEBRIS = 0.10        # band-touching components below this fraction of main are 
 DENSE = 0.25         # a bled side grows while the next row/column is >= 25 % core
 PAD = 0.04           # pad on non-bleed sides, fraction of the picture's longer side
 GROW = 1             # picture-mask growth beyond the picture box, in cells
+TAIL = 4             # rows inside a non-bleed top/bottom held to the core's edge, in cells
+                     # (about an engraved title's height at the working width)
+THICK = 5            # px; ink at least this wide still counts as picture past the core's edge
+FILL = 128           # a cell this full of ink (of 255) continues a tip past the core's edge
+LETTER = 80          # engraved lettering is darker than paper by >= 80 somewhere; wash is not
 SOFT_LO, SOFT_HI = 18, 40         # background flattening ramp (darker-than-paper amount)
 ASPECT = (0.75, 1.33)
 
@@ -627,7 +632,52 @@ def _vignette_geometry(img: Image.Image, sci: str = "") -> VignetteGeometry:
                 if gx0 <= nx < gx1 and rb[k] and not pm[k]:
                     pm[k] = 1
                     stack.append(k)
-    pmi = Image.frombytes("L", (rw, rh), bytes(255 if v else 0 for v in pm)).filter(ImageFilter.MaxFilter(3))
+    # 9b. the title under the picture joins it through raw ink. On a
+    # non-bleed bottom, within TAIL rows of the picture box and below, a cell
+    # lower than the core in its own and both neighbouring columns is a
+    # suspect, unless it holds solid ink (a twig or leaf tip that the opening
+    # shortened; engraved lettering is thinner than THICK). Suspects joined
+    # to letter-dark ink are dropped; the rest are faint wash (a cloud's
+    # lower edge) and stay. The top is left alone: plate numbers there stand
+    # clear of the picture, and clipping it only trimmed feather tips.
+    drop = bytearray(rw * rh)
+    if "B" not in bleed:
+        thick = ink.filter(ImageFilter.MinFilter(THICK)).filter(ImageFilter.MaxFilter(THICK)).reduce(CELL).tobytes()
+        dark = _thresh(_darker_than(img, DEFAULT_PAPER), lambda v: v >= LETTER).reduce(CELL).tobytes()
+        edge = [None] * rw
+        for x in range(x0, min(x1, rw)):
+            edge[x] = next((y for y in range(min(y1, rh) - 1, y0 - 1, -1) if cb[y * rw + x]), None)
+        for x in range(rw):
+            near = [e for e in edge[max(0, x - 1):x + 2] if e is not None]
+            lim = max(near) if near else -1
+            for y in range(max(0, y1 - TAIL, lim + 1), rh):
+                j = y * rw + x
+                if pm[j] and not thick[j]:
+                    drop[j] = 1
+        # a pointed tip (tail, bill, leaf) tapers below THICK before it ends:
+        # a mostly-ink cell touching the core stays. Lettering is open line
+        # work and rarely fills a cell this densely.
+        fill = ink.reduce(CELL).tobytes()
+        for j in range(rw * rh):
+            if drop[j] and fill[j] >= FILL and any(
+                    0 <= j + d < rw * rh and cb[j + d] for d in (-rw - 1, -rw, -rw + 1, -1, 1)):
+                drop[j] = 0
+        stack = [j for j in range(rw * rh) if drop[j] and dark[j]]
+        for j in stack:
+            drop[j] = 2
+        while stack:
+            j = stack.pop()
+            y, x = divmod(j, rw)
+            for ny in range(max(0, y - 1), min(rh, y + 2)):
+                for nx in range(max(0, x - 1), min(rw, x + 2)):
+                    k = ny * rw + nx
+                    if drop[k] == 1:
+                        drop[k] = 2
+                        stack.append(k)
+    # the 1-cell halo keeps the picture's soft edges; dropped cells lose it
+    pmi = Image.frombytes("L", (rw, rh), bytes(255 if v and drop[j] != 2 else 0 for j, v in enumerate(pm)))
+    pmi = ImageChops.subtract(pmi.filter(ImageFilter.MaxFilter(3)),
+                              Image.frombytes("L", (rw, rh), bytes(255 if v == 2 else 0 for v in drop)))
     return VignetteGeometry((W, H), (px0, py0, px1, py1), crop, paper, source, bleed, img, ink, pmi)
 
 

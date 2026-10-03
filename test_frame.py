@@ -818,6 +818,26 @@ def test_vignette_real_fixtures(plate, box):
         assert all(abs(g.paper[i] - (244, 229, 198)[i]) <= 6 for i in range(3)), g.paper
 
 
+# The engraved title rows, in working pixels, of plates whose title touches
+# the picture through raw ink: plate 8's script under the twig's foot (split
+# either side of the twig, whose foot stays), plate 376's under the
+# painting's bottom edge. Regression for the step-9 flood reaching them.
+@pytest.mark.parametrize("plate,titles", [
+    (8, [(440, 986, 488, 1000), (516, 986, 560, 1000)]),
+    (376, [(400, 618, 520, 632)]),
+])
+def test_vignette_real_fixture_title_erased(plate, titles):
+    from PIL import ImageStat
+    with Image.open(FIXTURES / f"{plate}.jpg") as im:
+        g = frame._vignette_geometry(im)
+        out = frame.vignette(im)
+    for title in titles:
+        assert not _disjoint(g.crop, title)          # the title is inside the crop
+        d = _maxdiff(out.crop(_to_out(g, out)(title)), frame.CARD)
+        # on average within 4 of CARD; no pixel further than a faint 12
+        assert ImageStat.Stat(d).mean[0] <= 4 and d.getextrema()[1] <= 12, (title, d.getextrema())
+
+
 # ----------------------------------------------------------------- card frames
 # sha256 of _plate_card at plate widths 60, 173, 400, recorded before the
 # _card_frame refactor: the placeholder must not change by a pixel.
