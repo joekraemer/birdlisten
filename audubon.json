@@ -1,0 +1,5350 @@
+{
+ "edition": "havell",
+ "generated": "2026-10-03",
+ "species": {
+  "Acanthis flammea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0375",
+   "file": "375 Lesser Red-Poll.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:375_Lesser_Red-Poll.jpg",
+   "plate": 375,
+   "title": "Lesser Red-Poll",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Acanthis hornemanni": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0400",
+   "file": "400 I. Arkansaw Siskin - 2. Mealy Red-poll - 3. Louisiana Tanager - 4.Townsend's Finch - 5. Buff-breasted Finch.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:400_I._Arkansaw_Siskin_-_2._Mealy_Red-poll_-_3._Louisiana_Tanager_-_4.Townsend's_Finch_-_5._Buff-breasted_Finch.jpg",
+   "plate": 400,
+   "title": "Arkansaw Siskin, Mealy Red-poll, Louisiana Tanager, Townsend's Bunting and Buff-breasted Finch",
+   "via": [
+    "commons"
+   ]
+  },
+  "Accipiter cooperii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0036",
+   "file": "36 Stanley Hawk.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:36_Stanley_Hawk.jpg",
+   "plate": 36,
+   "title": "Stanley Hawk",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Accipiter gentilis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0141",
+   "file": "141 I. Goshawk - 2. Stanley Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:141_I._Goshawk_-_2._Stanley_Hawk.jpg",
+   "plate": 141,
+   "title": "Goshawk and Stanley Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Accipiter striatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0374",
+   "file": "374 Sharp-shinned Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:374_Sharp-shinned_Hawk.jpg",
+   "plate": 374,
+   "title": "Sharp-shinned Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Actitis macularius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0310",
+   "file": "310 Spotted Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:310_Spotted_Sandpiper.jpg",
+   "plate": 310,
+   "title": "Spotted Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aegolius acadicus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0199",
+   "file": "199 Little Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:199_Little_Owl.jpg",
+   "plate": 199,
+   "title": "Little Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aegolius funereus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0380",
+   "file": "380 Tengmalm's Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:380_Tengmalm's_Owl.jpg",
+   "plate": 380,
+   "title": "Tengmalm's Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aethia pusilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0402",
+   "file": "402 I. Black-throated Guillemot - 2. Nobbed-billed Auk - 3. Curled-crested Auk - 4. Horned-billed Guillemot.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:402_I._Black-throated_Guillemot_-_2._Nobbed-billed_Auk_-_3._Curled-crested_Auk_-_4._Horned-billed_Guillemot.jpg",
+   "plate": 402,
+   "title": "Black-throated Guillemot, Nobbed-billed Auk, Curled-crested Auk and Horned-billed Guillemot",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Agelaius phoeniceus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0067",
+   "file": "67 Red-winged Starling or Marsh Blackbird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:67_Red-winged_Starling_or_Marsh_Blackbird.jpg",
+   "plate": 67,
+   "title": "Red winged Starling, or Marsh Blackbird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Agelaius tricolor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0388",
+   "file": "388 I. Nuttall's Starling - 2. Yellow-headed Troopial - 3. Bullock's Oriole.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:388_I._Nuttall's_Starling_-_2._Yellow-headed_Troopial_-_3._Bullock's_Oriole.jpg",
+   "plate": 388,
+   "title": "Nuttall's Starling, Yellow-headed Troopial and Bullock's Oriole",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Aix sponsa": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0206",
+   "file": "206 Summer or Wood Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:206_Summer_or_Wood_Duck.jpg",
+   "plate": 206,
+   "title": "Summer, or Wood Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Alca torda": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0214",
+   "file": "214 Razor Bill.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:214_Razor_Bill.jpg",
+   "plate": 214,
+   "title": "Razor Bill",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ammodramus savannarum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0130",
+   "file": "130 Yellow-winged Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:130_Yellow-winged_Sparrow.jpg",
+   "plate": 130,
+   "title": "Yellow-winged Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ammospiza caudacuta": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0149",
+   "file": "149 Sharp-tailed Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:149_Sharp-tailed_Finch.jpg",
+   "plate": 149,
+   "title": "Sharp-tailed Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ammospiza maritima": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0093",
+   "file": "93 Sea-side Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:93_Sea-side_Finch.jpg",
+   "plate": 93,
+   "title": "Seaside Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anas acuta": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0227",
+   "file": "227 Pin tailed Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:227_Pin_tailed_Duck.jpg",
+   "plate": 227,
+   "title": "Pin-tailed Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anas crecca": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0228",
+   "file": "228 American Green winged Teal.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:228_American_Green_winged_Teal.jpg",
+   "plate": 228,
+   "title": "Green winged Teal",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anas platyrhynchos": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0221",
+   "file": "221 Mallard Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:221_Mallard_Duck.jpg",
+   "plate": 221,
+   "title": "Mallard Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anas rubripes": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0302",
+   "file": "302 Dusky Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:302_Dusky_Duck.jpg",
+   "plate": 302,
+   "title": "Dusky Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anhinga anhinga": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0316",
+   "file": "316 Black-bellied Darter.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:316_Black-bellied_Darter.jpg",
+   "plate": 316,
+   "title": "Black-bellied Darter",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anous stolidus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0275",
+   "file": "275 Noddy Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:275_Noddy_Tern.jpg",
+   "plate": 275,
+   "title": "Noddy Tern",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Anser albifrons": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0286",
+   "file": "286 White-fronted Goose.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:286_White-fronted_Goose.jpg",
+   "plate": 286,
+   "title": "White-fronted Goose",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anser caerulescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0381",
+   "file": "381 Snow Goose.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:381_Snow_Goose.jpg",
+   "plate": 381,
+   "title": "Snow Goose",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Anthus rubescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0010",
+   "file": "10 Brown Titlark.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:10_Brown_Titlark.jpg",
+   "plate": 10,
+   "title": "Brown Lark",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Antigone canadensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0261",
+   "file": "261 Hooping Crane.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:261_Hooping_Crane.jpg",
+   "plate": 261,
+   "title": "Hooping Crane",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Antrostomus carolinensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0052",
+   "file": "52 Chuck-will's Widow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:52_Chuck-will's_Widow.jpg",
+   "plate": 52,
+   "title": "Chuck-will's Widow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Antrostomus vociferus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0082",
+   "file": "82 Whip-poor-will.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:82_Whip-poor-will.jpg",
+   "plate": 82,
+   "title": "Whip-poor-will",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aphelocoma californica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0362",
+   "file": "362 I. Yellow billed Magpie - 2. Stellers Jay - 3. Ultramarine Jay - 4. Clark's Crow.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:362_I._Yellow_billed_Magpie_-_2._Stellers_Jay_-_3._Ultramarine_Jay_-_4._Clark's_Crow.jpg",
+   "plate": 362,
+   "title": "Yellow-Billed Magpie, Stellers Jay, Ultramarine Jay and Clark's Crow",
+   "via": [
+    "manual"
+   ]
+  },
+  "Aphelocoma coerulescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0087",
+   "file": "87 Florida Jay.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:87_Florida_Jay.jpg",
+   "plate": 87,
+   "title": "Florida Jay",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aquila chrysaetos": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0181",
+   "file": "181 Goldon Eagle.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:181_Goldon_Eagle.jpg",
+   "plate": 181,
+   "title": "Golden Eagle",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aramus guarauna": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0377",
+   "file": "377 Scolopaceus Courlan.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:377_Scolopaceus_Courlan.jpg",
+   "plate": 377,
+   "title": "Scolopaceus Courlan",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Archilochus colubris": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0047",
+   "file": "47 Ruby-throated Humming Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:47_Ruby-throated_Humming_Bird.jpg",
+   "plate": 47,
+   "title": "Ruby-throated Humming Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ardea alba": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0386",
+   "file": "386 White Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:386_White_Heron.jpg",
+   "plate": 386,
+   "title": "White Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ardea herodias": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0211",
+   "file": "211 Great blue Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:211_Great_blue_Heron.jpg",
+   "plate": 211,
+   "title": "Great blue Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Arenaria interpres": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0304",
+   "file": "304 Turn-stone.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:304_Turn-stone.jpg",
+   "plate": 304,
+   "title": "Turn-stone",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Asio flammeus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0432",
+   "file": "432 I. Burrowing Owl - 2. Large-headed Burrowing Owl - 3. Little night Owl - 4. Columbian Owl - 5. Short-eared Owl.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:432_I._Burrowing_Owl_-_2._Large-headed_Burrowing_Owl_-_3._Little_night_Owl_-_4._Columbian_Owl_-_5._Short-eared_Owl.jpg",
+   "plate": 432,
+   "title": "Burrowing Owl, Large-headed Burrowing Owl, Little night Owl, Columbian Owl and Short-eared Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Asio otus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0383",
+   "file": "383 Long-eared Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:383_Long-eared_Owl.jpg",
+   "plate": 383,
+   "title": "Long-eared Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Athene cunicularia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0432",
+   "file": "432 I. Burrowing Owl - 2. Large-headed Burrowing Owl - 3. Little night Owl - 4. Columbian Owl - 5. Short-eared Owl.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:432_I._Burrowing_Owl_-_2._Large-headed_Burrowing_Owl_-_3._Little_night_Owl_-_4._Columbian_Owl_-_5._Short-eared_Owl.jpg",
+   "plate": 432,
+   "title": "Burrowing Owl, Large-headed Burrowing Owl, Little night Owl, Columbian Owl and Short-eared Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aythya americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0322",
+   "file": "322 Red-headed Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:322_Red-headed_Duck.jpg",
+   "plate": 322,
+   "title": "Red-headed Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aythya collaris": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0234",
+   "file": "234 Tufted Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:234_Tufted_Duck.jpg",
+   "plate": 234,
+   "title": "Ring-necked Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aythya marila": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0229",
+   "file": "229 Scaup Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:229_Scaup_Duck.jpg",
+   "plate": 229,
+   "title": "Scaup Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Aythya valisineria": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0301",
+   "file": "301 Canvas backed Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:301_Canvas_backed_Duck.jpg",
+   "plate": 301,
+   "title": "Canvas backed Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Baeolophus bicolor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0039",
+   "file": "39 Crested Titmouse.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:39_Crested_Titmouse.jpg",
+   "plate": 39,
+   "title": "Crested Titmouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bartramia longicauda": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0303",
+   "file": "303 Bartram Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:303_Bartram_Sandpiper.jpg",
+   "plate": 303,
+   "title": "Bartram Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bombycilla cedrorum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0043",
+   "file": "43 Cedar Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:43_Cedar_Bird.jpg",
+   "plate": 43,
+   "title": "Cedar Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bombycilla garrulus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0363",
+   "file": "363 Bohemian Chatterer.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:363_Bohemian_Chatterer.jpg",
+   "plate": 363,
+   "title": "Bohemian Chatterer",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bonasa umbellus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0041",
+   "file": "41 Ruffed Grouse.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:41_Ruffed_Grouse.jpg",
+   "plate": 41,
+   "title": "Ruffed Grouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Botaurus lentiginosus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0337",
+   "file": "337 American Bittern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:337_American_Bittern.jpg",
+   "plate": 337,
+   "title": "American Bittern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Brachyramphus marmoratus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0430",
+   "file": "430 Slender-billed Guillemot.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:430_Slender-billed_Guillemot.jpg",
+   "plate": 430,
+   "title": "Slender-billed Guillemot",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Branta bernicla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0391",
+   "file": "391 Brant Goose.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:391_Brant_Goose.jpg",
+   "plate": 391,
+   "title": "Brant Goose",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Branta canadensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0201",
+   "file": "201 Canada Goose.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:201_Canada_Goose.jpg",
+   "plate": 201,
+   "title": "Canada Goose",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Branta hutchinsii": {
+   "credit": "This file comes from the Biodiversity Heritage Library , and is available online at biodiversitylibrary.org/page/40392741 .",
+   "credit_url": "https://meta.wikimedia.org/wiki/Biodiversity_Heritage_Library",
+   "file": "277 Hutchins's Barnacle Goose.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:277_Hutchins's_Barnacle_Goose.jpg",
+   "plate": 277,
+   "title": "Hutchins's Barnacle Goose",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Branta leucopsis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0296",
+   "file": "296 Barnacle Goose.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:296_Barnacle_Goose.jpg",
+   "plate": 296,
+   "title": "Barnacle Goose",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bubo scandiacus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0121",
+   "file": "121 Snowy Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:121_Snowy_Owl.jpg",
+   "plate": 121,
+   "title": "Snowy Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bubo virginianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0061",
+   "file": "61 Great Horned Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:61_Great_Horned_Owl.jpg",
+   "plate": 61,
+   "title": "Great Horned Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bucephala albeola": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0325",
+   "file": "325 Buffel-headed Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:325_Buffel-headed_Duck.jpg",
+   "plate": 325,
+   "title": "Buffel-headed Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bucephala clangula": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0342",
+   "file": "342 Golden-Eye Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:342_Golden-Eye_Duck.jpg",
+   "plate": 342,
+   "title": "Golden-Eye Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Bucephala islandica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0403",
+   "file": "403 Golden-eye Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:403_Golden-eye_Duck.jpg",
+   "plate": 403,
+   "title": "Golden-eye Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Buteo jamaicensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0051",
+   "file": "51 Red-tailed Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:51_Red-tailed_Hawk.jpg",
+   "plate": 51,
+   "title": "Red-tailed Hawk",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Buteo lagopus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0166",
+   "file": "166 Rough-legged Falcon.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:166_Rough-legged_Falcon.jpg",
+   "plate": 166,
+   "title": "Rough-legged Falcon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Buteo lineatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0056",
+   "file": "56 Red-shouldered Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:56_Red-shouldered_Hawk.jpg",
+   "plate": 56,
+   "title": "Red-shouldered Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Buteo platypterus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0091",
+   "file": "91 Broad-winged Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:91_Broad-winged_Hawk.jpg",
+   "plate": 91,
+   "title": "Broad-winged Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Buteo swainsoni": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0372",
+   "file": "372 Common Buzzard.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:372_Common_Buzzard.jpg",
+   "plate": 372,
+   "title": "Common Buzzard",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Butorides virescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0333",
+   "file": "333 Green Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:333_Green_Heron.jpg",
+   "plate": 333,
+   "title": "Green Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calamospiza melanocorys": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0390",
+   "file": "390 I. Lark Finch - 2. Prairie Finch - 3. Brown Song Sparrow.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:390_I._Lark_Finch_-_2._Prairie_Finch_-_3._Brown_Song_Sparrow.jpg",
+   "plate": 390,
+   "title": "Lark Finch, Prairie Finch and Brown Song Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calcarius lapponicus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0365",
+   "file": "365 Lapland Long-spur.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:365_Lapland_Long-spur.jpg",
+   "plate": 365,
+   "title": "Lapland Long-spur",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calcarius ornatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0394",
+   "file": "394 I. Chestnut-coloured Finch - 2. Black-headed Siskin - 3. Black crown Bunting - 4. Arctic Ground Finch.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:394_I._Chestnut-coloured_Finch_-_2._Black-headed_Siskin_-_3._Black_crown_Bunting_-_4._Arctic_Ground_Finch.jpg",
+   "plate": 394,
+   "title": "Chestnut-coloured Finch, Black-headed Siskin, Black crown Bunting and Arctic Ground Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calcarius pictus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0400",
+   "file": "400 I. Arkansaw Siskin - 2. Mealy Red-poll - 3. Louisiana Tanager - 4.Townsend's Finch - 5. Buff-breasted Finch.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:400_I._Arkansaw_Siskin_-_2._Mealy_Red-poll_-_3._Louisiana_Tanager_-_4.Townsend's_Finch_-_5._Buff-breasted_Finch.jpg",
+   "plate": 400,
+   "title": "Arkansaw Siskin, Mealy Red-poll, Louisiana Tanager, Townsend's Bunting and Buff-breasted Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris alba": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0230",
+   "file": "230 Ruddy Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:230_Ruddy_Plover.jpg",
+   "plate": 230,
+   "title": "Sanderling",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris alpina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0290",
+   "file": "290 Red backed Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:290_Red_backed_Sandpiper.jpg",
+   "plate": 290,
+   "title": "Red backed Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris canutus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0315",
+   "file": "315 Red-breasted Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:315_Red-breasted_Sandpiper.jpg",
+   "plate": 315,
+   "title": "Red-breasted Sandpiper",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Calidris ferruginea": {
+   "credit": "http://digital.library.pitt.edu/a/audubon/",
+   "credit_url": "http://digital.library.pitt.edu/a/audubon/",
+   "file": "263 Pigmy Curlew.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:263_Pigmy_Curlew.jpg",
+   "plate": 263,
+   "title": "Pigmy Curlew",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris fuscicollis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0278",
+   "file": "278 Schinz's Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:278_Schinz's_Sandpiper.jpg",
+   "plate": 278,
+   "title": "Schinz's Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris himantopus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0344",
+   "file": "344 Long-legged Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:344_Long-legged_Sandpiper.jpg",
+   "plate": 344,
+   "title": "Long-legged Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris maritima": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0284",
+   "file": "284 Purple Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:284_Purple_Sandpiper.jpg",
+   "plate": 284,
+   "title": "Purple Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris melanotos": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0294",
+   "file": "294 Pectoral Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:294_Pectoral_Sandpiper.jpg",
+   "plate": 294,
+   "title": "Pectoral Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris minutilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0320",
+   "file": "320 Little Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:320_Little_Sandpiper.jpg",
+   "plate": 320,
+   "title": "Little Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris pusilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0405",
+   "file": "405 Semipalmated Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:405_Semipalmated_Sandpiper.jpg",
+   "plate": 405,
+   "title": "Semipalmated Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris subruficollis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0265",
+   "file": "265 Buff breasted Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:265_Buff_breasted_Sandpiper.jpg",
+   "plate": 265,
+   "title": "Buff breasted Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calidris virgata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0428",
+   "file": "428 Townsend's Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:428_Townsend's_Sandpiper.jpg",
+   "plate": 428,
+   "title": "Townsend's Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Callipepla californica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0413",
+   "file": "413 California Partridge.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:413_California_Partridge.jpg",
+   "plate": 413,
+   "title": "California Partridge",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calocitta colliei": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0096",
+   "file": "96 Columbia Jay.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:96_Columbia_Jay.jpg",
+   "plate": 96,
+   "title": "Columbia Jay",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Calypte anna": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0425",
+   "file": "425 Columbian Humming Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:425_Columbian_Humming_Bird.jpg",
+   "plate": 425,
+   "title": "Columbian Humming Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Canachites canadensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0176",
+   "file": "176 Spotted Grous.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:176_Spotted_Grous.jpg",
+   "plate": 176,
+   "title": "Spotted Grouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Caracara plancus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0161",
+   "file": "161 Brasilian Caracara Eagle.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:161_Brasilian_Caracara_Eagle.jpg",
+   "plate": 161,
+   "title": "Brasilian Caracara Eagle",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cardellina canadensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0103",
+   "file": "103 Canada Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:103_Canada_Warbler.jpg",
+   "plate": 103,
+   "title": "Canada Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cardellina pusilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0124",
+   "file": "124 Green Black-capt Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:124_Green_Black-capt_Flycatcher.jpg",
+   "plate": 124,
+   "title": "Green Black-capt Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cardinalis cardinalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0159",
+   "file": "159 Cardinal Grosbeak.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:159_Cardinal_Grosbeak.jpg",
+   "plate": 159,
+   "title": "Cardinal Grosbeak",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cathartes aura": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0151",
+   "file": "151 Turkey Buzzard.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:151_Turkey_Buzzard.jpg",
+   "plate": 151,
+   "title": "Turkey Buzzard",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Catharus fuscescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0164",
+   "file": "164 Tawny Thrush.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:164_Tawny_Thrush.jpg",
+   "plate": 164,
+   "title": "Tawny Thrush",
+   "via": [
+    "commons"
+   ]
+  },
+  "Catharus guttatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0058",
+   "file": "58 Hermit Thrush.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:58_Hermit_Thrush.jpg",
+   "plate": 58,
+   "title": "Hermit Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Centrocercus urophasianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0371",
+   "file": "371 Cock of the Plains.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:371_Cock_of_the_Plains.jpg",
+   "plate": 371,
+   "title": "Cock of the Plains",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Centronyx henslowii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0070",
+   "file": "70 Henslow's Bunting.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:70_Henslow's_Bunting.jpg",
+   "plate": 70,
+   "title": "Henslow's Bunting",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cepphus grylle": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0219",
+   "file": "219 Black Guillemot.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:219_Black_Guillemot.jpg",
+   "plate": 219,
+   "title": "Black Guillemot",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Certhia americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0415",
+   "file": "415 I. Brown Creeper - 2. Californian Nuthatch.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:415_I._Brown_Creeper_-_2._Californian_Nuthatch.jpg",
+   "plate": 415,
+   "title": "Brown Creeper and Californian Nuthatch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Chaetura pelagica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0158",
+   "file": "158 American Swift.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:158_American_Swift.jpg",
+   "plate": 158,
+   "title": "American Swift",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Charadrius melodus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0220",
+   "file": "220 Piping Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:220_Piping_Plover.jpg",
+   "plate": 220,
+   "title": "Piping Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Charadrius montanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0350",
+   "file": "350 Rocky Mountain Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:350_Rocky_Mountain_Plover.jpg",
+   "plate": 350,
+   "title": "Rocky Mountain Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Charadrius semipalmatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0330",
+   "file": "330 Ring Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:330_Ring_Plover.jpg",
+   "plate": 330,
+   "title": "Ring Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Charadrius vociferus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0225",
+   "file": "225 Kildeer Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:225_Kildeer_Plover.jpg",
+   "plate": 225,
+   "title": "Kildeer Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Charadrius wilsonia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0209",
+   "file": "209 Wilson's Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:209_Wilson's_Plover.jpg",
+   "plate": 209,
+   "title": "Wilson's Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Chlidonias niger": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0280",
+   "file": "280 Black Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:280_Black_Tern.jpg",
+   "plate": 280,
+   "title": "Black Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Chondestes grammacus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0390",
+   "file": "390 I. Lark Finch - 2. Prairie Finch - 3. Brown Song Sparrow.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:390_I._Lark_Finch_-_2._Prairie_Finch_-_3._Brown_Song_Sparrow.jpg",
+   "plate": 390,
+   "title": "Lark Finch, Prairie Finch and Brown Song Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Chordeiles minor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0147",
+   "file": "147 Night Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:147_Night_Hawk.jpg",
+   "plate": 147,
+   "title": "Night Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Chroicocephalus philadelphia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0324",
+   "file": "324 Bonapartian Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:324_Bonapartian_Gull.jpg",
+   "plate": 324,
+   "title": "Bonapartian Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cinclus mexicanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0370",
+   "file": "370 American Water Ouzel.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:370_American_Water_Ouzel.jpg",
+   "plate": 370,
+   "title": "American Water Ouzel",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Circus hudsonius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0356",
+   "file": "356 Marsh Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:356_Marsh_Hawk.jpg",
+   "plate": 356,
+   "title": "Marsh Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cistothorus palustris": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0100",
+   "file": "100 Marsh Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:100_Marsh_Wren.jpg",
+   "plate": 100,
+   "title": "Marsh Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cistothorus stellaris": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0175",
+   "file": "175 Nuttall's lesser-marsh Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:175_Nuttall's_lesser-marsh_Wren.jpg",
+   "plate": 175,
+   "title": "Nuttall's lesser-marsh Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Clangula hyemalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0312",
+   "file": "312 Long-tailed Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:312_Long-tailed_Duck.jpg",
+   "plate": 312,
+   "title": "Long-tailed Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Coccothraustes vespertinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0373",
+   "file": "373 I. Evening Grosbeak - 2. Spotted Grosbeak.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:373_I._Evening_Grosbeak_-_2._Spotted_Grosbeak.jpg",
+   "plate": 373,
+   "title": "Evening Grosbeak and Spotted Grosbeak",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Coccyzus americanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0002",
+   "file": "2 Yellow-billed Cuckoo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:2_Yellow-billed_Cuckoo.jpg",
+   "plate": 2,
+   "title": "Yellow-billed Cuckoo",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Coccyzus erythropthalmus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0032",
+   "file": "32 Black-billed Cuckoo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:32_Black-billed_Cuckoo.jpg",
+   "plate": 32,
+   "title": "Black-billed Cuckoo",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Coccyzus minor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0169",
+   "file": "169 Mangrove Cuckoo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:169_Mangrove_Cuckoo.jpg",
+   "plate": 169,
+   "title": "Mangrove Cuckoo",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Colaptes auratus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0037",
+   "file": "37 Golden-winged Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:37_Golden-winged_Woodpecker.jpg",
+   "plate": 37,
+   "title": "Golden-winged Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Colinus virginianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0076",
+   "file": "76 Virginian Partridge.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:76_Virginian_Partridge.jpg",
+   "plate": 76,
+   "title": "Virginian Partridge",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Columbina passerina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0182",
+   "file": "182 Ground Dove.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:182_Ground_Dove.jpg",
+   "plate": 182,
+   "title": "Ground Dove",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Contopus cooperi": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0174",
+   "file": "174 Olive sided Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:174_Olive_sided_Flycatcher.jpg",
+   "plate": 174,
+   "title": "Olive sided Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Contopus virens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0115",
+   "file": "115 Wood Pewee.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:115_Wood_Pewee.jpg",
+   "plate": 115,
+   "title": "Wood Pewee",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Coragyps atratus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0106",
+   "file": "106 Black Vulture or Carrion Crow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:106_Black_Vulture_or_Carrion_Crow.jpg",
+   "plate": 106,
+   "title": "Black Vulture, or Carrion Crow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Corthylio calendula": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0195",
+   "file": "195 Ruby crowned Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:195_Ruby_crowned_Wren.jpg",
+   "plate": 195,
+   "title": "Ruby crowned Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Corvus brachyrhynchos": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0156",
+   "file": "156 American Crow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:156_American_Crow.jpg",
+   "plate": 156,
+   "title": "American Crow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Corvus corax": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0101",
+   "file": "101 Raven.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:101_Raven.jpg",
+   "plate": 101,
+   "title": "Raven",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Corvus ossifragus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0146",
+   "file": "146 Fish Crow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:146_Fish_Crow.jpg",
+   "plate": 146,
+   "title": "Fish Crow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Coturnicops noveboracensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0329",
+   "file": "329 Yellow-breasted Rail.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:329_Yellow-breasted_Rail.jpg",
+   "plate": 329,
+   "title": "Yellow-breasted Rail",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cyanocitta cristata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0102",
+   "file": "102 Blue Jay.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:102_Blue_Jay.jpg",
+   "plate": 102,
+   "title": "Blue Jay",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cyanocitta stelleri": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0362",
+   "file": "362 I. Yellow billed Magpie - 2. Stellers Jay - 3. Ultramarine Jay - 4. Clark's Crow.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:362_I._Yellow_billed_Magpie_-_2._Stellers_Jay_-_3._Ultramarine_Jay_-_4._Clark's_Crow.jpg",
+   "plate": 362,
+   "title": "Yellow-Billed Magpie, Stellers Jay, Ultramarine Jay and Clark's Crow",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Cygnus buccinator": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0376",
+   "file": "376 Trumpeter Swan.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:376_Trumpeter_Swan.jpg",
+   "plate": 376,
+   "title": "Trumpeter Swan",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Cygnus columbianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0411",
+   "file": "411 Common American Swan.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:411_Common_American_Swan.jpg",
+   "plate": 411,
+   "title": "Common American Swan",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dendragapus obscurus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0361",
+   "file": "361 Long-tailed or Dusky Grous.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:361_Long-tailed_or_Dusky_Grous.jpg",
+   "plate": 361,
+   "title": "Long-tailed, or Dusky Grous",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dolichonyx oryzivorus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0054",
+   "file": "54 Rice Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:54_Rice_Bird.jpg",
+   "plate": 54,
+   "title": "Rice Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dryobates borealis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0389",
+   "file": "389 Red-Cockaded Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:389_Red-Cockaded_Woodpecker.jpg",
+   "plate": 389,
+   "title": "Red-Cockaded Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dryobates pubescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0112",
+   "file": "112 Downy Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:112_Downy_Woodpecker.jpg",
+   "plate": 112,
+   "title": "Downy Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dryobates villosus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0416",
+   "file": "416 I. Hairy Woodpecker - 2. Red-bellied Woodpecker - 3. Red-shafted Woodpecker - 4. Lewis' Woodpecker - 5. Red-breasted Woodpecker.jpg",
+   "on_plate": 5,
+   "page": "https://commons.wikimedia.org/wiki/File:416_I._Hairy_Woodpecker_-_2._Red-bellied_Woodpecker_-_3._Red-shafted_Woodpecker_-_4._Lewis'_Woodpecker_-_5._Red-breasted_Woodpecker.jpg",
+   "plate": 416,
+   "title": "Hairy Woodpecker, Red-bellied Woodpecker, Red-shafted Woodpecker, Lewis' Woodpecker and Red-breasted Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dryocopus pileatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0111",
+   "file": "111 Pileated Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:111_Pileated_Woodpecker.jpg",
+   "plate": 111,
+   "title": "Pileated Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Dumetella carolinensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0128",
+   "file": "128 Cat Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:128_Cat_Bird.jpg",
+   "plate": 128,
+   "title": "Cat Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Egretta caerulea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0307",
+   "file": "307 Blue Crane or Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:307_Blue_Crane_or_Heron.jpg",
+   "plate": 307,
+   "title": "Blue Crane, or Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Egretta rufescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0256",
+   "file": "256 Purple Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:256_Purple_Heron.jpg",
+   "plate": 256,
+   "title": "Purple Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Egretta thula": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0242",
+   "file": "242 Snowy Heron or White Egret.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:242_Snowy_Heron_or_White_Egret.jpg",
+   "plate": 242,
+   "title": "Snowy Heron or White Egret",
+   "via": [
+    "commons"
+   ]
+  },
+  "Egretta tricolor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0217",
+   "file": "217 Louisiana Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:217_Louisiana_Heron.jpg",
+   "plate": 217,
+   "title": "Louisiana Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Elanoides forficatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0072",
+   "file": "72 Swallow-tailed Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:72_Swallow-tailed_Hawk.jpg",
+   "plate": 72,
+   "title": "Swallow-tailed Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Elanus leucurus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0352",
+   "file": "352 Black-Winged Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:352_Black-Winged_Hawk.jpg",
+   "plate": 352,
+   "title": "Black-Winged Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Empidonax alnorum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0045",
+   "file": "45 Traill's Flycatcher.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:45_Traill's_Flycatcher.jpg",
+   "plate": 45,
+   "title": "Traill's Flycatcher",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Empidonax traillii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0045",
+   "file": "45 Traill's Flycatcher.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:45_Traill's_Flycatcher.jpg",
+   "plate": 45,
+   "title": "Traill's Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Empidonax virescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0144",
+   "file": "144 Small Green Crested Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:144_Small_Green_Crested_Flycatcher.jpg",
+   "plate": 144,
+   "title": "Small Green Crested Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Eremophila alpestris": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0200",
+   "file": "200 Shore Lark.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:200_Shore_Lark.jpg",
+   "plate": 200,
+   "title": "Shore Lark",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Eudocimus albus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0222",
+   "file": "222 White Ibis.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:222_White_Ibis.jpg",
+   "plate": 222,
+   "title": "White Ibis",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Euphagus carolinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0157",
+   "file": "157 Rusty Grakle.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:157_Rusty_Grakle.jpg",
+   "plate": 157,
+   "title": "Rusty Grakle",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Falco columbarius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0092",
+   "file": "92 Pigeon Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:92_Pigeon_Hawk.jpg",
+   "plate": 92,
+   "title": "Pigeon Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Falco peregrinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0016",
+   "file": "16 Great-footed Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:16_Great-footed_Hawk.jpg",
+   "plate": 16,
+   "title": "Great-footed Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Falco rusticolus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0196",
+   "file": "196 Labrador Falcon.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:196_Labrador_Falcon.jpg",
+   "plate": 196,
+   "title": "Labrador Falcon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Falco sparverius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0142",
+   "file": "142 American Sparrow Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:142_American_Sparrow_Hawk.jpg",
+   "plate": 142,
+   "title": "American Sparrow Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Fratercula arctica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0213",
+   "file": "213 Puffin.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:213_Puffin.jpg",
+   "plate": 213,
+   "title": "Puffin",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Fregata magnificens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0271",
+   "file": "271 Frigate Pelican.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:271_Frigate_Pelican.jpg",
+   "plate": 271,
+   "title": "Frigate Pelican",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Fulica americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0239",
+   "file": "239 American Coot.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:239_American_Coot.jpg",
+   "plate": 239,
+   "title": "American Coot",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Fulmarus glacialis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0264",
+   "file": "264 Fulmar Petrel.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:264_Fulmar_Petrel.jpg",
+   "plate": 264,
+   "title": "Fulmar Petrel",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Gallinago delicata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0243",
+   "file": "243 American Snipe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:243_American_Snipe.jpg",
+   "plate": 243,
+   "title": "American Snipe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Gallinula galeata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0244",
+   "file": "244 Common Gallinule.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:244_Common_Gallinule.jpg",
+   "plate": 244,
+   "title": "Common Gallinule",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Gavia immer": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0306",
+   "file": "306 Great Northern Diver or Loon.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:306_Great_Northern_Diver_or_Loon.jpg",
+   "plate": 306,
+   "title": "Great Northern Diver, or Loon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Gavia pacifica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0346",
+   "file": "346 Black-Throated Diver.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:346_Black-Throated_Diver.jpg",
+   "plate": 346,
+   "title": "Black-Throated Diver",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Gavia stellata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0202",
+   "file": "202 Red-Throated Diver.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:202_Red-Throated_Diver.jpg",
+   "plate": 202,
+   "title": "Red-Throated Diver",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Gelochelidon nilotica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0410",
+   "file": "410 Marsh Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:410_Marsh_Tern.jpg",
+   "plate": 410,
+   "title": "Marsh Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Geothlypis formosa": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0038",
+   "file": "38 Kentucky Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:38_Kentucky_Warbler.jpg",
+   "plate": 38,
+   "title": "Kentucky Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Geothlypis philadelphia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0399",
+   "file": "399 I. Black-throated green Warbler - 2. Blackburnian - 3. Mourning Warbler.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:399_I._Black-throated_green_Warbler_-_2._Blackburnian_-_3._Mourning_Warbler.jpg",
+   "plate": 399,
+   "title": "Black-throated green Warbler, Blackburnian and Mourning Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Geothlypis trichas": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0023",
+   "file": "23 Yellow-breasted Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:23_Yellow-breasted_Warbler.jpg",
+   "plate": 23,
+   "title": "Yellow-breasted Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Geotrygon chrysia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0167",
+   "file": "167 Key-west Dove.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:167_Key-west_Dove.jpg",
+   "plate": 167,
+   "title": "Key-west Dove",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Grus americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0226",
+   "file": "226 Hooping Crane.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:226_Hooping_Crane.jpg",
+   "plate": 226,
+   "title": "Hooping Crane",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Haematopus bachmani": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0427",
+   "file": "427 I. White-legged Oyster-catcher - 2. Slender-billed Oyster-catcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:427_I._White-legged_Oyster-catcher_-_2._Slender-billed_Oyster-catcher.jpg",
+   "plate": 427,
+   "title": "White-legged Oyster-catcher, or Slender-billed Oyster-catcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Haematopus palliatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0223",
+   "file": "223 Pied oyster-catcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:223_Pied_oyster-catcher.jpg",
+   "plate": 223,
+   "title": "Pied oyster-catcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Haemorhous mexicanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0424",
+   "file": "424 I. Lazuli Finch - 2. Crimson-necked Bull-Finch - 3. Gray-crowned Linnet - 4. Cow-pen Bird - 5. Evening Grosbeak - 6. Brown Longspur.jpg",
+   "on_plate": 6,
+   "page": "https://commons.wikimedia.org/wiki/File:424_I._Lazuli_Finch_-_2._Crimson-necked_Bull-Finch_-_3._Gray-crowned_Linnet_-_4._Cow-pen_Bird_-_5._Evening_Grosbeak_-_6._Brown_Longspur.jpg",
+   "plate": 424,
+   "title": "Lazuli Finch, Crimson-necked Bull-Finch, Gray-crowned Linnet, Cow-pen Bird, Evening Grosbeak and Brown Longspur",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Haemorhous purpureus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0004",
+   "file": "4 Purple Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:4_Purple_Finch.jpg",
+   "plate": 4,
+   "title": "Purple Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Haliaeetus leucocephalus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0031",
+   "file": "31 White-headed Eagle.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:31_White-headed_Eagle.jpg",
+   "plate": 31,
+   "title": "White-headed Eagle",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Helmitheros vermivorum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0034",
+   "file": "34 Worm eating Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:34_Worm_eating_Warbler.jpg",
+   "plate": 34,
+   "title": "Worm eating Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Himantopus mexicanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0328",
+   "file": "328 Long-legged Avocet.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:328_Long-legged_Avocet.jpg",
+   "plate": 328,
+   "title": "Long-legged Avocet",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Hirundo rustica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0173",
+   "file": "173 Barn Swallow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:173_Barn_Swallow.jpg",
+   "plate": 173,
+   "title": "Barn Swallow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Histrionicus histrionicus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0297",
+   "file": "297 Harlequin Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:297_Harlequin_Duck.jpg",
+   "plate": 297,
+   "title": "Harlequin Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Hydrobates leucorhous": {
+   "credit": "http://digital.library.pitt.edu/a/audubon/",
+   "credit_url": "http://digital.library.pitt.edu/a/audubon/",
+   "file": "260 Fork-tail Petrel.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:260_Fork-tail_Petrel.jpg",
+   "plate": 260,
+   "title": "Fork-tail Petrel",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Hydrobates pelagicus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0340",
+   "file": "340 Least Stormy-Petrel.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:340_Least_Stormy-Petrel.jpg",
+   "plate": 340,
+   "title": "Least Stormy-Petrel",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Hylocichla mustelina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0073",
+   "file": "73 Wood Thrush.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:73_Wood_Thrush.jpg",
+   "plate": 73,
+   "title": "Wood Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Icteria virens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0137",
+   "file": "137 Yellow-breasted Chat.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:137_Yellow-breasted_Chat.jpg",
+   "plate": 137,
+   "title": "Yellow-breasted Chat",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Icterus bullockii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0388",
+   "file": "388 I. Nuttall's Starling - 2. Yellow-headed Troopial - 3. Bullock's Oriole.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:388_I._Nuttall's_Starling_-_2._Yellow-headed_Troopial_-_3._Bullock's_Oriole.jpg",
+   "plate": 388,
+   "title": "Nuttall's Starling, Yellow-headed Troopial and Bullock's Oriole",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Icterus galbula": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0012",
+   "file": "12 Baltimore Oriole.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:12_Baltimore_Oriole.jpg",
+   "plate": 12,
+   "title": "Baltimore Oriole",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Icterus spurius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0042",
+   "file": "42 Orchard Oriole.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:42_Orchard_Oriole.jpg",
+   "plate": 42,
+   "title": "Orchard Oriole",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ictinia mississippiensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0117",
+   "file": "117 Mississippi Kite.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:117_Mississippi_Kite.jpg",
+   "plate": 117,
+   "title": "Mississippi Kite",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Ixobrychus exilis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0210",
+   "file": "210 Least Bittern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:210_Least_Bittern.jpg",
+   "plate": 210,
+   "title": "Least Bittern",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Ixoreus naevius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0369",
+   "file": "369 I. Mountain Mocking bird - 2. Varied Thrush.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:369_I._Mountain_Mocking_bird_-_2._Varied_Thrush.jpg",
+   "plate": 369,
+   "title": "Mountain Mocking bird and Varied Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Junco hyemalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0013",
+   "file": "13 Snow Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:13_Snow_Bird.jpg",
+   "plate": 13,
+   "title": "Snow Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Lagopus lagopus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0191",
+   "file": "191 Willow Grous or Large Ptarmigan.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:191_Willow_Grous_or_Large_Ptarmigan.jpg",
+   "plate": 191,
+   "title": "Willow Grouse, or Large Ptarmigan",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Lagopus leucura": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0418",
+   "file": "418 I. American Ptarmigan - 2. White-tailed Grous.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:418_I._American_Ptarmigan_-_2._White-tailed_Grous.jpg",
+   "plate": 418,
+   "title": "American Ptarmigan and White-tailed Grous",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Lagopus muta": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0368",
+   "file": "368 Rock Grous.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:368_Rock_Grous.jpg",
+   "plate": 368,
+   "title": "Rock Grous",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Lanius borealis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0192",
+   "file": "192 Great American Shrike or Butcher Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:192_Great_American_Shrike_or_Butcher_Bird.jpg",
+   "plate": 192,
+   "title": "Great cinereous Shrike, or Butcher Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Lanius ludovicianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0057",
+   "file": "57 Loggerhead Shrike.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:57_Loggerhead_Shrike.jpg",
+   "plate": 57,
+   "title": "Loggerhead Shrike",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Larus argentatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0291",
+   "file": "291 Herring Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:291_Herring_Gull.jpg",
+   "plate": 291,
+   "title": "Herring Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Larus delawarensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0212",
+   "file": "212 Common Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:212_Common_Gull.jpg",
+   "plate": 212,
+   "title": "Common American Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Larus glaucoides": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0282",
+   "file": "282 White-winged silvery Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:282_White-winged_silvery_Gull.jpg",
+   "plate": 282,
+   "title": "White-winged silvery Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Larus hyperboreus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0396",
+   "file": "396 Burgomaster Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:396_Burgomaster_Gull.jpg",
+   "plate": 396,
+   "title": "Burgomaster Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Larus marinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0241",
+   "file": "241 Black Backed Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:241_Black_Backed_Gull.jpg",
+   "plate": 241,
+   "title": "Black Backed Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Laterallus jamaicensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0349",
+   "file": "349 Least Water-hen.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:349_Least_Water-hen.jpg",
+   "plate": 349,
+   "title": "Least Water-hen",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Leiothlypis celata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0178",
+   "file": "178 Orange-crowned Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:178_Orange-crowned_Warbler.jpg",
+   "plate": 178,
+   "title": "Orange-crowned Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Leiothlypis peregrina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0154",
+   "file": "154 Tennessee Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:154_Tennessee_Warbler.jpg",
+   "plate": 154,
+   "title": "Tennessee Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Leiothlypis ruficapilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0089",
+   "file": "89 Nashville Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:89_Nashville_Warbler.jpg",
+   "plate": 89,
+   "title": "Nashville Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Leucophaeus atricilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0314",
+   "file": "314 Black-headed Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:314_Black-headed_Gull.jpg",
+   "plate": 314,
+   "title": "Black-headed Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Leucosticte tephrocotis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0424",
+   "file": "424 I. Lazuli Finch - 2. Crimson-necked Bull-Finch - 3. Gray-crowned Linnet - 4. Cow-pen Bird - 5. Evening Grosbeak - 6. Brown Longspur.jpg",
+   "on_plate": 6,
+   "page": "https://commons.wikimedia.org/wiki/File:424_I._Lazuli_Finch_-_2._Crimson-necked_Bull-Finch_-_3._Gray-crowned_Linnet_-_4._Cow-pen_Bird_-_5._Evening_Grosbeak_-_6._Brown_Longspur.jpg",
+   "plate": 424,
+   "title": "Lazuli Finch, Crimson-necked Bull-Finch, Gray-crowned Linnet, Cow-pen Bird, Evening Grosbeak and Brown Longspur",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Limnodromus griseus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0335",
+   "file": "335 Red-breasted Snipe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:335_Red-breasted_Snipe.jpg",
+   "plate": 335,
+   "title": "Red-breasted Snipe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Limnothlypis swainsonii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0198",
+   "file": "198 Brown headed Worm eating Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:198_Brown_headed_Worm_eating_Warbler.jpg",
+   "plate": 198,
+   "title": "Brown headed Worm eating Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Limosa fedoa": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0238",
+   "file": "238 Great Marbled Godwit.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:238_Great_Marbled_Godwit.jpg",
+   "plate": 238,
+   "title": "Great Marbled Godwit",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Limosa haemastica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0258",
+   "file": "258 Hudsonian Godwit.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:258_Hudsonian_Godwit.jpg",
+   "plate": 258,
+   "title": "Hudsonian Godwit",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Lophodytes cucullatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0232",
+   "file": "232 Hooded Merganser.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:232_Hooded_Merganser.jpg",
+   "plate": 232,
+   "title": "Hooded Merganser",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Loxia curvirostra": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0197",
+   "file": "197 American Crossbill.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:197_American_Crossbill.jpg",
+   "plate": 197,
+   "title": "American Crossbill",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Loxia leucoptera": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0364",
+   "file": "364 White-winged Crossbill.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:364_White-winged_Crossbill.jpg",
+   "plate": 364,
+   "title": "White-winged Crossbill",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mareca americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0345",
+   "file": "345 American Widgeon.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:345_American_Widgeon.jpg",
+   "plate": 345,
+   "title": "American Widgeon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mareca strepera": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0348",
+   "file": "348 Gadwall Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:348_Gadwall_Duck.jpg",
+   "plate": 348,
+   "title": "Gadwall Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Megaceryle alcyon": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0077",
+   "file": "77 Belted Kingfisher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:77_Belted_Kingfisher.jpg",
+   "plate": 77,
+   "title": "Belted Kingfisher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Megascops asio": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0097",
+   "file": "97 Little Screech Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:97_Little_Screech_Owl.jpg",
+   "plate": 97,
+   "title": "Little Screech Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melanerpes carolinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0416",
+   "file": "416 I. Hairy Woodpecker - 2. Red-bellied Woodpecker - 3. Red-shafted Woodpecker - 4. Lewis' Woodpecker - 5. Red-breasted Woodpecker.jpg",
+   "on_plate": 5,
+   "page": "https://commons.wikimedia.org/wiki/File:416_I._Hairy_Woodpecker_-_2._Red-bellied_Woodpecker_-_3._Red-shafted_Woodpecker_-_4._Lewis'_Woodpecker_-_5._Red-breasted_Woodpecker.jpg",
+   "plate": 416,
+   "title": "Hairy Woodpecker, Red-bellied Woodpecker, Red-shafted Woodpecker, Lewis' Woodpecker and Red-breasted Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melanerpes erythrocephalus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0027",
+   "file": "27 Red headed Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:27_Red_headed_Woodpecker.jpg",
+   "plate": 27,
+   "title": "Red headed Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melanerpes lewis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0416",
+   "file": "416 I. Hairy Woodpecker - 2. Red-bellied Woodpecker - 3. Red-shafted Woodpecker - 4. Lewis' Woodpecker - 5. Red-breasted Woodpecker.jpg",
+   "on_plate": 5,
+   "page": "https://commons.wikimedia.org/wiki/File:416_I._Hairy_Woodpecker_-_2._Red-bellied_Woodpecker_-_3._Red-shafted_Woodpecker_-_4._Lewis'_Woodpecker_-_5._Red-breasted_Woodpecker.jpg",
+   "plate": 416,
+   "title": "Hairy Woodpecker, Red-bellied Woodpecker, Red-shafted Woodpecker, Lewis' Woodpecker and Red-breasted Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melanitta americana": {
+   "credit": "http://digital.library.pitt.edu/a/audubon/",
+   "credit_url": "http://digital.library.pitt.edu/a/audubon/",
+   "file": "408 American Scoter Duc.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:408_American_Scoter_Duc.jpg",
+   "plate": 408,
+   "title": "American Scoter Duck",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Melanitta fusca": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0247",
+   "file": "247 Velvet Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:247_Velvet_Duck.jpg",
+   "plate": 247,
+   "title": "Velvet Duck",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Melanitta perspicillata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0317",
+   "file": "317 Black, or Surf Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:317_Black,_or_Surf_Duck.jpg",
+   "plate": 317,
+   "title": "Black, or Surf Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Meleagris gallopavo": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0001",
+   "file": "1 Wild Turkey.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:1_Wild_Turkey.jpg",
+   "plate": 1,
+   "title": "Wild Turkey",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melospiza georgiana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0064",
+   "file": "64 Swamp Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:64_Swamp_Sparrow.jpg",
+   "plate": 64,
+   "title": "Swamp Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melospiza lincolnii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0193",
+   "file": "193 Lincoln Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:193_Lincoln_Finch.jpg",
+   "plate": 193,
+   "title": "Lincoln Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Melospiza melodia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0025",
+   "file": "25 Song Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:25_Song_Sparrow.jpg",
+   "plate": 25,
+   "title": "Song Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mergellus albellus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0347",
+   "file": "347 Smew or White Nun.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:347_Smew_or_White_Nun.jpg",
+   "plate": 347,
+   "title": "Smew, or White Nun",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mergus merganser": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0331",
+   "file": "331 Goosander.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:331_Goosander.jpg",
+   "plate": 331,
+   "title": "Goosander",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mergus serrator": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0401",
+   "file": "401 Red-breasted Merganser.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:401_Red-breasted_Merganser.jpg",
+   "plate": 401,
+   "title": "Red-breasted Merganser",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mimus polyglottos": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0021",
+   "file": "21 Mocking Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:21_Mocking_Bird.jpg",
+   "plate": 21,
+   "title": "Mocking Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mniotilta varia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0090",
+   "file": "90 Black & White Creeper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:90_Black_%26_White_Creeper.jpg",
+   "plate": 90,
+   "title": "Black & White Creeper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Molothrus ater": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0099",
+   "file": "99 Cow-pen Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:99_Cow-pen_Bird.jpg",
+   "plate": 99,
+   "title": "Cow-pen Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Morus bassanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0326",
+   "file": "326 Gannet.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:326_Gannet.jpg",
+   "plate": 326,
+   "title": "Gannet",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Myadestes townsendi": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0419",
+   "file": "419 I. Little Tawny Thrush - 2. Ptiliogony's Townsendi - 3. Canada Jay.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:419_I._Little_Tawny_Thrush_-_2._Ptiliogony's_Townsendi_-_3._Canada_Jay.jpg",
+   "plate": 419,
+   "title": "Little Tawny Thrush, Ptiliogony's Townsendi and Canada Jay",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Mycteria americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0216",
+   "file": "216 Wood Ibiss.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:216_Wood_Ibiss.jpg",
+   "plate": 216,
+   "title": "Wood Ibiss",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Myiarchus crinitus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0129",
+   "file": "129 Great Crested Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:129_Great_Crested_Flycatcher.jpg",
+   "plate": 129,
+   "title": "Great Crested Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Nannopterum auritum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0257",
+   "file": "257 Double-crested Cormorant.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:257_Double-crested_Cormorant.jpg",
+   "plate": 257,
+   "title": "Double-crested Cormorant",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Nucifraga columbiana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0362",
+   "file": "362 I. Yellow billed Magpie - 2. Stellers Jay - 3. Ultramarine Jay - 4. Clark's Crow.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:362_I._Yellow_billed_Magpie_-_2._Stellers_Jay_-_3._Ultramarine_Jay_-_4._Clark's_Crow.jpg",
+   "plate": 362,
+   "title": "Yellow-Billed Magpie, Stellers Jay, Ultramarine Jay and Clark's Crow",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Numenius americanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0231",
+   "file": "231 Long-billed Curlew.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:231_Long-billed_Curlew.jpg",
+   "plate": 231,
+   "title": "Long-billed Curlew",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Numenius phaeopus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0237",
+   "file": "237 Great Esquimaux Curlew.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:237_Great_Esquimaux_Curlew.jpg",
+   "plate": 237,
+   "title": "Hudsonian Curlew",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Nyctanassa violacea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0336",
+   "file": "336 Yellow-Crowned Heron.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:336_Yellow-Crowned_Heron.jpg",
+   "plate": 336,
+   "title": "Yellow-Crowned Heron",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Nycticorax nycticorax": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0236",
+   "file": "236 Night Heron or Qua bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:236_Night_Heron_or_Qua_bird.jpg",
+   "plate": 236,
+   "title": "Night Heron, or Qua bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Onychoprion fuscatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0235",
+   "file": "235 Sooty Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:235_Sooty_Tern.jpg",
+   "plate": 235,
+   "title": "Sooty Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Oporornis agilis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0138",
+   "file": "138 Connecticut Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:138_Connecticut_Warbler.jpg",
+   "plate": 138,
+   "title": "Connecticut Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Oreortyx pictus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0423",
+   "file": "423 I. Plumed--Partridge - 2. Thick--legged Partridge.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:423_I._Plumed--Partridge_-_2._Thick--legged_Partridge.jpg",
+   "plate": 423,
+   "title": "Plumed Partridge and Thick-legged Partridge",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Oreoscoptes montanus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0369",
+   "file": "369 I. Mountain Mocking bird - 2. Varied Thrush.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:369_I._Mountain_Mocking_bird_-_2._Varied_Thrush.jpg",
+   "plate": 369,
+   "title": "Mountain Mocking bird and Varied Thrush",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Oxyura jamaicensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0343",
+   "file": "343 Ruddy Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:343_Ruddy_Duck.jpg",
+   "plate": 343,
+   "title": "Ruddy Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pandion haliaetus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0081",
+   "file": "81 Fish Hawk or Osprey.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:81_Fish_Hawk_or_Osprey.jpg",
+   "plate": 81,
+   "title": "Fish Hawk, or Osprey",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Parabuteo unicinctus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0392",
+   "file": "392 Louisiana Hawk.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:392_Louisiana_Hawk.jpg",
+   "plate": 392,
+   "title": "Louisiana Hawk",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Parkesia motacilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0019",
+   "file": "19 Louisiana Water Thrush.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:19_Louisiana_Water_Thrush.jpg",
+   "plate": 19,
+   "title": "Louisiana Water Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Parkesia noveboracensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0433",
+   "file": "433 I. Bullock's Oriole - 2. Baltimore Oriole - 3. Mexican Goldfinch - 4. Varied Thrush - 5. Common Water Thrush.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:433_I._Bullock's_Oriole_-_2._Baltimore_Oriole_-_3._Mexican_Goldfinch_-_4._Varied_Thrush_-_5._Common_Water_Thrush.jpg",
+   "plate": 433,
+   "title": "Bullock's Oriole, Baltimore Oriole, Mexican Goldfinch, Varied Thrush and Common Water Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Passerculus sandwichensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0109",
+   "file": "109 Savannah Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:109_Savannah_Finch.jpg",
+   "plate": 109,
+   "title": "Savannah Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Passerella iliaca": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0108",
+   "file": "108 Fox-coloured Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:108_Fox-coloured_Sparrow.jpg",
+   "plate": 108,
+   "title": "Fox-coloured Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Passerina amoena": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0398",
+   "file": "398 I. Lazuli Finch - 2. Clay-coloured Finch - 3. Oregon Snow Finch.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:398_I._Lazuli_Finch_-_2._Clay-coloured_Finch_-_3._Oregon_Snow_Finch.jpg",
+   "plate": 398,
+   "title": "Lazuli Finch, Clay-coloured Finch and Oregon Snow Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Passerina caerulea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0122",
+   "file": "122 Blue Grosbeak.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:122_Blue_Grosbeak.jpg",
+   "plate": 122,
+   "title": "Blue Grosbeak",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Passerina ciris": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0053",
+   "file": "53 Painted Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:53_Painted_Finch.jpg",
+   "plate": 53,
+   "title": "Painted Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Passerina cyanea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0074",
+   "file": "74 Indigo Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:74_Indigo_Bird.jpg",
+   "plate": 74,
+   "title": "Indigo Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Patagioenas fasciata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0367",
+   "file": "367 Band-tailed Pigeon.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:367_Band-tailed_Pigeon.jpg",
+   "plate": 367,
+   "title": "Band-tailed Pigeon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Patagioenas leucocephala": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0177",
+   "file": "177 White-crowned Pigeon.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:177_White-crowned_Pigeon.jpg",
+   "plate": 177,
+   "title": "White-crowned Pigeon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pelecanus erythrorhynchos": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0311",
+   "file": "311 American White Pelican.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:311_American_White_Pelican.jpg",
+   "plate": 311,
+   "title": "American White Pelican",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pelecanus occidentalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0251",
+   "file": "251 Brown Pelican.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:251_Brown_Pelican.jpg",
+   "plate": 251,
+   "title": "Brown Pelican",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Perisoreus canadensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0107",
+   "file": "107 Canada Jay.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:107_Canada_Jay.jpg",
+   "plate": 107,
+   "title": "Canada Jay",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Petrochelidon pyrrhonota": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0068",
+   "file": "68 Republican or Cliff Swallow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:68_Republican_or_Cliff_Swallow.jpg",
+   "plate": 68,
+   "title": "Republican, or Cliff Swallow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Peucaea aestivalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0165",
+   "file": "165 Bachmans Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:165_Bachmans_Finch.jpg",
+   "plate": 165,
+   "title": "Bachman's Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Phaethon lepturus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0262",
+   "file": "262 Tropic Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:262_Tropic_Bird.jpg",
+   "plate": 262,
+   "title": "Tropic Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Phalacrocorax carbo": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0266",
+   "file": "266 Common Cormorant.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:266_Common_Cormorant.jpg",
+   "plate": 266,
+   "title": "Common Cormorant",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Phalaropus fulicarius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0255",
+   "file": "255 Red Phalarope.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:255_Red_Phalarope.jpg",
+   "plate": 255,
+   "title": "Red Phalarope",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Phalaropus lobatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0215",
+   "file": "215 Hyperborean phalarope.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:215_Hyperborean_phalarope.jpg",
+   "plate": 215,
+   "title": "Hyperborean phalarope",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Phalaropus tricolor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0254",
+   "file": "254 Wilson's Phalarope.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:254_Wilson's_Phalarope.jpg",
+   "plate": 254,
+   "title": "Wilson's Phalarope",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pheucticus ludovicianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0127",
+   "file": "127 Rose-breasted Grosbeak.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:127_Rose-breasted_Grosbeak.jpg",
+   "plate": 127,
+   "title": "Rose-breasted Grosbeak",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pheucticus melanocephalus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0373",
+   "file": "373 I. Evening Grosbeak - 2. Spotted Grosbeak.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:373_I._Evening_Grosbeak_-_2._Spotted_Grosbeak.jpg",
+   "plate": 373,
+   "title": "Evening Grosbeak and Spotted Grosbeak",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Phoenicopterus ruber": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0431",
+   "file": "431 American Flamingo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:431_American_Flamingo.jpg",
+   "plate": 431,
+   "title": "American Flamingo",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pica hudsonia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0357",
+   "file": "357 American Magpie.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:357_American_Magpie.jpg",
+   "plate": 357,
+   "title": "American Magpie",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pica nuttalli": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0362",
+   "file": "362 I. Yellow billed Magpie - 2. Stellers Jay - 3. Ultramarine Jay - 4. Clark's Crow.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:362_I._Yellow_billed_Magpie_-_2._Stellers_Jay_-_3._Ultramarine_Jay_-_4._Clark's_Crow.jpg",
+   "plate": 362,
+   "title": "Yellow-Billed Magpie, Stellers Jay, Ultramarine Jay and Clark's Crow",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Picoides dorsalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0132",
+   "file": "132 Three-toed Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:132_Three-toed_Woodpecker.jpg",
+   "plate": 132,
+   "title": "Three-toed Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pinicola enucleator": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0358",
+   "file": "358 Pine Grosbeak.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:358_Pine_Grosbeak.jpg",
+   "plate": 358,
+   "title": "Pine Grosbeak",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pipilo erythrophthalmus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0029",
+   "file": "29 Towhe Bunting.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:29_Towhe_Bunting.jpg",
+   "plate": 29,
+   "title": "Towee Bunting",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pipilo maculatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0394",
+   "file": "394 I. Chestnut-coloured Finch - 2. Black-headed Siskin - 3. Black crown Bunting - 4. Arctic Ground Finch.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:394_I._Chestnut-coloured_Finch_-_2._Black-headed_Siskin_-_3._Black_crown_Bunting_-_4._Arctic_Ground_Finch.jpg",
+   "plate": 394,
+   "title": "Chestnut-coloured Finch, Black-headed Siskin, Black crown Bunting and Arctic Ground Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Piranga ludoviciana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0354",
+   "file": "354 I. Louisiana Tanager - 2. Scarlet Tanager.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:354_I._Louisiana_Tanager_-_2._Scarlet_Tanager.jpg",
+   "plate": 354,
+   "title": "Louisiana Tanager and Scarlet Tanager",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Piranga olivacea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0354",
+   "file": "354 I. Louisiana Tanager - 2. Scarlet Tanager.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:354_I._Louisiana_Tanager_-_2._Scarlet_Tanager.jpg",
+   "plate": 354,
+   "title": "Louisiana Tanager and Scarlet Tanager",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Piranga rubra": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "https://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0044",
+   "file": "44 Summer Red Bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:44_Summer_Red_Bird.jpg",
+   "plate": 44,
+   "title": "Summer Red Bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Platalea ajaja": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0321",
+   "file": "321 Roseate Spoonbill.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:321_Roseate_Spoonbill.jpg",
+   "plate": 321,
+   "title": "Roseate Spoonbill",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Plectrophenax nivalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0189",
+   "file": "189 Snow Bunting.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:189_Snow_Bunting.jpg",
+   "plate": 189,
+   "title": "Snow Bunting",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Plegadis falcinellus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0387",
+   "file": "387 Glossy Ibis.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:387_Glossy_Ibis.jpg",
+   "plate": 387,
+   "title": "Glossy Ibis",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pluvialis dominica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0300",
+   "file": "300 Golden Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:300_Golden_Plover.jpg",
+   "plate": 300,
+   "title": "Golden Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pluvialis squatarola": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0334",
+   "file": "334 Black-bellied Plover.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:334_Black-bellied_Plover.jpg",
+   "plate": 334,
+   "title": "Black-bellied Plover",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Podiceps auritus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0259",
+   "file": "259 Horned Grebe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:259_Horned_Grebe.jpg",
+   "plate": 259,
+   "title": "Horned Grebe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Podiceps cristatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0292",
+   "file": "292 Crested Grebe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:292_Crested_Grebe.jpg",
+   "plate": 292,
+   "title": "Crested Grebe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Podiceps grisegena": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0298",
+   "file": "298 Red-necked Grebe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:298_Red-necked_Grebe.jpg",
+   "plate": 298,
+   "title": "Red-necked Grebe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Podiceps nigricollis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0404",
+   "file": "404 Eared Grebe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:404_Eared_Grebe.jpg",
+   "plate": 404,
+   "title": "Eared Grebe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Podilymbus podiceps": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0248",
+   "file": "248 American Pied-bill Dobchick.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:248_American_Pied-bill_Dobchick.jpg",
+   "plate": 248,
+   "title": "American Pied-billed",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Poecile atricapillus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0353",
+   "file": "353 I. Chesnut-backed Titmouse - 2. Black-capt Titmouse - 3. Chesnut-crowned Titmouse.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:353_I._Chesnut-backed_Titmouse_-_2._Black-capt_Titmouse_-_3._Chesnut-crowned_Titmouse.jpg",
+   "plate": 353,
+   "title": "Chestnut-backed Titmouse, Black-capt Titmouse and Chestnut-crowned Titmouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Poecile carolinensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0160",
+   "file": "160 Black-capped Titmouse.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:160_Black-capped_Titmouse.jpg",
+   "plate": 160,
+   "title": "Carolina Titmouse",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Poecile hudsonicus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0194",
+   "file": "194 Canadian Titmouse.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:194_Canadian_Titmouse.jpg",
+   "plate": 194,
+   "title": "Canadian Titmouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Poecile rufescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0353",
+   "file": "353 I. Chesnut-backed Titmouse - 2. Black-capt Titmouse - 3. Chesnut-crowned Titmouse.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:353_I._Chesnut-backed_Titmouse_-_2._Black-capt_Titmouse_-_3._Chesnut-crowned_Titmouse.jpg",
+   "plate": 353,
+   "title": "Chestnut-backed Titmouse, Black-capt Titmouse and Chestnut-crowned Titmouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Polioptila caerulea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0084",
+   "file": "84 Blue-Grey Fly-catcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:84_Blue-Grey_Fly-catcher.jpg",
+   "plate": 84,
+   "title": "Blue-Grey Fly-catcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Pooecetes gramineus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0094",
+   "file": "94 Grass Finch or Bay-winged Bunting.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:94_Grass_Finch_or_Bay-winged_Bunting.jpg",
+   "plate": 94,
+   "title": "Grass Finch, or Bay-winged Bunting",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Porphyrio martinica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0305",
+   "file": "305 Purple Gallinule.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:305_Purple_Gallinule.jpg",
+   "plate": 305,
+   "title": "Purple Gallinule",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Porzana carolina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0233",
+   "file": "233 Sora or Rail.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:233_Sora_or_Rail.jpg",
+   "plate": 233,
+   "title": "Sora, or Rail",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Progne subis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0022",
+   "file": "22 Purple Martin.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:22_Purple_Martin.jpg",
+   "plate": 22,
+   "title": "Purple Martin",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Protonotaria citrea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0003",
+   "file": "3 Prothonotary Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:3_Prothonotary_Warbler.jpg",
+   "plate": 3,
+   "title": "Prothonotary Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Psaltriparus minimus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0353",
+   "file": "353 I. Chesnut-backed Titmouse - 2. Black-capt Titmouse - 3. Chesnut-crowned Titmouse.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:353_I._Chesnut-backed_Titmouse_-_2._Black-capt_Titmouse_-_3._Chesnut-crowned_Titmouse.jpg",
+   "plate": 353,
+   "title": "Chestnut-backed Titmouse, Black-capt Titmouse and Chestnut-crowned Titmouse",
+   "via": [
+    "manual"
+   ]
+  },
+  "Puffinus puffinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0295",
+   "file": "295 Manks Shearwater.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:295_Manks_Shearwater.jpg",
+   "plate": 295,
+   "title": "Manks Shearwater",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Quiscalus major": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0187",
+   "file": "187 Boat-tailed Grackle.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:187_Boat-tailed_Grackle.jpg",
+   "plate": 187,
+   "title": "Boat-tailed Grackle",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Quiscalus quiscula": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0007",
+   "file": "7 Purple Grakle or Common Crow Blackbird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:7_Purple_Grakle_or_Common_Crow_Blackbird.jpg",
+   "plate": 7,
+   "title": "Purple Grakle, or Common Crow Blackbird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Rallus crepitans": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0204",
+   "file": "204 Salt Water Marsh Hen.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:204_Salt_Water_Marsh_Hen.jpg",
+   "plate": 204,
+   "title": "Salt Water Marsh Hen",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Rallus elegans": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0203",
+   "file": "203 Fresh Water Marsh Hen.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:203_Fresh_Water_Marsh_Hen.jpg",
+   "plate": 203,
+   "title": "Fresh Water Marsh Hen",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Rallus limicola": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0205",
+   "file": "205 Virginia Rail.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:205_Virginia_Rail.jpg",
+   "plate": 205,
+   "title": "Virginia Rail",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Recurvirostra americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0318",
+   "file": "318 American Avocet.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:318_American_Avocet.jpg",
+   "plate": 318,
+   "title": "American Avocet",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Regulus satrapa": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0183",
+   "file": "183 Goldon-crested-Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:183_Goldon-crested-Wren.jpg",
+   "plate": 183,
+   "title": "American Golden crested-Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Riparia riparia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0385",
+   "file": "385 I. Bank Swallow - 2. Violet-green Swallow.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:385_I._Bank_Swallow_-_2._Violet-green_Swallow.jpg",
+   "plate": 385,
+   "title": "Bank Swallow and Violet-green Swallow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Rissa tridactyla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0224",
+   "file": "224 Kittiwake Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:224_Kittiwake_Gull.jpg",
+   "plate": 224,
+   "title": "Kittiwake Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Rynchops niger": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0323",
+   "file": "323 Black Skimmer or Shearwater.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:323_Black_Skimmer_or_Shearwater.jpg",
+   "plate": 323,
+   "title": "Black Skimmer, or Shearwater",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Salpinctes obsoletus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "https://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0360",
+   "file": "360 I. Winter Wren - 2. Rock Wren.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:360_I._Winter_Wren_-_2._Rock_Wren.jpg",
+   "plate": 360,
+   "title": "Winter Wren and Rock Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sayornis nigricans": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0434",
+   "file": "434 I. Little Tyrant Fly-catcher - 2. Small-headed Fly-catcher - 3. Blue Mountain Warbler - 4. Bartran's Vireo - 5. Short-legged Pewee - 6. Rocky Mountain Fly-catcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:434_I._Little_Tyrant_Fly-catcher_-_2._Small-headed_Fly-catcher_-_3._Blue_Mountain_Warbler_-_4._Bartran's_Vireo_-_5._Short-legged_Pewee_-_6._Rocky_Mountain_Fly-catcher.jpg",
+   "plate": 434,
+   "title": "Little Tyrant Flycatcher, Small-headed Flycatcher, Blue Mountain Warbler, Bartram's Vireo, Short-legged Pewee and Rocky Mountain Fly-catcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sayornis phoebe": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0120",
+   "file": "120 Pewit Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:120_Pewit_Flycatcher.jpg",
+   "plate": 120,
+   "title": "Pewit Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sayornis saya": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0359",
+   "file": "359 I. Arkansaw Flycatcher - 2. Swallow-Tailed Flycatcher - 3. Says Flycatcher.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:359_I._Arkansaw_Flycatcher_-_2._Swallow-Tailed_Flycatcher_-_3._Says_Flycatcher.jpg",
+   "plate": 359,
+   "title": "Arkansaw Flycatcher, Swallow-Tailed Flycatcher and Says Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Scolopax minor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0268",
+   "file": "268 American Woodcock.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:268_American_Woodcock.jpg",
+   "plate": 268,
+   "title": "American Woodcock",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Seiurus aurocapilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0143",
+   "file": "143 Golden-crowned Thrush.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:143_Golden-crowned_Thrush.jpg",
+   "plate": 143,
+   "title": "Golden-crowned Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Selasphorus rufus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0379",
+   "file": "379 Ruff-necked Humming-bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:379_Ruff-necked_Humming-bird.jpg",
+   "plate": 379,
+   "title": "Ruff-necked Humming-bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0015",
+   "file": "15 Blue Yellow-backed Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:15_Blue_Yellow-backed_Warbler.jpg",
+   "plate": 15,
+   "title": "Blue Yellow back Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga caerulescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0155",
+   "file": "155 Black-throated Blue Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:155_Black-throated_Blue_Warbler.jpg",
+   "plate": 155,
+   "title": "Black-throated Blue Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga castanea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0069",
+   "file": "69 Bay-breasted Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:69_Bay-breasted_Warbler.jpg",
+   "plate": 69,
+   "title": "Bay-breasted Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga cerulea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0048",
+   "file": "48 Azure Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:48_Azure_Warbler.jpg",
+   "plate": 48,
+   "title": "Azure Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga citrina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0110",
+   "file": "110 Hooded Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:110_Hooded_Warbler.jpg",
+   "plate": 110,
+   "title": "Hooded Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga coronata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0153",
+   "file": "153 Yellow-crown Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:153_Yellow-crown_Warbler.jpg",
+   "plate": 153,
+   "title": "Yellow-crown Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga discolor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0014",
+   "file": "14 Prairie Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:14_Prairie_Warbler.jpg",
+   "plate": 14,
+   "title": "Prairie Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga dominica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0085",
+   "file": "85 Yellow Throated Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:85_Yellow_Throated_Warbler.jpg",
+   "plate": 85,
+   "title": "Yellow Throated Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga fusca": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0135",
+   "file": "135 Blackburnian Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:135_Blackburnian_Warbler.jpg",
+   "plate": 135,
+   "title": "Blackburnian Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga magnolia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0123",
+   "file": "123 Black & Yellow Warblers.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:123_Black_%26_Yellow_Warblers.jpg",
+   "plate": 123,
+   "title": "Black & Yellow Warblers",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga nigrescens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0395",
+   "file": "395 I. Audubon's Warbler - 2. Hermit Warbler - 3. Black-throated gray Warbler.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:395_I._Audubon's_Warbler_-_2._Hermit_Warbler_-_3._Black-throated_gray_Warbler.jpg",
+   "plate": 395,
+   "title": "Audubon's Warbler, Hermit Warbler and Black-throated gray Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga occidentalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0395",
+   "file": "395 I. Audubon's Warbler - 2. Hermit Warbler - 3. Black-throated gray Warbler.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:395_I._Audubon's_Warbler_-_2._Hermit_Warbler_-_3._Black-throated_gray_Warbler.jpg",
+   "plate": 395,
+   "title": "Audubon's Warbler, Hermit Warbler and Black-throated gray Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga palmarum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0163",
+   "file": "163 Palm Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:163_Palm_Warbler.jpg",
+   "plate": 163,
+   "title": "Palm Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga pensylvanica": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0059",
+   "file": "59 Chestnut-sided Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:59_Chestnut-sided_Warbler.jpg",
+   "plate": 59,
+   "title": "Chestnut-sided Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga petechia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0095",
+   "file": "95 Yellow-poll Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:95_Yellow-poll_Warbler.jpg",
+   "plate": 95,
+   "title": "Blue-eyed yellow Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga pinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0140",
+   "file": "140 Pine Creeping Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:140_Pine_Creeping_Warbler.jpg",
+   "plate": 140,
+   "title": "Pine Creeping Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga ruticilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0040",
+   "file": "40 American Redstart.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:40_American_Redstart.jpg",
+   "plate": 40,
+   "title": "American Redstart",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga striata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0133",
+   "file": "133 Black-poll Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:133_Black-poll_Warbler.jpg",
+   "plate": 133,
+   "title": "Black-poll Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga tigrina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0414",
+   "file": "414 I. Golden-winged Warbler - 2. Cape May Warbler.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:414_I._Golden-winged_Warbler_-_2._Cape_May_Warbler.jpg",
+   "plate": 414,
+   "title": "Golden-winged Warbler and Cape May Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga townsendi": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0393",
+   "file": "393 I. Townsend's Warbler - 2. Arctic Blue-bird - 3. Western Blue-bird.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:393_I._Townsend's_Warbler_-_2._Arctic_Blue-bird_-_3._Western_Blue-bird.jpg",
+   "plate": 393,
+   "title": "Townsend's Warbler, Arctic Blue-bird and Western Blue-bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Setophaga virens": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0399",
+   "file": "399 I. Black-throated green Warbler - 2. Blackburnian - 3. Mourning Warbler.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:399_I._Black-throated_green_Warbler_-_2._Blackburnian_-_3._Mourning_Warbler.jpg",
+   "plate": 399,
+   "title": "Black-throated green Warbler, Blackburnian and Mourning Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sialia currucoides": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0393",
+   "file": "393 I. Townsend's Warbler - 2. Arctic Blue-bird - 3. Western Blue-bird.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:393_I._Townsend's_Warbler_-_2._Arctic_Blue-bird_-_3._Western_Blue-bird.jpg",
+   "plate": 393,
+   "title": "Townsend's Warbler, Arctic Blue-bird and Western Blue-bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sialia mexicana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0393",
+   "file": "393 I. Townsend's Warbler - 2. Arctic Blue-bird - 3. Western Blue-bird.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:393_I._Townsend's_Warbler_-_2._Arctic_Blue-bird_-_3._Western_Blue-bird.jpg",
+   "plate": 393,
+   "title": "Townsend's Warbler, Arctic Blue-bird and Western Blue-bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sialia sialis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0113",
+   "file": "113 Blue-bird.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:113_Blue-bird.jpg",
+   "plate": 113,
+   "title": "Blue-bird",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sitta canadensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0105",
+   "file": "105 Red-breasted Nuthatch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:105_Red-breasted_Nuthatch.jpg",
+   "plate": 105,
+   "title": "Red-breasted Nuthatch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sitta carolinensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0152",
+   "file": "152 White-breasted Black-capped Nuthatch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:152_White-breasted_Black-capped_Nuthatch.jpg",
+   "plate": 152,
+   "title": "White-breasted Black-capped Nuthatch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sitta pusilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0125",
+   "file": "125 Brown-headed Nuthatch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:125_Brown-headed_Nuthatch.jpg",
+   "plate": 125,
+   "title": "Brown-headed Nuthatch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sitta pygmaea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0415",
+   "file": "415 I. Brown Creeper - 2. Californian Nuthatch.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:415_I._Brown_Creeper_-_2._Californian_Nuthatch.jpg",
+   "plate": 415,
+   "title": "Brown Creeper and Californian Nuthatch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Somateria mollissima": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0246",
+   "file": "246 Eider Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:246_Eider_Duck.jpg",
+   "plate": 246,
+   "title": "Eider Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Somateria spectabilis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0276",
+   "file": "276 King Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:276_King_Duck.jpg",
+   "plate": 276,
+   "title": "King Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spatula clypeata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0327",
+   "file": "327 Shoveller Duck.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:327_Shoveller_Duck.jpg",
+   "plate": 327,
+   "title": "Shoveller Duck",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spatula discors": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0313",
+   "file": "313 Blue-Winged Teal.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:313_Blue-Winged_Teal.jpg",
+   "plate": 313,
+   "title": "Blue-Winged Teal",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sphyrapicus ruber": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0416",
+   "file": "416 I. Hairy Woodpecker - 2. Red-bellied Woodpecker - 3. Red-shafted Woodpecker - 4. Lewis' Woodpecker - 5. Red-breasted Woodpecker.jpg",
+   "on_plate": 5,
+   "page": "https://commons.wikimedia.org/wiki/File:416_I._Hairy_Woodpecker_-_2._Red-bellied_Woodpecker_-_3._Red-shafted_Woodpecker_-_4._Lewis'_Woodpecker_-_5._Red-breasted_Woodpecker.jpg",
+   "plate": 416,
+   "title": "Hairy Woodpecker, Red-bellied Woodpecker, Red-shafted Woodpecker, Lewis' Woodpecker and Red-breasted Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sphyrapicus varius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0190",
+   "file": "190 Yellow bellied Woodpecker.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:190_Yellow_bellied_Woodpecker.jpg",
+   "plate": 190,
+   "title": "Yellow bellied Woodpecker",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spinus pinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0180",
+   "file": "180 Pine Finch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:180_Pine_Finch.jpg",
+   "plate": 180,
+   "title": "Pine Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spinus psaltria": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0400",
+   "file": "400 I. Arkansaw Siskin - 2. Mealy Red-poll - 3. Louisiana Tanager - 4.Townsend's Finch - 5. Buff-breasted Finch.jpg",
+   "on_plate": 4,
+   "page": "https://commons.wikimedia.org/wiki/File:400_I._Arkansaw_Siskin_-_2._Mealy_Red-poll_-_3._Louisiana_Tanager_-_4.Townsend's_Finch_-_5._Buff-breasted_Finch.jpg",
+   "plate": 400,
+   "title": "Arkansaw Siskin, Mealy Red-poll, Louisiana Tanager, Townsend's Bunting and Buff-breasted Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spinus tristis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0033",
+   "file": "33 American Goldfinch.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:33_American_Goldfinch.jpg",
+   "plate": 33,
+   "title": "American Goldfinch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spiza americana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0384",
+   "file": "384 Black-Throated Bunting.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:384_Black-Throated_Bunting.jpg",
+   "plate": 384,
+   "title": "Black-Throated Bunting",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spizella passerina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0104",
+   "file": "104 Chipping Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:104_Chipping_Sparrow.jpg",
+   "plate": 104,
+   "title": "Chipping Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spizella pusilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0139",
+   "file": "139 Field Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:139_Field_Sparrow.jpg",
+   "plate": 139,
+   "title": "Field Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Spizelloides arborea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0188",
+   "file": "188 Tree Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:188_Tree_Sparrow.jpg",
+   "plate": 188,
+   "title": "Tree Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Stercorarius longicaudus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0267",
+   "file": "267 Arctic Yager.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:267_Arctic_Yager.jpg",
+   "plate": 267,
+   "title": "Arctic Yager",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Stercorarius parasiticus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0272",
+   "file": "272 Richardson's Jager.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:272_Richardson's_Jager.jpg",
+   "plate": 272,
+   "title": "Richardson's Jager",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Stercorarius pomarinus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0253",
+   "file": "253 Jager.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:253_Jager.jpg",
+   "plate": 253,
+   "title": "Jager",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sterna dougallii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0240",
+   "file": "240 Roseate Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:240_Roseate_Tern.jpg",
+   "plate": 240,
+   "title": "Roseate Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sterna forsteri": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0409",
+   "file": "409 I. Havell's Tern - 2. Trudeau's Tern.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:409_I._Havell's_Tern_-_2._Trudeau's_Tern.jpg",
+   "plate": 409,
+   "title": "Havell's Tern and Trudeau's Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sterna hirundo": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0309",
+   "file": "309 Great Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:309_Great_Tern.jpg",
+   "plate": 309,
+   "title": "Great Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sterna paradisaea": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0250",
+   "file": "250 Arctic Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:250_Arctic_Tern.jpg",
+   "plate": 250,
+   "title": "Arctic Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sterna trudeaui": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0409",
+   "file": "409 I. Havell's Tern - 2. Trudeau's Tern.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:409_I._Havell's_Tern_-_2._Trudeau's_Tern.jpg",
+   "plate": 409,
+   "title": "Havell's Tern and Trudeau's Tern",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Sternula antillarum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0319",
+   "file": "319 Lesser Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:319_Lesser_Tern.jpg",
+   "plate": 319,
+   "title": "Lesser Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Strix nebulosa": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0351",
+   "file": "351 Great Cinereous Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:351_Great_Cinereous_Owl.jpg",
+   "plate": 351,
+   "title": "Great Cinereous Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Strix varia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0046",
+   "file": "46 Barred Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:46_Barred_Owl.jpg",
+   "plate": 46,
+   "title": "Barred Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sturnella magna": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0136",
+   "file": "136 Meadow Lark.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:136_Meadow_Lark.jpg",
+   "plate": 136,
+   "title": "Meadow Lark",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Sula leucogaster": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0207",
+   "file": "207 Booby Gannet.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:207_Booby_Gannet.jpg",
+   "plate": 207,
+   "title": "Booby Gannet",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Surnia ulula": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0378",
+   "file": "378 Hawk Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:378_Hawk_Owl.jpg",
+   "plate": 378,
+   "title": "Hawk Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tachycineta bicolor": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "https://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0098",
+   "file": "98 White-bellied Swallow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:98_White-bellied_Swallow.jpg",
+   "plate": 98,
+   "title": "White-bellied Swallow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tachycineta thalassina": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0385",
+   "file": "385 I. Bank Swallow - 2. Violet-green Swallow.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:385_I._Bank_Swallow_-_2._Violet-green_Swallow.jpg",
+   "plate": 385,
+   "title": "Bank Swallow and Violet-green Swallow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Thalasseus maximus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0273",
+   "file": "273 Cayenne Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:273_Cayenne_Tern.jpg",
+   "plate": 273,
+   "title": "Cayenne Tern",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Thalasseus sandvicensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0279",
+   "file": "279 Cabot's Tern.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:279_Cabot's_Tern.jpg",
+   "plate": 279,
+   "title": "Sandwich Tern",
+   "via": [
+    "wikidata"
+   ]
+  },
+  "Thryomanes bewickii": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0018",
+   "file": "18 Bewick's Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:18_Bewick's_Wren.jpg",
+   "plate": 18,
+   "title": "Bewick's Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Thryothorus ludovicianus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0078",
+   "file": "78 Great Carolina Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:78_Great_Carolina_Wren.jpg",
+   "plate": 78,
+   "title": "Great Carolina Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Toxostoma rufum": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0116",
+   "file": "116 Ferruginous Thrush.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:116_Ferruginous_Thrush.jpg",
+   "plate": 116,
+   "title": "Ferruginous Thrush",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tringa flavipes": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0288",
+   "file": "288 Yellow Shank.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:288_Yellow_Shank.jpg",
+   "plate": 288,
+   "title": "Yellow Shank",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tringa melanoleuca": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0308",
+   "file": "308 Tell-tale Godwit or Snipe.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:308_Tell-tale_Godwit_or_Snipe.jpg",
+   "plate": 308,
+   "title": "Tell-tale Godwit, or Snipe",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tringa nebularia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0269",
+   "file": "269 Greenshank.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:269_Greenshank.jpg",
+   "plate": 269,
+   "title": "Greenshank",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tringa semipalmata": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0274",
+   "file": "274 Semipalmated Snipe, or Willet.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:274_Semipalmated_Snipe,_or_Willet.jpg",
+   "plate": 274,
+   "title": "Semipalmated Snipe, or Willet",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tringa solitaria": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0289",
+   "file": "289 Solitary Sandpiper.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:289_Solitary_Sandpiper.jpg",
+   "plate": 289,
+   "title": "Solitary Sandpiper",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Troglodytes aedon": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0083",
+   "file": "83 House Wren.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:83_House_Wren.jpg",
+   "plate": 83,
+   "title": "House Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Troglodytes hiemalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "https://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0360",
+   "file": "360 I. Winter Wren - 2. Rock Wren.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:360_I._Winter_Wren_-_2._Rock_Wren.jpg",
+   "plate": 360,
+   "title": "Winter Wren and Rock Wren",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Turdus migratorius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0131",
+   "file": "131 American Robin.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:131_American_Robin.jpg",
+   "plate": 131,
+   "title": "American Robin",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tympanuchus cupido": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0186",
+   "file": "186 Pinnated Grous.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:186_Pinnated_Grous.jpg",
+   "plate": 186,
+   "title": "Pinnated Grouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tympanuchus phasianellus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0382",
+   "file": "382 Sharp-tailed Grous.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:382_Sharp-tailed_Grous.jpg",
+   "plate": 382,
+   "title": "Sharp-tailed Grouse",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tyrannus dominicensis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0170",
+   "file": "170 Gray Tyrant.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:170_Gray_Tyrant.jpg",
+   "plate": 170,
+   "title": "Piping Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tyrannus forficatus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0359",
+   "file": "359 I. Arkansaw Flycatcher - 2. Swallow-Tailed Flycatcher - 3. Says Flycatcher.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:359_I._Arkansaw_Flycatcher_-_2._Swallow-Tailed_Flycatcher_-_3._Says_Flycatcher.jpg",
+   "plate": 359,
+   "title": "Arkansaw Flycatcher, Swallow-Tailed Flycatcher and Says Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tyrannus savana": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0168",
+   "file": "168 Fork-tailed Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:168_Fork-tailed_Flycatcher.jpg",
+   "plate": 168,
+   "title": "Fork-tailed Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tyrannus tyrannus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0079",
+   "file": "79 Tyrant Fly-catcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:79_Tyrant_Fly-catcher.jpg",
+   "plate": 79,
+   "title": "Tyrant Fly-catcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tyrannus verticalis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0359",
+   "file": "359 I. Arkansaw Flycatcher - 2. Swallow-Tailed Flycatcher - 3. Says Flycatcher.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:359_I._Arkansaw_Flycatcher_-_2._Swallow-Tailed_Flycatcher_-_3._Says_Flycatcher.jpg",
+   "plate": 359,
+   "title": "Arkansaw Flycatcher, Swallow-Tailed Flycatcher and Says Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Tyto alba": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0171",
+   "file": "171 Barn Owl.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:171_Barn_Owl.jpg",
+   "plate": 171,
+   "title": "Barn Owl",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Uria aalge": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0218",
+   "file": "218 Foolish Guillemot.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:218_Foolish_Guillemot.jpg",
+   "plate": 218,
+   "title": "Foolish Guillemot",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Uria lomvia": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0245",
+   "file": "245 Thick-billed Murre.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:245_Thick-billed_Murre.jpg",
+   "plate": 245,
+   "title": "Uria Brunnichi",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vermivora chrysoptera": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0414",
+   "file": "414 I. Golden-winged Warbler - 2. Cape May Warbler.jpg",
+   "on_plate": 2,
+   "page": "https://commons.wikimedia.org/wiki/File:414_I._Golden-winged_Warbler_-_2._Cape_May_Warbler.jpg",
+   "plate": 414,
+   "title": "Golden-winged Warbler and Cape May Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vermivora cyanoptera": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0020",
+   "file": "20 Blue-winged Yellow Warbler.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:20_Blue-winged_Yellow_Warbler.jpg",
+   "plate": 20,
+   "title": "Blue-winged Yellow Warbler",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vireo flavifrons": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0119",
+   "file": "119 Yellow-throated Vireo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:119_Yellow-throated_Vireo.jpg",
+   "plate": 119,
+   "title": "Yellow-throated Vireo",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vireo gilvus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0118",
+   "file": "118 Warbling Flycatcher.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:118_Warbling_Flycatcher.jpg",
+   "plate": 118,
+   "title": "Warbling Flycatcher",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vireo griseus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0063",
+   "file": "63 White-eyed Flycatcher or Vireo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:63_White-eyed_Flycatcher_or_Vireo.jpg",
+   "plate": 63,
+   "title": "White-eyed Flycatcher, or Vireo",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vireo olivaceus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0150",
+   "file": "150 Red-eyed Vireo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:150_Red-eyed_Vireo.jpg",
+   "plate": 150,
+   "title": "Red-eyed Vireo",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Vireo solitarius": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0028",
+   "file": "28 Solitary Flycatcher or Vireo.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:28_Solitary_Flycatcher_or_Vireo.jpg",
+   "plate": 28,
+   "title": "Vireo Solitarius",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Xanthocephalus xanthocephalus": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0388",
+   "file": "388 I. Nuttall's Starling - 2. Yellow-headed Troopial - 3. Bullock's Oriole.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:388_I._Nuttall's_Starling_-_2._Yellow-headed_Troopial_-_3._Bullock's_Oriole.jpg",
+   "plate": 388,
+   "title": "Nuttall's Starling, Yellow-headed Troopial and Bullock's Oriole",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Xema sabini": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0285",
+   "file": "285 Fork-tailed Gull.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:285_Fork-tailed_Gull.jpg",
+   "plate": 285,
+   "title": "Fork-tailed Gull",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Zenaida aurita": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0162",
+   "file": "162 Zenaida Dove.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:162_Zenaida_Dove.jpg",
+   "plate": 162,
+   "title": "Zenaida Dove",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Zenaida macroura": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0017",
+   "file": "17 Carolina Turtle Dove.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:17_Carolina_Turtle_Dove.jpg",
+   "plate": 17,
+   "title": "Carolina Pigeon",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Zonotrichia albicollis": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0008",
+   "file": "8 White throated Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:8_White_throated_Sparrow.jpg",
+   "plate": 8,
+   "title": "White throated Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Zonotrichia atricapilla": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0394",
+   "file": "394 I. Chestnut-coloured Finch - 2. Black-headed Siskin - 3. Black crown Bunting - 4. Arctic Ground Finch.jpg",
+   "on_plate": 3,
+   "page": "https://commons.wikimedia.org/wiki/File:394_I._Chestnut-coloured_Finch_-_2._Black-headed_Siskin_-_3._Black_crown_Bunting_-_4._Arctic_Ground_Finch.jpg",
+   "plate": 394,
+   "title": "Chestnut-coloured Finch, Black-headed Siskin, Black crown Bunting and Arctic Ground Finch",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  },
+  "Zonotrichia leucophrys": {
+   "credit": "University of Pittsburgh",
+   "credit_url": "http://images.library.pitt.edu/cgi-bin/i/image/image-idx?view=entry;cc=audimg;entryid=x-aud0114",
+   "file": "114 White-crowned Sparrow.jpg",
+   "on_plate": 1,
+   "page": "https://commons.wikimedia.org/wiki/File:114_White-crowned_Sparrow.jpg",
+   "plate": 114,
+   "title": "White-crowned Sparrow",
+   "via": [
+    "commons",
+    "wikidata"
+   ]
+  }
+ }
+}
