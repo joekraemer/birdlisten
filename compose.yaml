@@ -20,6 +20,10 @@ services:
       LOOP_JITTER: "0"
     volumes:
       - birdlisten-data:/data
+    # Collage page for Home Assistant. Set SERVE_PORT=8085 in .env and
+    # uncomment; then: curl -s localhost:8085/api/recent | head -c 300
+    # ports:
+    #   - "8085:8085"
     restart: "no"
 
 volumes:
