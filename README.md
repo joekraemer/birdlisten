@@ -18,10 +18,11 @@ camera, cameras in turn, so the Mac only ever runs one analysis at a time.
 
 Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
-synthetic clip runs through analysis and storage; 39 test functions (81 cases
+synthetic clip runs through analysis and storage; 98 test functions (168 cases
 with parametrization) cover config parsing, dedupe, cooldown, storage, the
-per-pass error handling, and the collage page (query, packer, renderer,
-plate cache, HTTP routes). NOT yet
+per-pass error handling, the collage page (query, packer, renderer, both
+plate caches, vignette processing, HTTP routes), and the `audubon.json`
+build rules. NOT yet
 verified: an actual Reolink RTSP stream, and real bird detections. Expect to
 tune `MIN_CONFIDENCE` once you see what the yard sounds like to BirdNET.
 
@@ -90,19 +91,34 @@ own read-only connection; it never changes what the loop records or notifies.
 |---|---|
 | `GET /` | HTML page showing `/collage.png`, swaps the image every 60 s (meta refresh fallback without JS). `?hours=` |
 | `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
-| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, cameras, first_ever, has_plate}]}`. `?hours=` |
-| `GET /attribution` | artwork credit plus Fugleramme's `ATTRIBUTION.md` |
+| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, cameras, first_ever, has_plate}]}`. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
+| `GET /attribution` | artwork credit: Fugleramme plus its `ATTRIBUTION.md`, and the Audubon plates fetched so far |
 | `GET /favicon.ico` | 204 |
 
-Plates are fetched lazily, one species at a time on first need, into
-`$ARTWORK_DIR` (`/data/artwork` in the container, so they live on the same
-volume as the db) and never re-fetched. A species that Fugleramme has no plate
-for, or whose BirdNET scientific name differs from Fugleramme's file name,
-shows as a plain paper card of the same size, with its name beneath; the miss
-is remembered in a `<stem>.missing` marker and retried after a day (an hour
-after a network error). The PNG is re-rendered only when something visible
-changed (a species, its name or order, a plate arriving), so the
-60 s page refresh normally costs nothing.
+Artwork comes from two sources, tried in this order for each species:
+
+1. **Fugleramme cut-out.** The bird on a transparent background, pasted
+   straight onto the page.
+2. **Audubon vignette.** If Fugleramme has no plate under the BirdNET name,
+   `audubon.json` maps the name to one Havell plate of Audubon's *The Birds of
+   America* (413 BirdNET species on 381 plates). The server fetches a 960 px
+   Wikimedia Commons thumbnail of it, never the full-size scan, crops it to
+   the picture (the engraved caption, plate number and margins are removed),
+   recolours the paper to the placeholder card's tone, and draws it inside the
+   card's double-rule frame. On a plate with several birds the whole plate is
+   shown.
+3. **Placeholder card.** A plain paper card of the same size when neither
+   source has the species.
+
+Art is fetched lazily, one species at a time on first need, into
+`$ARTWORK_DIR` (`/data/artwork` in the container, so it lives on the same
+volume as the db; vignettes go under `audubon/v1/`) and never re-fetched.
+Fetching shares a 15 s budget per render; whatever is left over is fetched on
+a later render. A miss is remembered in a `<stem>.missing` marker and retried
+after a day (a 404, or an Audubon scan the cropper cannot use) or an hour
+(a network error). The PNG is re-rendered only when something visible
+changed (a species, its name or order, art arriving or changing source), so
+the 60 s page refresh normally costs nothing.
 
 Layout: every cell is the same size, species are spread evenly over the rows
 (22 at 1600x1200 is 6, 6, 5, 5) and each row is centred. Every name on a page
@@ -126,6 +142,40 @@ fetches and exposes at `/attribution`. Because the plates are BY-SA, the
 generated collage inherits CC BY-SA 4.0 for the plate content. The collage
 layout here is this repo's own code, not Fugleramme's renderer; `ARTWORK_REF`
 pins the Fugleramme commit the plates come from.
+
+Fallback plates are from John James Audubon, *The Birds of America* (London,
+1827–1838), Havell edition: hand-coloured engravings by Robert Havell Jr.
+(plates 1–10 first engraved by W. H. Lizars). The scans are on
+[Wikimedia Commons](https://commons.wikimedia.org/wiki/Category:The_Birds_of_America),
+almost all credited to the University of Pittsburgh, and are public domain
+(PD-Art), so no share-alike applies to them. The vignettes shown are cropped
+and recoloured. `/attribution` lists each plate fetched so far with its
+Commons page and credit. Thumbnails are requested from
+`commons.wikimedia.org/wiki/Special:FilePath/<file>?width=960` with the
+User-Agent `birdlisten/1.0 (https://github.com/joekraemer/birdlisten)`, as
+Wikimedia's User-Agent policy asks; each species' thumbnail is fetched once and cached.
+
+#### Rebuilding audubon.json
+
+`audubon.json` is committed and generated by hand with
+`tools/build_audubon_map.py` (stdlib only, needs the network; it queries
+Wikidata and the Commons API, which the server never does):
+
+```
+uv run --no-project --python 3.11 python tools/build_audubon_map.py --out audubon.json
+```
+
+It unions Wikidata's plate items (`depicts`) with Commons'
+`(illustrations)` categories, then applies the manual tables at the top of the
+script (`NAME_ALIASES`, `PLATE_ADDITIONS`, `PAIR_DENY`); a stale override
+fails the build. BirdNET labels come from `--labels PATH|URL`, else the
+installed birdnetlib, else `LABELS_URL`, pinned to birdnetlib tag 0.18.0
+(commit `8746db6`); update that commit when `birdnetlib` is bumped in
+`pyproject.toml`. The script prints a coverage report; review it in the CR,
+especially the "CHOSEN Commons-only pairs", which only one source supports
+and should be checked by eye against the plate. If the vignette processing
+in `frame.py` changes, bump `VIGNETTE_VERSION` so cached vignettes are
+rebuilt.
 
 ### Home Assistant
 
@@ -160,6 +210,7 @@ sensor:
 | `MIN_CONFIDENCE` | `0.5` | the capture loop's threshold, also applied when reading: rows below it are left off the page and `/api/recent`, 0..1 |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
 | `ARTWORK_DIR` | `$DATA_DIR/artwork` | plate cache, a few hundred KB per species |
+| `AUDUBON_FALLBACK` | `1` | `1` = Audubon plates for species Fugleramme lacks, `0` = Fugleramme only (pages are then exactly as before) |
 
 A bad value logs `config error: ... (server disabled)` and the loop runs on
 without the server; a busy port logs `cannot bind SERVE_PORT=...` and does the
@@ -175,13 +226,17 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
-uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q   # arm64 macOS
+uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
+  test_birdlisten.py test_frame.py test_serve.py test_build_audubon_map.py   # arm64 macOS
 ```
 
 The second form exists because `tflite-runtime` has no macOS arm64 wheel, so
 the project environment cannot resolve there; the tests only need stdlib plus
 Pillow (`birdnetlib` is imported lazily by the analyzer). Both must pass. No
-test touches the network: artwork fetches are monkeypatched to 404.
+test touches the network: artwork fetches are monkeypatched to 404, and the
+build script's fetch layer is monkeypatched too. The vignette tests use
+synthetic sheets plus three public-domain 480 px Havell thumbnails in
+`tests/fixtures/audubon/` (plates 8, 362, 376).
 
 ## Ideas not built
 
@@ -200,7 +255,11 @@ test touches the network: artwork fetches are monkeypatched to 404.
 * Scaling plates by body mass so a crow is bigger than a chickadee. Needs a
   mass table, and Fugleramme's manifest has none.
 * A BirdNET-to-Fugleramme name alias table for species whose scientific names
-  differ between the two (today they get a placeholder).
+  differ between the two. Many of those now get an Audubon plate instead of a
+  placeholder, but a Fugleramme cut-out would still look better.
+* Audubon's octavo edition (Bowen lithographs) for the dozen or so species
+  first figured there, and per-figure crops of multi-species plates. Neither
+  has machine-readable metadata, so both need hand work.
 * An index on `detections(scientific_name, heard_at)` if the db ever grows
   enough for the recent-species query to show up in render time.
 
@@ -209,11 +268,14 @@ test touches the network: artwork fetches are monkeypatched to 404.
 | file | role |
 |---|---|
 | `birdlisten.py` | the app; `main() -> int`, `--check`, `--dry-run`, `--report N` |
-| `frame.py` | collage: recent-species query, Fugleramme plate cache, packer, Pillow renderer, render cache |
+| `frame.py` | collage: recent-species query, Fugleramme and Audubon plate caches, vignette processing, packer, Pillow renderer, render cache |
+| `audubon.json` | BirdNET scientific name → Havell plate on Commons (file, page, credit); generated, committed |
+| `tools/build_audubon_map.py` | offline builder of `audubon.json`; not in the image |
 | `serve.py` | the collage HTTP server; `start_from_env()` is what `loop.py` calls |
 | `loop.py` | container entrypoint (fleet template), runs `main()` back to back; starts the server when `SERVE_PORT` is set |
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main` |
-| `test_birdlisten.py`, `test_frame.py`, `test_serve.py` | see Tests |
+| `test_birdlisten.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py` | see Tests |
+| `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
