@@ -32,6 +32,9 @@ import traceback
 # ---- change this one line per app ------------------------------------------
 from birdlisten import main as app_main  # noqa: E402
 # ----------------------------------------------------------------------------
+# birdlisten-specific: optional HTTP collage server, on only when SERVE_PORT
+# is set. Daemon thread, so it never keeps the process alive or changes rc.
+from serve import start_from_env as app_start_server  # noqa: E402
 
 log = logging.getLogger("loop")
 logging.basicConfig(
@@ -69,6 +72,7 @@ def main() -> int:
     signal.signal(signal.SIGINT, _on_signal)
 
     log.info("starting: interval=%ss jitter=%ss once=%s args=%s", interval, jitter, once, run_args)
+    app_start_server()  # no-op when SERVE_PORT is unset
     while True:
         started = time.monotonic()
         # The app's main() parses sys.argv like a CLI would, so hand it the args
