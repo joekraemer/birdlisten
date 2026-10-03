@@ -27,10 +27,12 @@ RUN uv sync --frozen --no-dev --no-install-project
 # and draws labels with its bundled FreeType. Fail the build if a future wheel
 # drops either, instead of shipping an image that renders only placeholders.
 RUN /app/.venv/bin/python -c "import PIL.features as f; assert f.check('webp') and f.check('freetype2')"
-# Then the code, including fonts/ (the collage's serif; .dockerignore keeps
-# it in). Fail here rather than ship an image that falls back to the sans.
+# Then the code, including fonts/ (the collage's serif) and audubon.json
+# (the Audubon plate map); .dockerignore keeps both in. Fail here rather than
+# ship an image that falls back to the sans or to placeholder cards.
 COPY . .
-RUN test -f fonts/LibreBaskerville.ttf && test -f fonts/LibreBaskerville-Italic.ttf && test -f fonts/OFL.txt
+RUN test -f fonts/LibreBaskerville.ttf && test -f fonts/LibreBaskerville-Italic.ttf && test -f fonts/OFL.txt \
+ && test -f audubon.json
 # /data holds the SQLite db, optional clips, and the artwork cache; compose
 # mounts a volume there.
 RUN useradd --create-home --uid 10001 app && mkdir /data && chown -R app:app /app /data

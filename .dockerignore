@@ -20,3 +20,5 @@ compose.yaml
 .gitignore
 
 # app-specific
+# offline build tool for audubon.json; the image ships only the json
+tools/
