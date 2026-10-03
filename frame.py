@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import itertools
+import json
 import logging
 import math
 import os
@@ -24,11 +25,15 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
+from typing import NamedTuple
+from urllib.parse import quote
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 log = logging.getLogger("frame")
 
@@ -163,6 +168,21 @@ def _write_marker(m: Path, reason: str, now: dt.datetime) -> None:
     os.utime(m, (ts, ts))
 
 
+def _marker_waiting(m: Path, now: dt.datetime) -> bool:
+    """True while a miss marker says not to retry yet. A first line starting
+    with '404' or 'vignette' (the source will not change) waits MISSING_RETRY;
+    anything else (network, bad bytes) waits ERROR_RETRY."""
+    if not m.exists():
+        return False
+    try:
+        first = (m.read_text(errors="replace").splitlines() or [""])[0]
+    except OSError:
+        first = ""
+    mtime = m.stat().st_mtime
+    interval = MISSING_RETRY if first.startswith(("404", "vignette")) else ERROR_RETRY
+    return now - dt.datetime.fromtimestamp(mtime, dt.timezone.utc) < interval
+
+
 _meta_lock = threading.Lock()
 _meta_tried: dict[Path, float] = {}      # artwork dir -> time.monotonic() of last failed ensure_meta
 
@@ -197,15 +217,8 @@ class Artwork:
         if p.exists():
             return p
         m = self.marker_path(scientific_name)
-        if m.exists():
-            try:
-                first = (m.read_text(errors="replace").splitlines() or [""])[0]
-            except OSError:
-                first = ""
-            interval = MISSING_RETRY if first.startswith("404") else ERROR_RETRY
-            elapsed = now - dt.datetime.fromtimestamp(m.stat().st_mtime, dt.timezone.utc)
-            if elapsed < interval:
-                return None
+        if _marker_waiting(m, now):
+            return None
         try:
             data = fetch_url(self.url(f"birds/{s}.webp"))
             Image.open(io.BytesIO(data)).load()   # bad bytes are an error, not a plate
@@ -254,6 +267,400 @@ class Artwork:
         if not p.exists():
             return None
         return p.read_text(errors="replace")
+
+
+# ----------------------------------------------------------------- audubon
+AUDUBON_MAP = Path(__file__).resolve().parent / "audubon.json"
+COMMONS_THUMB = "https://commons.wikimedia.org/wiki/Special:FilePath/{file}?width=960"
+THUMB_MAX = 2000             # px; a larger response is not a thumbnail and is never decoded
+VIGNETTE_VERSION = "v1"      # bump when vignette() changes; old caches are then ignored
+VIGNETTE_MAX = 800           # px, longest side of the stored WebP
+COMMONS_PREFIX = "https://commons.wikimedia.org/"
+
+
+class VignetteError(Exception):
+    """The scan has no usable picture; retried after MISSING_RETRY."""
+
+
+def _valid_entry(e) -> bool:
+    return (isinstance(e, dict)
+            and isinstance(e.get("file"), str) and bool(e["file"])
+            and type(e.get("plate")) is int and 1 <= e["plate"] <= 435
+            and isinstance(e.get("page"), str) and e["page"].startswith(COMMONS_PREFIX))
+
+
+@dataclass(frozen=True)
+class Audubon:
+    """Havell plates of Audubon's *Birds of America* from Wikimedia Commons,
+    for species Fugleramme lacks. `table` is audubon.json's species map keyed
+    by stem(); see tools/build_audubon_map.py."""
+    dir: Path                                           # ARTWORK_DIR/audubon
+    table: Mapping[str, dict] = field(repr=False, compare=False)
+    edition: str = "havell"
+
+    @classmethod
+    def load(cls, dir: Path, path: Path = AUDUBON_MAP) -> Audubon | None:
+        """None (and an ERROR) when the table is missing or unreadable, so the
+        server runs Fugleramme-only. Invalid entries are skipped."""
+        try:
+            doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            log.error("audubon table %s unreadable: %s; Audubon plates off", path, exc)
+            return None
+        species = doc.get("species") if isinstance(doc, dict) else None
+        if not isinstance(species, dict):
+            log.error("audubon table %s has no species map; Audubon plates off", path)
+            return None
+        table: dict[str, dict] = {}
+        for key, e in species.items():
+            s = stem(key) if isinstance(key, str) else ""
+            if not s or not _valid_entry(e):
+                log.warning("audubon table: skipping invalid entry %r", key)
+                continue
+            if s in table:
+                log.warning("audubon table: duplicate key %r, the later one wins", key)
+            table[s] = e
+        edition = doc.get("edition") if isinstance(doc.get("edition"), str) else "havell"
+        return cls(Path(dir), MappingProxyType(table), edition)
+
+    def entry(self, sci: str) -> dict | None:
+        s = stem(sci)
+        return self.table.get(s) if s else None
+
+    def vignette_path(self, sci: str) -> Path:
+        return self.dir / VIGNETTE_VERSION / f"{stem(sci)}.webp"
+
+    def marker_path(self, sci: str) -> Path:
+        return self.dir / VIGNETTE_VERSION / f"{stem(sci)}.missing"
+
+    def has_art(self, sci: str) -> bool:
+        """Disk only, never fetches."""
+        return bool(stem(sci)) and self.vignette_path(sci).exists()
+
+    def thumb_url(self, e: dict) -> str:
+        return COMMONS_THUMB.format(file=quote(e["file"].replace(" ", "_"), safe=""))
+
+    def ensure(self, sci: str, now: dt.datetime | None = None) -> Path | None:
+        """Return the cached vignette, fetching and processing the plate's
+        thumbnail on first need. None when the species has no plate (no
+        request, no marker) or the fetch or processing failed (marker)."""
+        now = now or utcnow()
+        e = self.entry(sci)
+        if e is None:
+            return None
+        p = self.vignette_path(sci)
+        if p.exists():
+            return p
+        m = self.marker_path(sci)
+        if _marker_waiting(m, now):
+            return None
+        try:
+            data = fetch_url(self.thumb_url(e))
+            with Image.open(io.BytesIO(data)) as im:
+                if max(im.size) > THUMB_MAX:
+                    raise ValueError(f"not a thumbnail: {im.size[0]}x{im.size[1]}")
+                im.load()
+                out = vignette(im, sci)
+            buf = io.BytesIO()
+            out.convert("RGB").save(buf, "WEBP", quality=85)
+        except NotFound:
+            _write_marker(m, "404", now)
+            log.info("no audubon scan for %s", sci)
+            return None
+        except VignetteError as exc:
+            _write_marker(m, f"vignette: {exc}"[:200], now)
+            log.warning("audubon plate %s for %s unusable: %s", e["plate"], sci, exc)
+            return None
+        except Exception as exc:  # noqa: BLE001
+            _write_marker(m, f"{type(exc).__name__}: {exc}"[:200], now)
+            log.warning("audubon fetch failed for %s: %s", sci, exc)
+            return None
+        _write_atomic(p, buf.getvalue())
+        if m.exists():
+            m.unlink()
+        return p
+
+    def cached_plates(self) -> list[dict]:
+        """Distinct plates with a vignette on disk, by plate number, for /attribution."""
+        seen: dict[int, dict] = {}
+        for s, e in self.table.items():
+            if e["plate"] not in seen and (self.dir / VIGNETTE_VERSION / f"{s}.webp").exists():
+                seen[e["plate"]] = {k: e.get(k) for k in ("plate", "title", "page", "credit", "credit_url")}
+        return [seen[n] for n in sorted(seen)]
+
+
+# ----------------------------------------------------------------- vignette
+# Constants were set on 16 Havell plates (see the design doc); all geometry
+# runs at a 960 px working width, the Commons thumbnail width.
+WORK_W = 960
+DEFAULT_PAPER = (238, 228, 200)   # median margin paper of 14 measured plates
+INK_T = 40           # "ink" = darker than paper by >= 40 in some channel
+BAND = 0.06          # sheet edges / scanner surround, zeroed for the component search
+OPEN = 5             # opening size at half scale: removes strokes thinner than ~10 px
+CELL = 4             # grid cell, px
+KEEP = 0.02          # min mass of a secondary component, fraction of main
+DEBRIS = 0.10        # band-touching components below this fraction of main are dropped
+DENSE = 0.25         # a bled side grows while the next row/column is >= 25 % core
+PAD = 0.04           # pad on non-bleed sides, fraction of the picture's longer side
+GROW = 1             # picture-mask growth beyond the picture box, in cells
+SOFT_LO, SOFT_HI = 18, 40         # background flattening ramp (darker-than-paper amount)
+ASPECT = (0.75, 1.33)
+
+
+class _Comp(NamedTuple):
+    mass: int
+    x0: int
+    y0: int
+    x1: int          # half-open, grid cells
+    y1: int
+
+
+@dataclass(frozen=True)
+class VignetteGeometry:
+    size: tuple[int, int]                     # working image, 960 wide
+    picture: tuple[int, int, int, int]        # picture box, px at the working scale
+    crop: tuple[int, int, int, int]           # padded crop box, px
+    paper: tuple[int, int, int]
+    paper_source: str                         # "margin" | "default"
+    bleed: str                                # sides that bled, subset of "TBLR"
+    _img: Image.Image = field(repr=False, compare=False)
+    _ink: Image.Image = field(repr=False, compare=False)
+    _pm: Image.Image = field(repr=False, compare=False)   # picture mask, cell grid
+
+
+def _solid(size, color) -> Image.Image:
+    return Image.new("RGB", size, color)
+
+
+def _darker_than(img: Image.Image, color) -> Image.Image:
+    """Per pixel, the most any channel is darker than `color` (one-sided)."""
+    r, g, b = ImageChops.subtract(_solid(img.size, color), img).split()
+    return ImageChops.lighter(ImageChops.lighter(r, g), b)
+
+
+def _thresh(img: Image.Image, test) -> Image.Image:
+    return img.point(lambda v: 255 if test(v) else 0)
+
+
+def _components(dil: bytes, grid: bytes, gw: int, gh: int) -> list[_Comp]:
+    """4-connected components of `dil`; mass counts `grid` cells. Largest first."""
+    seen = bytearray(gw * gh)
+    comps = []
+    for i in range(gw * gh):
+        if not dil[i] or seen[i]:
+            continue
+        seen[i] = 1
+        stack = [i]
+        mass = 0
+        x0 = x1 = i % gw
+        y0 = y1 = i // gw
+        while stack:
+            j = stack.pop()
+            y, x = divmod(j, gw)
+            if grid[j]:
+                mass += 1
+            x0, x1, y0, y1 = min(x0, x), max(x1, x), min(y0, y), max(y1, y)
+            for k, ok in ((j - 1, x > 0), (j + 1, x < gw - 1), (j - gw, y > 0), (j + gw, y < gh - 1)):
+                if ok and dil[k] and not seen[k]:
+                    seen[k] = 1
+                    stack.append(k)
+        comps.append(_Comp(mass, x0, y0, x1 + 1, y1 + 1))
+    comps.sort(key=lambda c: -c.mass)
+    return comps
+
+
+def _median_masked(img: Image.Image, mask: Image.Image) -> tuple[tuple[int, int, int] | None, int]:
+    out = []
+    n = 0
+    for band in img.split():
+        h = band.histogram(mask)
+        n = sum(h)
+        if n == 0:
+            return None, 0
+        acc = 0
+        for v in range(256):
+            acc += h[v]
+            if acc * 2 >= n:
+                out.append(v)
+                break
+    return tuple(out), n
+
+
+def _vignette_geometry(img: Image.Image, sci: str = "") -> VignetteGeometry:
+    """Steps 1-9 of the design's vignette pipeline: find the picture, the
+    crop, the paper colour, and the picture mask. Raises VignetteError."""
+    img = img.convert("RGB")
+    if img.width != WORK_W:
+        img = img.resize((WORK_W, max(1, round(img.height * WORK_W / img.width))), Image.LANCZOS)
+    W, H = img.size
+    bx, by = round(W * BAND), round(H * BAND)
+    # 1. one-sided ink mask against DEFAULT_PAPER
+    ink = _thresh(_darker_than(img, DEFAULT_PAPER), lambda v: v >= INK_T)
+    # 2. opening at half scale, then the 4 px grid
+    half = _thresh(ink.reduce(2), lambda v: v >= 128)
+    core = half.filter(ImageFilter.MinFilter(OPEN)).filter(ImageFilter.MaxFilter(OPEN))
+    core = _thresh(core.reduce(2), lambda v: v > 0)
+    gw, gh = core.size
+    # 3. band zeroed for the component search
+    ib = (bx // CELL, by // CELL, -(-(W - bx) // CELL), -(-(H - by) // CELL))
+    inner = Image.new("L", core.size, 0)
+    ImageDraw.Draw(inner).rectangle((ib[0], ib[1], ib[2] - 1, ib[3] - 1), fill=255)
+    grid = ImageChops.multiply(core, inner)
+    # 4. components
+    comps = _components(grid.filter(ImageFilter.MaxFilter(3)).tobytes(), grid.tobytes(), gw, gh)
+    comps = [c for c in comps if c.mass > 0]
+    if not comps:
+        raise VignetteError("no picture")
+    # 5. choose the picture
+    main = comps[0]
+    keep = [main]
+    for c in comps[1:]:
+        if c.mass < KEEP * main.mass:
+            continue
+        w, h = c.x1 - c.x0, c.y1 - c.y0
+        if (c.y1 <= main.y0 or c.y0 >= main.y1) and w / h >= 3:
+            continue                     # a text line that survived the opening
+        touches = c.x0 <= ib[0] or c.y0 <= ib[1] or c.x1 >= ib[2] or c.y1 >= ib[3]
+        if touches and c.mass < DEBRIS * main.mass:
+            continue                     # margin stain or sheet debris
+        keep.append(c)
+    x0, y0 = min(c.x0 for c in keep), min(c.y0 for c in keep)
+    x1, y1 = max(c.x1 for c in keep), max(c.y1 for c in keep)
+    # 6. full-bleed sides grow over the unbanded core while it stays dense
+    cb = core.tobytes()
+
+    def row(y, a, b):
+        return sum(1 for x in range(a, b) if cb[y * gw + x])
+
+    def col(x, a, b):
+        return sum(1 for y in range(a, b) if cb[y * gw + x])
+    bleed = ""
+    if y0 <= ib[1] + 1:
+        while y0 > 0 and row(y0 - 1, x0, x1) >= DENSE * (x1 - x0):
+            y0 -= 1
+        bleed += "T"
+    if y1 >= ib[3] - 1:
+        while y1 < gh and row(y1, x0, x1) >= DENSE * (x1 - x0):
+            y1 += 1
+        bleed += "B"
+    if x0 <= ib[0] + 1:
+        while x0 > 0 and col(x0 - 1, y0, y1) >= DENSE * (y1 - y0):
+            x0 -= 1
+        bleed += "L"
+    if x1 >= ib[2] - 1:
+        while x1 < gw and col(x1, y0, y1) >= DENSE * (y1 - y0):
+            x1 += 1
+        bleed += "R"
+    px0, py0, px1, py1 = x0 * CELL, y0 * CELL, min(W, x1 * CELL), min(H, y1 * CELL)
+    # 7. margin paper: inner rectangle minus the picture box, light and low-chroma
+    m = Image.new("L", img.size, 0)
+    md = ImageDraw.Draw(m)
+    md.rectangle((bx, by, W - bx - 1, H - by - 1), fill=255)
+    md.rectangle((px0, py0, px1 - 1, py1 - 1), fill=0)
+    r, g, b = img.split()
+    chroma = ImageChops.subtract(ImageChops.lighter(ImageChops.lighter(r, g), b),
+                                 ImageChops.darker(ImageChops.darker(r, g), b))
+    m = ImageChops.multiply(m, _thresh(img.convert("L"), lambda v: v >= 200))
+    m = ImageChops.multiply(m, _thresh(chroma, lambda v: v <= 60))
+    paper, n = _median_masked(img, m)
+    source = "margin"
+    if paper is None or n < 0.005 * W * H:
+        paper, source = DEFAULT_PAPER, "default"
+        log.debug("audubon %s: default paper", sci)
+    # 8. crop box: pad non-bleed sides
+    pad = round(PAD * max(px1 - px0, py1 - py0))
+    crop = (px0 if "L" in bleed else max(0, px0 - pad), py0 if "T" in bleed else max(0, py0 - pad),
+            px1 if "R" in bleed else min(W, px1 + pad), py1 if "B" in bleed else min(H, py1 + pad))
+    if (crop[2] - crop[0]) * (crop[3] - crop[1]) < 0.01 * W * H:
+        raise VignetteError("picture too small")
+    # 9. picture mask: raw ink cells 8-connected to kept core, inside the grown box
+    raw = _thresh(ink.reduce(CELL), lambda v: v > 0)
+    rw, rh = raw.size
+    rb = raw.tobytes()
+    pm = bytearray(rw * rh)
+    stack = []
+
+    def seed(ax0, ay0, ax1, ay1):
+        for y in range(ay0, min(ay1, rh)):
+            for x in range(ax0, min(ax1, rw)):
+                j = y * rw + x
+                if cb[j] and rb[j] and not pm[j]:
+                    pm[j] = 1
+                    stack.append(j)
+    for c in keep:
+        seed(c.x0, c.y0, c.x1, c.y1)
+    if bleed:
+        seed(x0, y0, x1, y1)
+    # grown box, clipped to the crop's cells
+    gx0, gy0 = max(crop[0] // CELL, x0 - GROW), max(crop[1] // CELL, y0 - GROW)
+    gx1 = min(rw, -(-crop[2] // CELL), x1 + GROW)
+    gy1 = min(rh, -(-crop[3] // CELL), y1 + GROW)
+    while stack:
+        j = stack.pop()
+        y, x = divmod(j, rw)
+        for dy in (-1, 0, 1):
+            ny = y + dy
+            if not gy0 <= ny < gy1:
+                continue
+            for dx in (-1, 0, 1):
+                nx = x + dx
+                k = ny * rw + nx
+                if gx0 <= nx < gx1 and rb[k] and not pm[k]:
+                    pm[k] = 1
+                    stack.append(k)
+    pmi = Image.frombytes("L", (rw, rh), bytes(255 if v else 0 for v in pm)).filter(ImageFilter.MaxFilter(3))
+    return VignetteGeometry((W, H), (px0, py0, px1, py1), crop, paper, source, bleed, img, ink, pmi)
+
+
+def vignette(img: Image.Image, sci: str = "") -> Image.Image:
+    """Crop a plate scan to its picture, erase captions and stains, and
+    recolour the paper to CARD so it reads as printed on the card. Pillow
+    only. Raises VignetteError when no usable picture is found."""
+    g = _vignette_geometry(img, sci)
+    qx0, qy0, qx1, qy1 = g.crop
+    crop = g._img.crop(g.crop)
+    # 10. background: non-picture cells reachable from the crop border
+    cx0, cy0 = qx0 // CELL, qy0 // CELL
+    cx1, cy1 = min(g._pm.width, -(-qx1 // CELL)), min(g._pm.height, -(-qy1 // CELL))
+    sub = g._pm.crop((cx0, cy0, cx1, cy1))
+    w2, h2 = sub.size
+    pic = sub.tobytes()
+    bg = bytearray(w2 * h2)
+    stack = [j for j in itertools.chain(range(w2), range((h2 - 1) * w2, h2 * w2),
+                                        range(0, h2 * w2, w2), range(w2 - 1, h2 * w2, w2))
+             if not pic[j]]
+    for j in stack:
+        bg[j] = 1
+    while stack:
+        j = stack.pop()
+        y, x = divmod(j, w2)
+        for k, ok in ((j - 1, x > 0), (j + 1, x < w2 - 1), (j - w2, y > 0), (j + w2, y < h2 - 1)):
+            if ok and not pic[k] and not bg[k]:
+                bg[k] = 1
+                stack.append(k)
+    bgm = Image.frombytes("L", (w2, h2), bytes(255 if v else 0 for v in bg))
+    ox, oy = qx0 - cx0 * CELL, qy0 - cy0 * CELL
+    bgm = bgm.resize((w2 * CELL, h2 * CELL), Image.NEAREST).crop(
+        (ox, oy, ox + crop.width, oy + crop.height)).filter(ImageFilter.GaussianBlur(2))
+    # 11. colour: multiply paper -> CARD; flatten background only
+    mult = Image.merge("RGB", [band.point(lambda v, k=CARD[i] / max(1, g.paper[i]): min(255, round(v * k)))
+                               for i, band in enumerate(crop.split())])
+    span = SOFT_HI - SOFT_LO
+    soft = _darker_than(crop, g.paper).point(
+        lambda v: 255 if v <= SOFT_LO else (0 if v >= SOFT_HI else round(255 * (SOFT_HI - v) / span)))
+    ink_d = g._ink.crop(g.crop).filter(ImageFilter.MaxFilter(5))
+    flat = ImageChops.multiply(bgm, ImageChops.lighter(soft, ink_d).filter(ImageFilter.GaussianBlur(1)))
+    out = Image.composite(_solid(crop.size, CARD), mult, flat)
+    # 12. aspect clamp by extending with CARD, then bound the size
+    cw, ch = out.size
+    a = cw / ch
+    canvas = ((round(ASPECT[0] * ch), ch) if a < ASPECT[0]
+              else (cw, round(cw / ASPECT[1])) if a > ASPECT[1] else (cw, ch))
+    if canvas != (cw, ch):
+        c2 = _solid(canvas, CARD)
+        c2.paste(out, ((canvas[0] - cw) // 2, (canvas[1] - ch) // 2))
+        out = c2
+    return ImageOps.contain(out, (VIGNETTE_MAX, VIGNETTE_MAX), Image.LANCZOS).convert("RGB")
 
 
 # ----------------------------------------------------------------- layout

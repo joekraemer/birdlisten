@@ -7,10 +7,13 @@ from __future__ import annotations
 import datetime as dt
 import io
 import itertools
+import json
+import time
+import urllib.error
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageChops, ImageDraw
 
 import birdlisten as bl
 import frame
@@ -437,3 +440,379 @@ def test_render_cache_rerenders_only_on_change(tmp_path: Path):
     assert cache.renders == 4
     cache.get(b, 800, 600, 24, now=T0)     # still cached
     assert cache.renders == 4
+
+
+# ----------------------------------------------------------------- audubon table and cache
+FIXTURES = Path(__file__).resolve().parent / "tests" / "fixtures" / "audubon"
+
+
+def entry(plate=1, file="1 Wild Turkey.jpg", title="Wild Turkey", **kw):
+    page = "https://commons.wikimedia.org/wiki/File:" + file.replace(" ", "_")
+    return {"plate": plate, "title": title, "file": file, "page": page,
+            "credit": "University of Pittsburgh", "credit_url": f"http://pitt.example/{plate}",
+            "on_plate": 1, "via": ["commons", "wikidata"], **kw}
+
+
+JAYS = "362 I. Yellow billed Magpie - 2. Stellers Jay - 3. Ultramarine Jay - 4. Clark's Crow.jpg"
+
+
+def write_table(tmp_path: Path, species=None) -> Path:
+    species = species if species is not None else {
+        "Meleagris gallopavo": entry(),
+        "Cyanocitta stelleri": entry(362, JAYS, "Jays"),
+        "Aphelocoma californica": entry(362, JAYS, "Jays"),
+    }
+    p = tmp_path / "audubon.json"
+    p.write_text(json.dumps({"edition": "havell", "generated": "2026-10-03", "species": species}))
+    return p
+
+
+def audubon(tmp_path: Path, species=None) -> frame.Audubon:
+    a = frame.Audubon.load(tmp_path / "artwork" / "audubon", write_table(tmp_path, species))
+    assert a is not None
+    return a
+
+
+def jpeg(img: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=90)
+    return buf.getvalue()
+
+
+def test_audubon_lookup_and_validation(tmp_path: Path, caplog):
+    species = {
+        "Meleagris gallopavo": entry(),
+        "Bad plate": entry(plate=436),
+        "Bool plate": entry(plate=True),
+        "No file": entry(file=""),
+        "Bad page": {**entry(), "page": "https://evil.example/x"},
+        "Not a dict": [1, 2],
+        "???": entry(),
+    }
+    with caplog.at_level("WARNING", logger="frame"):
+        a = audubon(tmp_path, species)
+    assert a.entry("meleagris  Gallopavo")["plate"] == 1
+    assert len(a.table) == 1 and a.edition == "havell"
+    for bad in ("Bad plate", "Bool plate", "No file", "Bad page", "Not a dict"):
+        assert a.entry(bad) is None and repr(bad) in caplog.text
+    assert a.vignette_path("Meleagris gallopavo") == a.dir / "v1" / "meleagris-gallopavo.webp"
+
+
+def test_audubon_load_missing_or_corrupt(tmp_path: Path, caplog):
+    with caplog.at_level("ERROR", logger="frame"):
+        assert frame.Audubon.load(tmp_path, tmp_path / "nope.json") is None
+        (tmp_path / "bad.json").write_text("{not json")
+        assert frame.Audubon.load(tmp_path, tmp_path / "bad.json") is None
+        (tmp_path / "nospecies.json").write_text('{"edition": "havell"}')
+        assert frame.Audubon.load(tmp_path, tmp_path / "nospecies.json") is None
+    assert caplog.text.count("Audubon plates off") == 3
+
+
+def test_audubon_duplicate_stem_later_wins(tmp_path: Path, caplog):
+    with caplog.at_level("WARNING", logger="frame"):
+        a = audubon(tmp_path, {"Meleagris gallopavo": entry(1), "Meleagris  gallopavo": entry(6, "6 Hen.jpg")})
+    assert a.entry("Meleagris gallopavo")["plate"] == 6 and "duplicate" in caplog.text
+
+
+def test_audubon_no_entry_no_fetch_no_marker(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(frame, "fetch_url", lambda url, timeout=None: calls.append(url))
+    a = audubon(tmp_path)
+    assert a.ensure("Turdus migratorius", T0) is None
+    assert a.ensure("???", T0) is None
+    assert calls == [] and not a.dir.exists()
+
+
+def test_audubon_success_cached(tmp_path: Path, monkeypatch):
+    calls = []
+    data = (FIXTURES / "8.jpg").read_bytes()
+
+    def fake(url, timeout=None):
+        calls.append(url)
+        return data
+    monkeypatch.setattr(frame, "fetch_url", fake)
+    a = audubon(tmp_path)
+    m = a.marker_path("Meleagris gallopavo")
+    m.parent.mkdir(parents=True)
+    frame._write_marker(m, "OSError: old", T0 - dt.timedelta(hours=2))
+    p = a.ensure("Meleagris gallopavo", T0)
+    assert p == a.vignette_path("Meleagris gallopavo") and a.has_art("Meleagris gallopavo")
+    assert not m.exists()
+    with Image.open(p) as im:
+        assert im.format == "WEBP" and max(im.size) <= frame.VIGNETTE_MAX
+    assert a.ensure("Meleagris gallopavo", T0) == p and len(calls) == 1
+    assert calls[0] == "https://commons.wikimedia.org/wiki/Special:FilePath/1_Wild_Turkey.jpg?width=960"
+
+
+@pytest.mark.parametrize("exc,first,retry_h", [
+    (frame.NotFound("x"), "404", 24),
+    (urllib.error.HTTPError("u", 500, "boom", {}, None), "HTTPError", 1),
+    (OSError("timed out"), "OSError: timed out", 1),
+])
+def test_audubon_markers(tmp_path: Path, monkeypatch, exc, first, retry_h):
+    calls = []
+
+    def fake(url, timeout=None):
+        calls.append(url)
+        raise exc
+    monkeypatch.setattr(frame, "fetch_url", fake)
+    a = audubon(tmp_path)
+    name = "Meleagris gallopavo"
+    assert a.ensure(name, T0) is None
+    assert a.marker_path(name).read_text().startswith(first)
+    assert a.ensure(name, T0 + dt.timedelta(hours=retry_h) - dt.timedelta(minutes=1)) is None
+    assert len(calls) == 1
+    assert a.ensure(name, T0 + dt.timedelta(hours=retry_h, minutes=1)) is None
+    assert len(calls) == 2 and not a.has_art(name)
+
+
+def test_audubon_vignette_error_waits_a_day(tmp_path: Path, monkeypatch):
+    calls = []
+
+    def fake(url, timeout=None):
+        calls.append(url)
+        return jpeg(Image.new("RGB", (96, 138), (240, 229, 200)))
+
+    def bad(img, sci=""):
+        raise frame.VignetteError("no picture")
+    monkeypatch.setattr(frame, "fetch_url", fake)
+    monkeypatch.setattr(frame, "vignette", bad)
+    a = audubon(tmp_path)
+    name = "Meleagris gallopavo"
+    assert a.ensure(name, T0) is None
+    assert a.marker_path(name).read_text().startswith("vignette: no picture")
+    assert a.ensure(name, T0 + dt.timedelta(hours=23)) is None and len(calls) == 1
+    assert a.ensure(name, T0 + dt.timedelta(hours=25)) is None and len(calls) == 2
+
+
+def test_audubon_refuses_non_thumbnail(tmp_path: Path, monkeypatch):
+    calls = []
+    big = jpeg(Image.new("RGB", (3000, 3000), (240, 229, 200)))
+
+    def fake(url, timeout=None):
+        calls.append(url)
+        return big
+    monkeypatch.setattr(frame, "fetch_url", fake)
+    a = audubon(tmp_path)
+    assert a.ensure("Cyanocitta stelleri", T0) is None
+    first = a.marker_path("Cyanocitta stelleri").read_text()
+    assert first.startswith("ValueError: not a thumbnail")
+    url = calls[0]
+    assert "Special:FilePath/" in url and url.endswith("?width=960")
+    assert "362_I._Yellow_billed_Magpie_-_2._Stellers_Jay_-_3._Ultramarine_Jay_-_4._Clark%27s_Crow.jpg" in url
+
+
+def test_audubon_cached_plates_distinct(tmp_path: Path):
+    a = audubon(tmp_path)
+    assert a.cached_plates() == []
+    for sci in ("Cyanocitta stelleri", "Aphelocoma californica", "Meleagris gallopavo"):
+        p = a.vignette_path(sci)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"x")
+    plates = a.cached_plates()
+    assert [p["plate"] for p in plates] == [1, 362]
+    assert set(plates[0]) == {"plate", "title", "page", "credit", "credit_url"}
+
+
+# ----------------------------------------------------------------- vignette
+SHEET_PAPER = (240, 229, 200)
+DARK = (70, 55, 40)
+
+
+def _glyphs(d: ImageDraw.ImageDraw, x, y, n, w=8, h=12, gap=3, stroke=2, fill=DARK) -> list[tuple]:
+    out = []
+    for i in range(n):
+        x0 = x + i * (w + gap)
+        d.rectangle((x0, y, x0 + w - 1, y + h - 1), outline=fill, width=stroke)
+        out.append((x0, y, x0 + w, y + h))
+    return out
+
+
+def synthetic_sheet(w=960, h=1380, figures=True, title_y=None):
+    """A Havell-like sheet: white scanner surround, yellowish paper with a
+    faint plate mark, plate number and heading at the top, credit lines and a
+    three-line title at the bottom. Returns (image, regions)."""
+    img = Image.new("RGB", (w, h), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    s = round(0.03 * w)
+    d.rectangle((s, s, w - s - 1, h - s - 1), fill=SHEET_PAPER)
+    faint = tuple(v - 15 for v in SHEET_PAPER)
+    d.rectangle((s + 30, s + 30, w - s - 31, h - s - 31), outline=faint, width=2)
+    reg = {"text": []}
+    reg["text"].append(_glyphs(d, w - 200, round(0.07 * h), 5, h=10))          # "No. 1"
+    reg["text"].append(_glyphs(d, w // 2 - 40, round(0.07 * h), 7, h=10))      # "PLATE I"
+    title_y = title_y if title_y is not None else round(0.83 * h)
+    reg["credit"] = [_glyphs(d, 100, title_y - 30, 15, h=6), _glyphs(d, w - 270, title_y - 30, 15, h=6)]
+    reg["title"] = [g for i in range(3) for g in _glyphs(d, w // 2 - 150 + 30 * i, title_y + 20 * i, 25 - 5 * i)]
+    reg["title_top"] = title_y
+    if figures:
+        cx, cy = w // 2, round(0.43 * h)
+        d.ellipse((cx - 200, cy - 260, cx + 200, cy + 260), fill=(90, 70, 50))
+        d.ellipse((cx - 60, cy - 330, cx + 140, cy - 180), fill=(110, 80, 60))       # head: irregular
+        d.ellipse((cx + 220, cy + 140, cx + 340, cy + 260), fill=(60, 90, 120))      # side figure
+        reg["figures"] = [(cx - 200, cy - 330, cx + 200, cy + 260), (cx + 220, cy + 140, cx + 340, cy + 260)]
+    return img, reg
+
+
+def _contains(outer, inner) -> bool:
+    return outer[0] <= inner[0] and outer[1] <= inner[1] and outer[2] >= inner[2] and outer[3] >= inner[3]
+
+
+def _disjoint(a, b) -> bool:
+    return a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1]
+
+
+def _to_out(g: frame.VignetteGeometry, out: Image.Image):
+    """Map a source-pixel box to the output image (crop, aspect canvas, resize)."""
+    cw, ch = g.crop[2] - g.crop[0], g.crop[3] - g.crop[1]
+    a = cw / ch
+    canvas = ((round(0.75 * ch), ch) if a < 0.75 else (cw, round(cw / 1.33)) if a > 1.33 else (cw, ch))
+    ox, oy = (canvas[0] - cw) // 2, (canvas[1] - ch) // 2
+    k = out.width / canvas[0]
+
+    def f(box):
+        return tuple(round(v) for v in ((box[0] - g.crop[0] + ox) * k, (box[1] - g.crop[1] + oy) * k,
+                                        (box[2] - g.crop[0] + ox) * k, (box[3] - g.crop[1] + oy) * k))
+    return f
+
+
+def _maxdiff(img: Image.Image, color) -> Image.Image:
+    r, g, b = ImageChops.difference(img, Image.new("RGB", img.size, color)).split()
+    return ImageChops.lighter(ImageChops.lighter(r, g), b)
+
+
+def _card_frac(out: Image.Image, tol=6) -> float:
+    return sum(_maxdiff(out, frame.CARD).histogram()[:tol + 1]) / (out.width * out.height)
+
+
+def _mean(img: Image.Image, box) -> tuple[float, ...]:
+    from PIL import ImageStat
+    return tuple(ImageStat.Stat(img.crop(box)).mean)
+
+
+def test_vignette_synthetic_base():
+    img, reg = synthetic_sheet()
+    g = frame._vignette_geometry(img)
+    out = frame.vignette(img)
+    for f in reg["figures"]:
+        assert _contains(g.crop, f)
+    for strip in reg["text"] + reg["credit"] + [reg["title"]]:
+        for glyph in strip:
+            assert _disjoint(g.crop, glyph)
+    assert g.paper == SHEET_PAPER and g.paper_source == "margin"
+    assert 0.75 <= out.width / out.height <= 1.33 and max(out.size) <= frame.VIGNETTE_MAX
+    # Everything away from the figures is card-coloured.
+    mask = Image.new("L", img.size, 0)
+    md = ImageDraw.Draw(mask)
+    for f in reg["figures"]:
+        md.rectangle((f[0] - 14, f[1] - 14, f[2] + 14, f[3] + 14), fill=255)
+    to = _to_out(g, out)
+    om = Image.new("L", out.size, 0)
+    for f in reg["figures"]:
+        om.paste(255, to((f[0] - 14, f[1] - 14, f[2] + 14, f[3] + 14)))
+    diff = ImageChops.multiply(_maxdiff(out, frame.CARD), ImageChops.invert(om))
+    assert diff.getextrema()[1] <= 4
+
+
+def test_vignette_painted_plate():
+    w, h = 960, 667
+    img = Image.new("RGB", (w, h), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    s = round(0.03 * w)
+    d.rectangle((s, s, w - s - 1, h - s - 1), fill=SHEET_PAPER)
+    sky = (round(0.05 * w), round(0.05 * h), w - round(0.05 * w), round(0.78 * h))
+    d.rectangle(sky, fill=(100, 140, 190))
+    blob = (380, 180, 580, 340)
+    d.ellipse(blob, fill=(225, 225, 220))
+    _glyphs(d, w // 2 - 120, round(0.86 * h), 20)
+    g = frame._vignette_geometry(img)
+    out = frame.vignette(img)
+    assert 0.299 * g.paper[0] + 0.587 * g.paper[1] + 0.114 * g.paper[2] >= 200
+    inner = (blob[0] + 40, blob[1] + 30, blob[2] - 40, blob[3] - 30)
+    m = _mean(out, _to_out(g, out)(inner))
+    assert max(abs(m[i] - frame.CARD[i]) for i in range(3)) > 15
+    assert _card_frac(out) < 0.5
+
+
+def test_vignette_caption_touching():
+    img, reg = synthetic_sheet(title_y=872)
+    d = ImageDraw.Draw(img)
+    cx, bottom = 480, reg["figures"][0][3]
+    d.line((cx, bottom - 5, cx, reg["title_top"] + 30), fill=DARK, width=3)       # branch into the title
+    touching = [gl for gl in reg["title"] if gl[0] <= cx + 2 and gl[2] >= cx - 2]
+    g = frame._vignette_geometry(img)
+    out = frame.vignette(img)
+    assert g.picture[3] < reg["title_top"]
+    to = _to_out(g, out)
+    dark = 0
+    for gl in reg["title"]:
+        if _disjoint(g.crop, gl):
+            continue
+        m = _mean(out, to(gl))
+        if max(abs(m[i] - frame.CARD[i]) for i in range(3)) > 4:
+            dark += 1
+    assert dark <= 1 and touching
+    assert any(not _disjoint(g.crop, gl) for gl in reg["title"])   # the title does reach the crop
+
+
+def test_vignette_enclosed_pale_region_is_not_flattened():
+    img, reg = synthetic_sheet(figures=False)
+    d = ImageDraw.Draw(img)
+    body = (240, 300, 720, 900)
+    d.ellipse(body, fill=(80, 60, 45))
+    belly = (body[0] + 40, body[1] + 40, body[2] - 40, body[3] - 40)
+    pale = tuple(v - 25 for v in SHEET_PAPER)
+    d.ellipse(belly, fill=pale)
+    g = frame._vignette_geometry(img)
+    out = frame.vignette(img)
+    expected = [pale[i] * frame.CARD[i] / g.paper[i] for i in range(3)]
+    cx, cy = (belly[0] + belly[2]) // 2, (belly[1] + belly[3]) // 2
+    m = _mean(out, _to_out(g, out)((cx - 120, cy - 150, cx + 120, cy + 150)))
+    assert all(abs(m[i] - expected[i]) <= 6 for i in range(3)), (m, expected)
+
+
+def test_vignette_margin_stain():
+    img, reg = synthetic_sheet()
+    d = ImageDraw.Draw(img)
+    s = round(0.03 * 960)
+    blotch = (s, 1000, s + 90, 1090)                         # crosses the 6 % band from the sheet edge
+    d.rectangle(blotch, fill=tuple(v - 60 for v in SHEET_PAPER))
+    faint = (700, 150, 900, 230)                              # outer margin, outside the padded picture
+    d.rectangle(faint, fill=tuple(v - 25 for v in SHEET_PAPER))
+    g = frame._vignette_geometry(img)
+    out = frame.vignette(img)
+    assert _disjoint(g.crop, faint)
+    if not _disjoint(g.crop, blotch):
+        assert _maxdiff(out.crop(_to_out(g, out)(blotch)), frame.CARD).getextrema()[1] <= 6
+    for f in reg["figures"]:
+        assert _contains(g.crop, f)
+
+
+def test_vignette_blank_sheet_raises():
+    img, _ = synthetic_sheet(figures=False)
+    with pytest.raises(frame.VignetteError):
+        frame.vignette(img)
+    with pytest.raises(frame.VignetteError):
+        frame.vignette(Image.new("RGB", (480, 690), SHEET_PAPER))
+
+
+@pytest.mark.parametrize("plate,box", [
+    (8, (316, 412, 644, 996)),
+    (362, (152, 296, 844, 1064)),
+    (376, (48, 52, 908, 616)),
+])
+def test_vignette_real_fixtures(plate, box):
+    with Image.open(FIXTURES / f"{plate}.jpg") as im:
+        t = time.monotonic()
+        g = frame._vignette_geometry(im)
+        out = frame.vignette(im)
+        elapsed = time.monotonic() - t
+    w, h = g.size
+    assert w == 960
+    tol = (0.05 * w, 0.05 * h, 0.05 * w, 0.05 * h)
+    assert all(abs(g.picture[i] - box[i]) <= tol[i] for i in range(4)), g.picture
+    assert elapsed < 2
+    if plate == 376:
+        assert _card_frac(out) < 0.5
+    if plate == 8:
+        assert all(abs(g.paper[i] - (244, 229, 198)[i]) <= 6 for i in range(3)), g.paper
