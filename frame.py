@@ -820,13 +820,66 @@ def _plate_card(draw: ImageDraw.ImageDraw, px: int, py: int, pw: int, ph: int) -
     """Stand-in for a species Fugleramme has no plate for: a tinted paper
     card with a double rule and a lozenge, bottom-aligned like the plates.
     The name is set beneath it like every other bird."""
-    ci = round(pw * 0.14)
-    x0, y0, x1, y1 = px + ci, py + round(ph * 0.16), px + pw - ci - 1, py + ph - 1
-    lw = max(1, round(pw / 160))
-    draw.rectangle((x0, y0, x1, y1), fill=CARD, outline=RULE, width=lw)
-    ii = max(3, round(pw * 0.03))
-    draw.rectangle((x0 + ii, y0 + ii, x1 - ii, y1 - ii), outline=RULE, width=lw)
+    x0, y0, x1, y1 = _placeholder_box(px, py, pw, ph)
+    lw, ii = _frame_widths(pw)
+    _card_frame(draw, x0, y0, x1, y1, lw, ii)
     _ornament(draw, (x0 + x1) // 2, (y0 + y1) // 2, round((x1 - x0) * 0.24), RULE, lw)
+
+
+def _placeholder_box(px: int, py: int, pw: int, ph: int) -> tuple[int, int, int, int]:
+    """The placeholder card, inclusive corners: 0.72 x 0.84 of the plate area, bottom-aligned."""
+    ci = round(pw * 0.14)
+    return px + ci, py + round(ph * 0.16), px + pw - ci - 1, py + ph - 1
+
+
+def _frame_widths(pw: int) -> tuple[int, int]:
+    """(rule width, inner-rule inset) for a card in a plate area pw wide."""
+    return max(1, round(pw / 160)), max(3, round(pw * 0.03))
+
+
+def _card_frame(draw: ImageDraw.ImageDraw, x0: int, y0: int, x1: int, y1: int, lw: int, ii: int) -> None:
+    """CARD fill, outer rule, inner rule inset by ii: shared by placeholders and vignettes."""
+    draw.rectangle((x0, y0, x1, y1), fill=CARD, outline=RULE, width=lw)
+    draw.rectangle((x0 + ii, y0 + ii, x1 - ii, y1 - ii), outline=RULE, width=lw)
+
+
+def _vignette_frame_box(px: int, py: int, pw: int, ph: int, aspect: float) -> tuple[int, int, int, int]:
+    """The largest box of `aspect` (w/h) no wider than the plate area, no
+    taller than the placeholder and no larger in area than it, bottom-aligned
+    and centred like the placeholder. Inclusive corners."""
+    c0, c1, c2, c3 = _placeholder_box(px, py, pw, ph)
+    cw, ch = c2 - c0 + 1, c3 - c1 + 1
+    h = min(ch, pw / aspect, math.sqrt(cw * ch / aspect))
+    w = min(pw, math.floor(aspect * h))
+    h = math.floor(h)
+    x0 = px + (pw - w) // 2
+    y1 = py + ph - 1
+    return x0, y1 - h + 1, x0 + w - 1, y1
+
+
+def _vignette_card(img: Image.Image, draw: ImageDraw.ImageDraw, path: Path,
+                   px: int, py: int, pw: int, ph: int) -> bool:
+    """An Audubon vignette in the placeholder's double-rule frame, no lozenge.
+    False (and the file deleted) when the cached vignette is unreadable, so
+    the caller draws the placeholder instead."""
+    try:
+        with Image.open(path) as im:
+            vig = im.convert("RGB")
+    except Exception as exc:  # noqa: BLE001 -- corrupt cached file
+        log.warning("bad cached vignette %s: %s; deleting", path, exc)
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return False
+    x0, y0, x1, y1 = _vignette_frame_box(px, py, pw, ph, vig.width / vig.height)
+    lw, ii = _frame_widths(pw)
+    _card_frame(draw, x0, y0, x1, y1, lw, ii)
+    room = (x1 - x0 + 1 - 4 * ii, y1 - y0 + 1 - 4 * ii)
+    if min(room) > 0:
+        vig = ImageOps.contain(vig, room, Image.LANCZOS)
+        img.paste(vig, (x0 + 2 * ii + (room[0] - vig.width) // 2, y0 + 2 * ii + (room[1] - vig.height) // 2))
+    return True
 
 
 # ----------------------------------------------------------------- render

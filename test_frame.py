@@ -816,3 +816,52 @@ def test_vignette_real_fixtures(plate, box):
         assert _card_frac(out) < 0.5
     if plate == 8:
         assert all(abs(g.paper[i] - (244, 229, 198)[i]) <= 6 for i in range(3)), g.paper
+
+
+# ----------------------------------------------------------------- card frames
+# sha256 of _plate_card at plate widths 60, 173, 400, recorded before the
+# _card_frame refactor: the placeholder must not change by a pixel.
+PLATE_CARD_SHA = {
+    60: "5e528c9c4cb2f236b39fb93698802e65af1bb8cc101f7316b085010657d9fa3b",
+    173: "b99c6744b971b9e476e93d73a8520cba9bb985cb6f6233002789547e0b822bdb",
+    400: "248d722477ea9c54ab362582da1470b0ef642354c24d64d40bb914ef300024d9",
+}
+
+
+@pytest.mark.parametrize("pw", sorted(PLATE_CARD_SHA))
+def test_plate_card_pixels_unchanged(pw):
+    import hashlib
+    im = Image.new("RGB", (pw + 20, pw + 20), frame.PAPER)
+    frame._plate_card(ImageDraw.Draw(im), 10, 10, pw, pw)
+    assert hashlib.sha256(im.tobytes()).hexdigest() == PLATE_CARD_SHA[pw]
+
+
+@pytest.mark.parametrize("pw", [60, 173, 400])
+@pytest.mark.parametrize("aspect", [0.75, 1.0, 1.33])
+def test_vignette_frame_geometry(pw, aspect):
+    px, py = 10, 20
+    c0, c1, c2, c3 = frame._placeholder_box(px, py, pw, pw)
+    x0, y0, x1, y1 = frame._vignette_frame_box(px, py, pw, pw, aspect)
+    w, h = x1 - x0 + 1, y1 - y0 + 1
+    assert w * h <= (c2 - c0 + 1) * (c3 - c1 + 1)
+    assert h <= c3 - c1 + 1 and w <= pw and x0 >= px and x1 <= px + pw - 1
+    assert y1 == c3                                       # bottom-aligned with the placeholder
+    assert abs((x0 - px) - (px + pw - 1 - x1)) <= 1       # centred
+    assert abs(w / h - aspect) < 0.05
+    if aspect == 0.75:
+        assert h >= (c3 - c1 + 1) - 1                      # portrait: the placeholder's height
+    if aspect == 1.33:
+        assert w > c2 - c0 + 1                             # landscape: wider than the placeholder
+
+
+def test_vignette_card_draws_and_drops_corrupt(tmp_path: Path):
+    p = tmp_path / "v.webp"
+    Image.new("RGB", (300, 400), (20, 120, 40)).save(p, "WEBP")
+    im = Image.new("RGB", (220, 220), frame.PAPER)
+    assert frame._vignette_card(im, ImageDraw.Draw(im), p, 10, 10, 200, 200) is True
+    x0, y0, x1, y1 = frame._vignette_frame_box(10, 10, 200, 200, 0.75)
+    assert im.getpixel((x0, y1)) == frame.RULE                       # outer rule
+    assert im.getpixel(((x0 + x1) // 2, (y0 + y1) // 2))[1] > 100    # the picture, no lozenge
+    p.write_bytes(b"junk")
+    assert frame._vignette_card(im, ImageDraw.Draw(im), p, 10, 10, 200, 200) is False
+    assert not p.exists()
