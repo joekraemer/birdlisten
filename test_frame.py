@@ -966,3 +966,27 @@ def test_audubon_off_renders_like_fugleramme_only(tmp_path: Path):
     empty = audubon(tmp_path, {})
     on = frame.render(species, frame.Artwork(tmp_path / "b", audubon=empty), 800, 600, 24, now=T0).png
     assert off == on
+
+
+# ----------------------------------------------------------------- committed table
+TARGET_PLATES = {
+    "Zonotrichia albicollis": 8, "Aphelocoma californica": 362, "Psaltriparus minimus": 353,
+    "Myadestes townsendi": 419, "Cygnus buccinator": 376, "Meleagris gallopavo": 1,
+    "Tachycineta bicolor": 98, "Ixoreus naevius": 369, "Cyanocitta stelleri": 362,
+}
+
+
+def test_committed_audubon_table(tmp_path: Path):
+    a = frame.Audubon.load(tmp_path, frame.AUDUBON_MAP)
+    assert a is not None and a.edition == "havell"
+    raw = json.loads(frame.AUDUBON_MAP.read_text(encoding="utf-8"))["species"]
+    assert len(a.table) == len(raw) >= 400                 # nothing skipped as invalid
+    for sci, plate in TARGET_PLATES.items():
+        assert a.entry(sci)["plate"] == plate, sci
+    files: dict[int, set[str]] = {}
+    for e in raw.values():
+        files.setdefault(e["plate"], set()).add(e["file"])
+    assert all(len(f) == 1 for f in files.values())
+    assert not [k for k in raw if k.split()[0] in ("Sciurus", "Tamias", "Tamiasciurus", "Canis")]
+    assert raw.get("Anous minutus", {}).get("plate") != 275
+    assert {e["on_plate"] for e in raw.values() if e["plate"] == 353} == {3}
