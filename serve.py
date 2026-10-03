@@ -4,7 +4,7 @@ Routes (all GET, LAN only, one consumer: a Home Assistant Webpage card):
   /                    HTML page that shows /collage.png and refreshes it
   /collage.png         the collage; ?hours= ?w= ?h=
   /api/recent          JSON of the species behind the collage; ?hours=
-  /attribution         Fugleramme credit plus its ATTRIBUTION.md
+  /attribution         Fugleramme credit plus its ATTRIBUTION.md, and the Audubon credit
   /favicon.ico         204
 
 Environment (read once by load_serve_config):
@@ -12,6 +12,7 @@ Environment (read once by load_serve_config):
   COLLAGE_HOURS   window in hours (default 24, 1..720)
   ARTWORK_REF     fugleramme commit/branch for plate URLs (default: a pinned sha)
   ARTWORK_DIR     plate cache (default $DATA_DIR/artwork)
+  AUDUBON_FALLBACK  1 (default) = Audubon plates for species Fugleramme lacks, 0 = off
   MIN_CONFIDENCE  rows below this are left off the page and /api/recent
                   (default 0.5, the same variable and default as the capture loop)
 
@@ -80,10 +81,15 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     ref = env.get("ARTWORK_REF", frame.DEFAULT_ARTWORK_REF).strip()
     if not ref or not _REF_RE.fullmatch(ref):
         raise ConfigError(f"ARTWORK_REF must be a git ref or sha ([A-Za-z0-9._/-]), got {ref!r}")
+    fallback = env.get("AUDUBON_FALLBACK", "1").strip()
+    if fallback not in ("0", "1"):
+        raise ConfigError("AUDUBON_FALLBACK must be 0 or 1")
     data_dir = Path(env.get("DATA_DIR", "/data"))
     art_dir = Path(env.get("ARTWORK_DIR", "").strip() or data_dir / "artwork")
+    # A table that fails to load logs an ERROR and leaves the fallback off.
+    audubon = frame.Audubon.load(art_dir / "audubon") if fallback == "1" else None
     return ServeConfig(port=port, hours=hours, db_path=data_dir / "birdlisten.sqlite",
-                       art=frame.Artwork(art_dir, ref), min_confidence=min_conf)
+                       art=frame.Artwork(art_dir, ref, audubon), min_confidence=min_conf)
 
 
 # ----------------------------------------------------------------- request helpers
@@ -129,18 +135,22 @@ def recent_json(cfg: ServeConfig, hours: int, now: dt.datetime | None = None) ->
                 "count": s.count,
                 "cameras": list(s.cameras),
                 "first_ever": s.first_ever,
-                "has_plate": cfg.art.has_plate(s.scientific_name),   # disk only, no fetch
+                # Fugleramme cut-out or Audubon plate on disk; never fetches
+                "has_plate": cfg.art.has_art(s.scientific_name),
             }
             for s in load_species(cfg, hours, now)
         ],
     }
 
 
-def index_html(hours: int) -> str:
+def index_html(hours: int, audubon: bool = False) -> str:
     """Swapping img.src avoids the white flash of a full reload inside the HA
     iframe; the <noscript> meta refresh (which browsers only honour in <head>)
-    is the fallback. `hours` is a validated int, so nothing needs escaping."""
+    is the fallback. `hours` is a validated int, so nothing needs escaping.
+    `audubon` names the second artwork source in the footer."""
     src = f"/collage.png?hours={hours}"
+    credit = ("Plates from Fugleramme (CC BY-SA 4.0) and Audubon's <i>Birds of America</i>"
+              if audubon else "Plates from Fugleramme, CC BY-SA 4.0")
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -157,7 +167,7 @@ footer a{{color:inherit;text-decoration:none}} footer a:hover{{text-decoration:u
 </head>
 <body>
 <img id="c" src="{src}" alt="birds heard recently">
-<footer><a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0</a></footer>
+<footer><a href="/attribution">{credit}</a></footer>
 <script>setInterval(() => {{ c.src = '{src}&t=' + Date.now() }}, {REFRESH_SECONDS * 1000})</script>
 </body>
 </html>
@@ -174,6 +184,7 @@ def attribution_html(art: frame.Artwork) -> str:
     else:
         tail = "Full per-plate sources are in the project's ATTRIBUTION.md, reproduced below."
         body = f"<pre>{html.escape(text)}</pre>"
+    audubon = audubon_html(art.audubon) if art.audubon is not None else ""
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>artwork attribution</title>
@@ -181,8 +192,40 @@ def attribution_html(art: frame.Artwork) -> str:
 <body>
 <p>{CREDIT_HTML}{tail}</p>
 {body}
-</body>
+{audubon}</body>
 </html>
+"""
+
+
+AUDUBON_EDITIONS = {
+    "havell": ("(London, 1827&ndash;1838), Havell edition: hand-coloured engravings by Robert Havell Jr. "
+               "(plates 1&ndash;10 first engraved by W. H. Lizars, Edinburgh)"),
+    "octavo": "(Philadelphia, 1840&ndash;1844), octavo edition: hand-coloured lithographs by J. T. Bowen",
+}
+
+
+def audubon_html(aud: frame.Audubon) -> str:
+    """The Audubon section of /attribution, from disk only (never fetches)."""
+    edition = AUDUBON_EDITIONS.get(aud.edition, AUDUBON_EDITIONS["havell"])
+    esc = lambda v: html.escape(str(v), quote=True)  # noqa: E731
+    items = []
+    for p in aud.cached_plates():
+        item = f'<a href="{esc(p["page"])}">Plate {esc(p["plate"])}, {esc(p["title"] or "")}</a>'
+        if p.get("credit"):
+            credit = esc(p["credit"])
+            if p.get("credit_url"):
+                credit = f'<a href="{esc(p["credit_url"])}">{credit}</a>'
+            item += f", {credit}"
+        items.append(f"<li>{item}</li>")
+    plates = "\n".join(items) or "<li>(none fetched yet)</li>"
+    return f"""<h2>Audubon</h2>
+<p>Some plates are from John James Audubon, <i>The Birds of America</i>
+{edition}. Scans from <a href="https://commons.wikimedia.org/wiki/Category:The_Birds_of_America">Wikimedia
+Commons</a>, credited there to the University of Pittsburgh. Public domain. The plates shown here are
+cropped and recoloured.</p>
+<ul>
+{plates}
+</ul>
 """
 
 
@@ -209,7 +252,8 @@ class Handler(BaseHTTPRequestHandler):
             now = frame.utcnow()   # once per request: window, generated_at, and marker checks agree
             if path == "/":
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
-                self._send(200, "text/html; charset=utf-8", index_html(hours).encode())
+                page = index_html(hours, cfg.art.audubon is not None)
+                self._send(200, "text/html; charset=utf-8", page.encode())
             elif path == "/collage.png":
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
                 w = int_param(qs, "w", DEFAULT_W, MIN_SIZE, MAX_SIZE)

@@ -5,6 +5,7 @@ raise NotFound. Run: uv run --group dev pytest -q   (arm64 macOS: see README "Te
 from __future__ import annotations
 
 import datetime as dt
+import html
 import io
 import json
 import socket
@@ -233,3 +234,109 @@ def test_start_server_ok_then_serves(tmp_path: Path, monkeypatch):
         assert json.loads(body) == {"hours": 12, "generated_at": json.loads(body)["generated_at"], "species": []}
     finally:
         thread._target.__self__.shutdown()
+
+
+# ----------------------------------------------------------------- audubon
+JAYS = "362 I. Yellow billed Magpie - 2. Stellers Jay - 3. Ultramarine Jay - 4. Clark's Crow.jpg"
+
+
+def _entry(plate, file, title, credit="University of Pittsburgh"):
+    return {"plate": plate, "title": title, "file": file,
+            "page": "https://commons.wikimedia.org/wiki/File:" + file.replace(" ", "_"),
+            "credit": credit, "credit_url": f"http://pitt.example/{plate}?a=1&b=2",
+            "on_plate": 4, "via": ["wikidata"]}
+
+
+def _audubon(tmp_path: Path) -> frame.Audubon:
+    table = tmp_path / "audubon.json"
+    table.write_text(json.dumps({"edition": "havell", "species": {
+        "Cyanocitta stelleri": _entry(362, JAYS, "Jays <script>"),
+        "Aphelocoma californica": _entry(362, JAYS, "Jays <script>"),
+        "Ixoreus naevius": _entry(369, "369 Varied Thrush.jpg", "Varied Thrush", credit="Pitt & Co"),
+    }}))
+    return frame.Audubon.load(tmp_path / "artwork" / "audubon", table)
+
+
+def _cache_vignette(aud: frame.Audubon, sci: str) -> None:
+    p = aud.vignette_path(sci)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (60, 80), (90, 70, 50)).save(p, "WEBP")
+
+
+@pytest.fixture
+def aud_server(tmp_path):
+    aud = _audubon(tmp_path)
+    cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                            art=frame.Artwork(tmp_path / "artwork", audubon=aud))
+    srv = serve.CollageServer(cfg, host="127.0.0.1")
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield srv, f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+    srv.server_close()
+
+
+def test_audubon_fallback_config(tmp_path: Path):
+    base = {"SERVE_PORT": "8085", "DATA_DIR": str(tmp_path)}
+    on = serve.load_serve_config(base)
+    assert on.art.audubon is not None and on.art.audubon.dir == tmp_path / "artwork" / "audubon"
+    assert len(on.art.audubon.table) >= 400
+    assert serve.load_serve_config({**base, "AUDUBON_FALLBACK": "1"}).art.audubon is not None
+    assert serve.load_serve_config({**base, "AUDUBON_FALLBACK": "0"}).art.audubon is None
+    for bad in ("2", "yes", ""):
+        with pytest.raises(bl.ConfigError, match="AUDUBON_FALLBACK must be 0 or 1"):
+            serve.load_serve_config({**base, "AUDUBON_FALLBACK": bad})
+
+
+def test_audubon_fallback_missing_table_runs_off(tmp_path: Path, monkeypatch, caplog):
+    monkeypatch.setattr(frame, "AUDUBON_MAP", tmp_path / "gone.json")
+    with caplog.at_level("ERROR", logger="frame"):
+        cfg = serve.load_serve_config({"SERVE_PORT": "8085", "DATA_DIR": str(tmp_path)})
+    assert cfg.art.audubon is None and "Audubon plates off" in caplog.text
+
+
+def test_attribution_lists_both_sources(aud_server):
+    srv, base = aud_server
+    _, _, body = get(base + "/attribution")
+    text = body.decode()
+    assert "Fugleramme" in text and "CC BY-SA 4.0" in text            # Fugleramme section intact
+    assert serve.CREDIT_HTML in text
+    assert "<h2>Audubon</h2>" in text and "Robert Havell Jr." in text and "Public domain" in text
+    assert "University of Pittsburgh" in text and "(none fetched yet)" in text
+    aud = srv.cfg.art.audubon
+    for sci in ("Cyanocitta stelleri", "Aphelocoma californica", "Ixoreus naevius"):
+        _cache_vignette(aud, sci)
+    _, _, body = get(base + "/attribution")
+    text = body.decode()
+    jays = "https://commons.wikimedia.org/wiki/File:" + html.escape(JAYS.replace(" ", "_"), quote=True)
+    assert text.count(f'<a href="{jays}">Plate 362, Jays &lt;script&gt;</a>') == 1   # shared plate once
+    assert "Plate 369, Varied Thrush" in text and "Pitt &amp; Co" in text
+    assert 'href="http://pitt.example/369?a=1&amp;b=2"' in text
+    assert "<script>" not in text and "(none fetched yet)" not in text
+    assert text.index("Plate 362") < text.index("Plate 369")
+
+
+def test_attribution_without_audubon_has_no_section(server):
+    _, base = server
+    _, _, body = get(base + "/attribution")
+    assert "Audubon" not in body.decode()
+
+
+def test_footer_names_audubon_when_on(server, aud_server):
+    _, off = server
+    _, on = aud_server
+    off_text, on_text = get(off + "/")[2].decode(), get(on + "/")[2].decode()
+    assert '<a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0</a>' in off_text
+    assert ('<a href="/attribution">Plates from Fugleramme (CC BY-SA 4.0) and Audubon\'s '
+            '<i>Birds of America</i></a>') in on_text
+    assert serve.index_html(24) == serve.index_html(24, False)
+
+
+def test_api_recent_has_plate_with_only_a_vignette(aud_server, tmp_path: Path):
+    srv, base = aud_server
+    seed(tmp_path)
+    _cache_vignette(srv.cfg.art.audubon, "Ixoreus naevius")
+    data = json.loads(get(base + "/api/recent")[2])
+    flags = {s["scientific_name"]: s["has_plate"] for s in data["species"]}
+    assert flags == {"Ixoreus naevius": True, "Turdus migratorius": False}
+    assert set(data["species"][0]) == {"scientific_name", "common_name", "last_heard", "count",
+                                       "cameras", "first_ever", "has_plate"}

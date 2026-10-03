@@ -316,9 +316,11 @@ class Audubon:
     edition: str = "havell"
 
     @classmethod
-    def load(cls, dir: Path, path: Path = AUDUBON_MAP) -> Audubon | None:
-        """None (and an ERROR) when the table is missing or unreadable, so the
-        server runs Fugleramme-only. Invalid entries are skipped."""
+    def load(cls, dir: Path, path: Path | None = None) -> Audubon | None:
+        """Read `path` (default AUDUBON_MAP). None (and an ERROR) when the
+        table is missing or unreadable, so the server runs Fugleramme-only.
+        Invalid entries are skipped."""
+        path = AUDUBON_MAP if path is None else path
         try:
             doc = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
