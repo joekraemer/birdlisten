@@ -65,14 +65,17 @@ def test_load_serve_config(tmp_path: Path):
     assert serve.load_serve_config({}) is None
     assert serve.load_serve_config({"SERVE_PORT": "  "}) is None
     cfg = serve.load_serve_config({"SERVE_PORT": "8085", "DATA_DIR": str(tmp_path)})
-    assert cfg.port == 8085 and cfg.hours == 24
+    assert cfg.port == 8085 and cfg.hours == 24 and cfg.min_confidence == 0.5
     assert cfg.db_path == tmp_path / "birdlisten.sqlite"
     assert cfg.art.dir == tmp_path / "artwork" and cfg.art.ref == frame.DEFAULT_ARTWORK_REF
     cfg = serve.load_serve_config({"SERVE_PORT": "8085", "ARTWORK_DIR": "/x/y", "ARTWORK_REF": "main", "COLLAGE_HOURS": "6"})
     assert cfg.art.dir == Path("/x/y") and cfg.art.ref == "main" and cfg.hours == 6
+    assert serve.load_serve_config({"SERVE_PORT": "8085", "MIN_CONFIDENCE": "0.9"}).min_confidence == 0.9
     for env in ({"SERVE_PORT": "abc"}, {"SERVE_PORT": "0"}, {"SERVE_PORT": "70000"},
                 {"SERVE_PORT": "8085", "COLLAGE_HOURS": "0"}, {"SERVE_PORT": "8085", "COLLAGE_HOURS": "x"},
-                {"SERVE_PORT": "8085", "ARTWORK_REF": "a b"}, {"SERVE_PORT": "8085", "ARTWORK_REF": " "}):
+                {"SERVE_PORT": "8085", "ARTWORK_REF": "a b"}, {"SERVE_PORT": "8085", "ARTWORK_REF": " "},
+                {"SERVE_PORT": "8085", "MIN_CONFIDENCE": "x"}, {"SERVE_PORT": "8085", "MIN_CONFIDENCE": "1.5"},
+                {"SERVE_PORT": "8085", "MIN_CONFIDENCE": "nan"}):
         with pytest.raises(bl.ConfigError):
             serve.load_serve_config(env)
 
@@ -138,6 +141,29 @@ def test_api_recent_shape(server, tmp_path: Path):
     dt.datetime.fromisoformat(robin["last_heard"])
     _, _, body = get(base + "/api/recent?hours=1")
     assert [s["scientific_name"] for s in json.loads(body)["species"]] == ["Ixoreus naevius"]
+
+
+def test_min_confidence_filters_page_and_api(tmp_path: Path):
+    """Rows below MIN_CONFIDENCE stay in the DB but leave /api/recent and the
+    collage at once, even though the capture loop wrote them earlier."""
+    seed(tmp_path)   # all at 0.9
+    conn = bl.open_db(tmp_path)
+    bl.record(conn, dt.datetime.now(UTC), bl.Camera("back", "rtsp://x"),
+              bl.Detection("Mallard", "Anas platyrhynchos", 0.6, 0, 3), None)
+    conn.close()
+    base = {"port": 0, "hours": 24, "db_path": tmp_path / "birdlisten.sqlite", "art": frame.Artwork(tmp_path / "artwork")}
+    names = lambda cfg: [s["scientific_name"] for s in serve.recent_json(cfg, 24)["species"]]  # noqa: E731
+    assert names(serve.ServeConfig(**base, min_confidence=0.5))[0] == "Anas platyrhynchos"
+    strict = serve.ServeConfig(**base, min_confidence=0.9)
+    assert names(strict) == ["Ixoreus naevius", "Turdus migratorius"]
+    assert [s.scientific_name for s in serve.load_species(strict, 24, frame.utcnow())] == names(strict)
+
+
+def test_index_footer_keeps_attribution_link(server):
+    _, base = server
+    _, _, body = get(base + "/")
+    text = body.decode()
+    assert '<a href="/attribution">' in text and "Fugleramme" in text and "CC BY-SA 4.0" in text
 
 
 def test_attribution_always_200(server):

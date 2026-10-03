@@ -12,6 +12,8 @@ Environment (read once by load_serve_config):
   COLLAGE_HOURS   window in hours (default 24, 1..720)
   ARTWORK_REF     fugleramme commit/branch for plate URLs (default: a pinned sha)
   ARTWORK_DIR     plate cache (default $DATA_DIR/artwork)
+  MIN_CONFIDENCE  rows below this are left off the page and /api/recent
+                  (default 0.5, the same variable and default as the capture loop)
 
 The server is a daemon thread beside the capture loop. Each request opens its
 own read-only SQLite connection; nothing is shared with the loop.
@@ -55,6 +57,7 @@ class ServeConfig:
     hours: int
     db_path: Path
     art: frame.Artwork
+    min_confidence: float = 0.5
 
 
 def load_serve_config(env=os.environ) -> ServeConfig | None:
@@ -65,19 +68,22 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     try:
         port = int(raw_port)
         hours = int(env.get("COLLAGE_HOURS", "24"))
+        min_conf = float(env.get("MIN_CONFIDENCE", "0.5"))
     except ValueError as exc:
         raise ConfigError(f"bad numeric setting: {exc}") from exc
     if not 1 <= port <= 65535:
         raise ConfigError(f"SERVE_PORT must be 1..65535, got {port}")
     if not 1 <= hours <= MAX_HOURS:
         raise ConfigError(f"COLLAGE_HOURS must be 1..{MAX_HOURS}, got {hours}")
+    if not 0 <= min_conf <= 1:
+        raise ConfigError(f"MIN_CONFIDENCE must be 0..1, got {min_conf}")
     ref = env.get("ARTWORK_REF", frame.DEFAULT_ARTWORK_REF).strip()
     if not ref or not _REF_RE.fullmatch(ref):
         raise ConfigError(f"ARTWORK_REF must be a git ref or sha ([A-Za-z0-9._/-]), got {ref!r}")
     data_dir = Path(env.get("DATA_DIR", "/data"))
     art_dir = Path(env.get("ARTWORK_DIR", "").strip() or data_dir / "artwork")
     return ServeConfig(port=port, hours=hours, db_path=data_dir / "birdlisten.sqlite",
-                       art=frame.Artwork(art_dir, ref))
+                       art=frame.Artwork(art_dir, ref), min_confidence=min_conf)
 
 
 # ----------------------------------------------------------------- request helpers
@@ -105,7 +111,7 @@ def load_species(cfg: ServeConfig, hours: int, now: dt.datetime) -> list[frame.S
         return []
     conn = frame.open_ro(cfg.db_path)
     try:
-        return frame.recent_species(conn, now, hours)
+        return frame.recent_species(conn, now, hours, cfg.min_confidence)
     finally:
         conn.close()
 
@@ -142,11 +148,16 @@ def index_html(hours: int) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <noscript><meta http-equiv="refresh" content="300"></noscript>
 <title>birds heard recently</title>
-<style>html,body{{margin:0;background:#f4ecd8}} img{{display:block;width:100%;height:auto}} footer{{font:12px sans-serif;text-align:right;padding:4px 8px}} footer a{{color:#786f64}}</style>
+<style>
+html,body{{margin:0;background:#f4ecd8}}
+img{{display:block;width:100%;height:auto}}
+footer{{font:italic 11px/1.4 "Libre Baskerville",Baskerville,"Baskerville Old Face",Georgia,serif;text-align:center;padding:2px 8px 8px;color:#7c705e}}
+footer a{{color:inherit;text-decoration:none}} footer a:hover{{text-decoration:underline}}
+</style>
 </head>
 <body>
 <img id="c" src="{src}" alt="birds heard recently">
-<footer><a href="/attribution">artwork: Fugleramme, CC BY-SA 4.0</a></footer>
+<footer><a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0</a></footer>
 <script>setInterval(() => {{ c.src = '{src}&t=' + Date.now() }}, {REFRESH_SECONDS * 1000})</script>
 </body>
 </html>

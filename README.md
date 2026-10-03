@@ -77,10 +77,12 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
 ## Collage page
 
 Optional. Set `SERVE_PORT` and the container also serves a "recently heard
-birds" collage: one plate per species heard in the last N hours (default 24),
-most recent first, with the camera(s) and local time of the last detection
-under each, and a red `NEW` badge on any species never heard before in this
-yard. It is meant to sit in a Home Assistant Webpage card (below). The server
+birds" page laid out like a field-guide plate: a centred title ("Heard in the
+last 24 hours") and species count, then one plate per species heard in the
+last N hours (default 24), most recent first, with its common name beneath.
+Cameras, times and first-ever sightings are left off the picture and stay in
+`/api/recent`. Only detections at or above `MIN_CONFIDENCE` count, so raising
+it takes older low-confidence rows off the page straight away. It is meant to sit in a Home Assistant Webpage card (below). The server
 is a daemon thread beside the capture loop and reads the SQLite db through its
 own read-only connection; it never changes what the loop records or notifies.
 
@@ -96,17 +98,23 @@ Plates are fetched lazily, one species at a time on first need, into
 `$ARTWORK_DIR` (`/data/artwork` in the container, so they live on the same
 volume as the db) and never re-fetched. A species that Fugleramme has no plate
 for, or whose BirdNET scientific name differs from Fugleramme's file name,
-shows as a dashed placeholder card with the scientific name inside; the miss
+shows as a plain paper card of the same size, with its name beneath; the miss
 is remembered in a `<stem>.missing` marker and retried after a day (an hour
 after a network error). The PNG is re-rendered only when something visible
-changed (a species, a camera, a last-heard minute, a plate arriving), so the
+changed (a species, its name or order, a plate arriving), so the
 60 s page refresh normally costs nothing.
 
-Capacity: cells shrink to an 80 px minimum, then the oldest species are
-dropped and the header shows `+N more`; that is 32 species at 800x600 and 135
-at the default 1600x1200 (`frame.capacity(w, h)` computes it). Labels use
-Pillow's bundled font, which has no accented Latin letters or the Hawaiian
-okina; names containing those show boxes for those characters.
+Layout: every cell is the same size, species are spread evenly over the rows
+(22 at 1600x1200 is 6, 6, 5, 5) and each row is centred. Every name on a page
+is set in one size; a long name wraps onto a second line rather than
+shrinking. Capacity: cells shrink to an 80 px minimum, then the oldest species
+are dropped and the count reads `N species, M not shown`; that is 32 species
+at 800x600 and 98 at the default 1600x1200 (`frame.capacity(w, h)` computes
+it).
+
+Type is Libre Baskerville (regular and italic) from `fonts/`, SIL Open Font
+License 1.1 (`fonts/OFL.txt`; source commit in `fonts/SOURCE.txt`). Without
+those files the renderer falls back to Pillow's bundled sans.
 
 ### Artwork credit
 
@@ -148,7 +156,8 @@ sensor:
 | var | default | meaning |
 |---|---|---|
 | `SERVE_PORT` | unset | port for the collage server. Unset or empty = no server, no network traffic, nothing changes. |
-| `COLLAGE_HOURS` | `24` | window for `/` and `/collage.png`, 1..720 |
+| `COLLAGE_HOURS` | `24` | window for `/`, `/collage.png` and `/api/recent`, 1..720 |
+| `MIN_CONFIDENCE` | `0.5` | the capture loop's threshold, also applied when reading: rows below it are left off the page and `/api/recent`, 0..1 |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
 | `ARTWORK_DIR` | `$DATA_DIR/artwork` | plate cache, a few hundred KB per species |
 
@@ -183,8 +192,8 @@ test touches the network: artwork fetches are monkeypatched to 404.
   scikit-learn, making it ~2.5 GB. A slimmer inference path (`ai-edge-litert`
   + hand-rolled spectrogram) would be ~300 MB but is real work.
 * Detect and alert on *new* species for the yard (first ever sighting) as a
-  separate notification tier. (The collage already badges them; this is about
-  a push.)
+  separate notification tier. (`/api/recent` already flags them as
+  `first_ever`; this is about a push.)
 * MQTT / Home Assistant discovery for the collage data. The REST sensor above
   covers the species count.
 * E-ink output. Fugleramme already does this well; this project stops at a PNG.
