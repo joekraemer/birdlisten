@@ -17,6 +17,7 @@ import frame
 
 UTC = dt.timezone.utc
 T0 = dt.datetime(2026, 1, 1, tzinfo=UTC)
+REAL_FETCH_URL = frame.fetch_url     # captured before no_network replaces it
 
 
 @pytest.fixture(autouse=True)
@@ -338,6 +339,32 @@ def test_render_fetch_budget(tmp_path: Path, monkeypatch):
     assert sum("/birds/" in u for u in calls) == 5
     assert out.deferred == 0
     assert len(list((art.dir / "birds").glob("*.missing"))) == 5
+
+
+class _FakeResp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.close()
+
+
+def test_fetch_url_user_agent_and_size_cap(monkeypatch):
+    reqs = []
+
+    def urlopen(req, timeout=None):
+        reqs.append(req)
+        return _FakeResp(body)
+    monkeypatch.setattr(frame.urllib.request, "urlopen", urlopen)
+    body = b"x" * 100
+    assert REAL_FETCH_URL("https://example.org/a") == body
+    ua = reqs[0].get_header("User-agent")
+    assert ua == frame.USER_AGENT and "https://github.com/joekraemer/birdlisten" in ua
+    body = b"x" * frame.MAX_FETCH_BYTES
+    assert len(REAL_FETCH_URL("https://example.org/b")) == frame.MAX_FETCH_BYTES
+    body = b"x" * (frame.MAX_FETCH_BYTES + 1)
+    with pytest.raises(ValueError, match="response too large"):
+        REAL_FETCH_URL("https://example.org/c")
 
 
 def test_ensure_meta_retry_keyed_by_dir(tmp_path: Path, monkeypatch):

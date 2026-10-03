@@ -35,6 +35,8 @@ log = logging.getLogger("frame")
 FUGLERAMME_REPO = "https://github.com/arnegiacomo/fugleramme"
 DEFAULT_ARTWORK_REF = "8e8b0034f069b4d3b021bc7195482c1fe7caf880"
 RAW_BASE = "https://raw.githubusercontent.com/arnegiacomo/fugleramme/{ref}/assets/artwork/classic/"
+USER_AGENT = "birdlisten/1.0 (https://github.com/joekraemer/birdlisten)"
+MAX_FETCH_BYTES = 8_000_000  # per response; thumbnails are well under 1 MB
 FETCH_TIMEOUT = 5            # seconds, per HTTP request
 FETCH_BUDGET = 15            # seconds of plate fetching per render, total
 MISSING_RETRY = dt.timedelta(hours=24)   # after a 404
@@ -128,11 +130,16 @@ class NotFound(Exception):
 
 
 def fetch_url(url: str, timeout: float = FETCH_TIMEOUT) -> bytes:
-    """The only network call in this module; tests monkeypatch it."""
-    req = urllib.request.Request(url, headers={"User-Agent": "birdlisten"})
+    """The only network call in this module; tests monkeypatch it. Sends a
+    descriptive User-Agent (Wikimedia asks for one) and never reads more than
+    MAX_FETCH_BYTES, so a misrouted request cannot pull a full-size scan."""
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
+            data = resp.read(MAX_FETCH_BYTES + 1)
+        if len(data) > MAX_FETCH_BYTES:
+            raise ValueError("response too large")
+        return data
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise NotFound(url) from exc
