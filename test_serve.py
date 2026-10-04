@@ -538,3 +538,224 @@ def test_tz_rule(raw, zone, warns, tmp_path: Path, caplog):
     finally:
         srv.shutdown()
         srv.server_close()
+
+
+# ----------------------------------------------------------------- /api/species
+def get_err(url: str) -> int:
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        get(url)
+    return exc.value.code
+
+
+class FactsUpstream:
+    def __init__(self, routes=None):
+        self.routes = routes or {}
+        self.calls: list[tuple[str, dict]] = []
+
+    def __call__(self, url, headers=None, timeout=None, max_bytes=None):
+        self.calls.append((url, dict(headers or {})))
+        for prefix, v in self.routes.items():
+            if url.startswith(prefix):
+                if isinstance(v, BaseException):
+                    raise v
+                return v
+        raise frame.NotFound(url)
+
+
+def insert(db_dir: Path, rows):
+    """rows: (heard_at text, camera, common, sci, confidence)."""
+    conn = bl.open_db(db_dir)
+    conn.executemany("INSERT INTO detections(heard_at,camera,common_name,scientific_name,confidence,clip_offset_s)"
+                     " VALUES (?,?,?,?,?,0)", rows)
+    conn.commit()
+    conn.close()
+
+
+@pytest.mark.parametrize("seg", ["", "..%2F..%2Fetc%2Fpasswd", "%252F", "%00", "x" * 101, "%C3%A9",
+                                 "Turdus/migratorius", "%E0%A4%A", "Turdus%20migratorius%3B", "a%5Cb"])
+def test_species_rejects_malformed(seg, server, tmp_path: Path, monkeypatch):
+    srv, base = server
+    seed(tmp_path)
+    up = FactsUpstream()
+    monkeypatch.setattr(facts, "http_get", up)
+    assert get_err(base + "/api/species/" + seg) == 400
+    assert up.calls == [] and not (tmp_path / "facts").exists()
+
+
+def test_species_unknown_and_hours(server, tmp_path: Path, monkeypatch):
+    srv, base = server
+    seed(tmp_path)
+    up = FactsUpstream()
+    monkeypatch.setattr(facts, "http_get", up)
+    assert get_err(base + "/api/species/Corvus%20corax") == 404       # well-formed, never heard
+    for q in ("hours=0", "hours=721", "hours=abc"):
+        assert get_err(base + "/api/species/Turdus%20migratorius?" + q) == 400
+    assert up.calls == [] and not (tmp_path / "facts").exists()
+    data = json.loads(get(base + "/api/species/Turdus%20migratorius")[2])
+    assert data["hours"] == 24                                         # COLLAGE_HOURS default
+    assert data["heard"]["count"] == 2
+
+
+def test_species_known_check_respects_min_confidence(tmp_path: Path):
+    insert(tmp_path, [("2026-10-03T18:00:00+00:00", "back", "Mallard", "Anas platyrhynchos", 0.6)])
+    cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                            art=frame.Artwork(tmp_path / "a"), min_confidence=0.9)
+    assert serve.species_known(cfg, "Anas platyrhynchos") is False
+    assert serve.species_known(serve.ServeConfig(**{**cfg.__dict__, "min_confidence": 0.5}), "Anas platyrhynchos")
+
+
+def test_species_audubon_known_and_fallback_off(aud_server, tmp_path: Path, monkeypatch):
+    srv, base = aud_server
+    monkeypatch.setattr(facts, "http_get", FactsUpstream())
+    # No db yet: an Audubon-table species is known (deep links), with count 0.
+    data = json.loads(get(base + "/api/species/Aphelocoma%20californica")[2])
+    assert data["heard"] == {"count": 0, "by_hour": [0] * 24}
+    assert data["common_name"] == "Jays <script>"                      # table title as last resort
+    # AUDUBON_FALLBACK=0: art.audubon is None; unknown names are 404, db species 200.
+    seed(tmp_path)
+    cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                            art=frame.Artwork(tmp_path / "artwork"), facts=facts.FactsConfig(tmp_path / "f2", fetch=False))
+    assert serve.species_known(cfg, "Aphelocoma californica") is False
+    assert serve.species_known(cfg, "Turdus migratorius") is True
+
+
+def test_species_stats(tmp_path: Path):
+    from zoneinfo import ZoneInfo
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)          # 12:00 PDT
+    rows = [
+        ("2026-10-03T18:30:00+00:00", "front", "Bushtit", "Psaltriparus minimus", 0.95),   # 11:30 AM
+        ("2026-10-03T14:10:00+00:00", "back", "Bushtit", "Psaltriparus minimus", 0.80),    # 7:10 AM
+        ("2026-10-03T14:40:00+00:00", "back", "Bushtit", "Psaltriparus minimus", 0.90),    # 7:40 AM
+        ("2026-10-02T23:05:00+00:00", "side", "Bushtit", "Psaltriparus minimus", 0.70),    # 4:05 PM yesterday
+        ("2026-10-03T15:00:00+00:00", "back", "Bushtit", "Psaltriparus minimus", 0.40),    # below MIN_CONFIDENCE
+        ("2026-10-01T10:00:00+00:00", "back", "Bushtit", "Psaltriparus minimus", 0.99),    # outside 24 h
+    ]
+    insert(tmp_path, rows)
+    cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                            art=frame.Artwork(tmp_path / "a"), tz=ZoneInfo("America/Los_Angeles"))
+    heard, common = serve.species_stats(cfg, "Psaltriparus minimus", 24, now)
+    assert common == "Bushtit"
+    assert heard["count"] == 4 and heard["max_conf"] == 0.95
+    assert heard["median_conf"] == 0.85                         # even count: mean of the middle two
+    assert heard["first_heard"] == "2026-10-02T23:05:00+00:00" and heard["last_heard"] == "2026-10-03T18:30:00+00:00"
+    assert heard["first_local"] == "Yesterday 4:05 PM" and heard["last_local"] == "11:30 AM"
+    assert heard["cameras"] == ["front", "back", "side"]
+    assert heard["by_hour"][7] == 2 and heard["by_hour"][11] == 1 and heard["by_hour"][16] == 1
+    assert sum(heard["by_hour"]) == 4 and heard["busiest_hour"] == 7
+    heard, _ = serve.species_stats(cfg, "Psaltriparus minimus", 72, now)
+    assert heard["count"] == 5 and heard["first_local"] == "Oct 1, 3:00 AM"
+    assert heard["median_conf"] == 0.9                          # odd count
+    heard, common = serve.species_stats(cfg, "Psaltriparus minimus", 1, now + dt.timedelta(days=3))
+    assert heard == {"count": 0, "by_hour": [0] * 24} and common == "Bushtit"
+
+
+def test_species_stats_dst_and_naive_rows(tmp_path: Path, monkeypatch):
+    from zoneinfo import ZoneInfo
+    import time as _time
+    monkeypatch.setenv("TZ", "Asia/Tokyo")                     # the process zone must not matter
+    _time.tzset()
+    try:
+        insert(tmp_path, [
+            ("2026-03-08T09:30:00+00:00", "a", "Robin", "Turdus migratorius", 0.9),   # 01 PST
+            ("2026-03-08T10:30:00+00:00", "a", "Robin", "Turdus migratorius", 0.9),   # 03 PDT
+            ("2026-11-01T08:30:00+00:00", "a", "Mallard", "Anas platyrhynchos", 0.9),   # 01 PDT
+            ("2026-11-01T09:30:00+00:00", "a", "Mallard", "Anas platyrhynchos", 0.9),   # 01 PST
+            ("2026-03-08T10:30:00", "a", "Robin", "Ixoreus naevius", 0.9),            # naive = UTC: 03 PDT
+        ])
+        cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                                art=frame.Artwork(tmp_path / "a"), tz=ZoneInfo("America/Los_Angeles"))
+        heard, _ = serve.species_stats(cfg, "Turdus migratorius", 24, dt.datetime(2026, 3, 8, 20, 0, tzinfo=UTC))
+        assert heard["count"] == 2 and heard["by_hour"][1] == 1 and heard["by_hour"][3] == 1   # spring forward
+        heard, _ = serve.species_stats(cfg, "Anas platyrhynchos", 24, dt.datetime(2026, 11, 1, 20, 0, tzinfo=UTC))
+        assert heard["count"] == 2 and heard["by_hour"][1] == 2                                # fall back
+        heard, _ = serve.species_stats(cfg, "Ixoreus naevius", 24, dt.datetime(2026, 3, 8, 20, 0, tzinfo=UTC))
+        assert heard["by_hour"][3] == 1 and heard["last_local"] == "3:30 AM"
+        lt = serve.local_time("2026-03-08T10:30:00", ZoneInfo("America/Los_Angeles"))
+        assert (lt.hour, lt.utcoffset()) == (3, dt.timedelta(hours=-7))
+    finally:
+        monkeypatch.delenv("TZ")
+        _time.tzset()
+
+
+def test_display_time():
+    now = dt.datetime(2026, 10, 3, 12, 0)
+    assert serve.display_time(dt.datetime(2026, 10, 3, 0, 5), now) == "12:05 AM"
+    assert serve.display_time(dt.datetime(2026, 10, 3, 12, 41), now) == "12:41 PM"
+    assert serve.display_time(dt.datetime(2026, 10, 2, 18, 41), now) == "Yesterday 6:41 PM"
+    assert serve.display_time(dt.datetime(2026, 10, 1, 18, 41), now) == "Oct 1, 6:41 PM"
+
+
+def test_species_response_shape_with_facts(server, tmp_path: Path, monkeypatch):
+    srv, base = server
+    seed(tmp_path)
+    summary = json.dumps({"type": "standard", "title": "American_robin", "titles": {"normalized": "American robin"},
+                          "extract": "A thrush.", "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/American_robin"}}}).encode()
+    up = FactsUpstream({facts.WIKIDATA_API + "action=query": json.dumps({"query": {"search": []}}).encode(),
+                        facts.SUMMARY_API + "Turdus_migratorius": summary})
+    monkeypatch.setattr(facts, "http_get", up)
+    status, headers, body = get(base + "/api/species/Turdus%20migratorius?hours=24")
+    assert status == 200 and headers["Cache-Control"] == "no-store"
+    data = json.loads(body)
+    assert set(data) == {"scientific_name", "common_name", "hours", "binomial", "art", "plate_url",
+                         "heard", "facts", "links", "pending", "tz"}
+    assert data["binomial"] is True and data["art"] is None and data["plate_url"] is None
+    assert data["facts"]["wikipedia"]["title"] == "American robin" and data["pending"] == []
+    assert data["links"] == {"allaboutbirds": "https://www.allaboutbirds.org/guide/American_Robin"}
+    assert data["tz"] == "America/Los_Angeles" and len(data["heard"]["by_hour"]) == 24
+    assert data["heard"]["cameras"] == ["front", "back"]
+
+
+def test_species_non_binomial_stats_only(server, tmp_path: Path, monkeypatch):
+    _, base = server
+    insert(tmp_path, [(frame.utcnow().isoformat(timespec="seconds"), "back", "Dog", "Dog", 0.9)])
+    up = FactsUpstream()
+    monkeypatch.setattr(facts, "http_get", up)
+    data = json.loads(get(base + "/api/species/Dog")[2])
+    assert data["binomial"] is False and data["facts"] == {} and data["links"] == {}
+    assert data["heard"]["count"] == 1 and up.calls == []
+
+
+def test_species_external_failure_is_not_5xx(server, tmp_path: Path, monkeypatch):
+    _, base = server
+    seed(tmp_path)
+    monkeypatch.setattr(facts, "http_get", FactsUpstream({"https://": urllib.error.URLError("down")}))
+    data = json.loads(get(base + "/api/species/Turdus%20migratorius")[2])
+    assert data["facts"] == {} and data["heard"]["count"] == 2
+
+
+# ----------------------------------------------------------------- /plate and /fonts
+def test_plate_route(aud_server, tmp_path: Path, monkeypatch):
+    srv, base = aud_server
+    calls = []
+    monkeypatch.setattr(frame, "fetch_url", lambda url, timeout=None: calls.append(url))
+    art = srv.cfg.art
+    p = art.plate_path("Turdus migratorius")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (900, 600), (90, 60, 40, 255)).save(p, "WEBP")
+    _cache_vignette(art.audubon, "Ixoreus naevius")
+    status, headers, body = get(base + "/plate/turdus-migratorius.png")
+    im = Image.open(io.BytesIO(body))
+    assert status == 200 and headers["Content-Type"] == "image/png" and im.format == "PNG"
+    assert im.size == (480, 320) and headers["Cache-Control"] == "max-age=3600"
+    status, _, body = get(base + "/plate/ixoreus-naevius.png")
+    assert status == 200 and Image.open(io.BytesIO(body)).format == "PNG"
+    assert get_err(base + "/plate/corvus-corax.png") == 404
+    for bad in ("/plate/..%2Fx.png", "/plate/Turdus.png", "/plate/a.b.png", "/plate/.png"):
+        assert get_err(base + bad) == 400, bad
+    p2 = art.plate_path("Corvus corax")
+    p2.write_bytes(b"not an image")
+    assert get_err(base + "/plate/corvus-corax.png") == 404 and p2.exists()     # never deleted
+    assert calls == []
+
+
+def test_fonts_routes(server):
+    _, base = server
+    for path, ctype in (("/fonts/LibreBaskerville.ttf", "font/ttf"),
+                        ("/fonts/LibreBaskerville-Italic.ttf", "font/ttf"),
+                        ("/fonts/OFL.txt", "text/plain; charset=utf-8")):
+        status, headers, body = get(base + path)
+        assert status == 200 and headers["Content-Type"] == ctype
+        assert headers["Cache-Control"] == "max-age=86400" and body
+        assert body == (frame.FONT_DIR / path.rsplit("/", 1)[1]).read_bytes()
+    assert get_err(base + "/fonts/SOURCE.txt") == 404
+    assert get_err(base + "/fonts/../serve.py") == 404

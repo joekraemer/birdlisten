@@ -29,17 +29,21 @@ from __future__ import annotations
 
 import datetime as dt
 import html
+import io
 import json
 import logging
 import os
 import re
+import statistics
 import threading
 from dataclasses import dataclass, field
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from PIL import Image, ImageOps
 
 import facts
 import frame
@@ -60,6 +64,16 @@ STATIC_FILES = {
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; "
        "img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'")
 IMMUTABLE = "public, max-age=31536000, immutable"
+SPECIES_PREFIX = "/api/species/"
+_NAME_RE = re.compile(r"[A-Za-z .'-]{1,100}")
+_STEM_RE = re.compile(r"[a-z0-9-]{1,100}")
+PLATE_MAX = 480
+FONT_ROUTES = {
+    "/fonts/LibreBaskerville.ttf": ("LibreBaskerville.ttf", "font/ttf"),
+    "/fonts/LibreBaskerville-Italic.ttf": ("LibreBaskerville-Italic.ttf", "font/ttf"),
+    "/fonts/OFL.txt": ("OFL.txt", "text/plain; charset=utf-8"),
+}
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 CREDIT_HTML = (
     'Bird plates are from the <a href="https://github.com/arnegiacomo/fugleramme">Fugleramme</a> '
@@ -169,6 +183,10 @@ class BadRequest(ValueError):
     pass
 
 
+class NotKnown(LookupError):
+    """A well-formed species name we have never heard and have no plate for."""
+
+
 def int_param(qs: dict[str, list[str]], name: str, default: int, lo: int, hi: int) -> int:
     """Missing -> default; repeated -> first; non-int or out of range -> 400."""
     if name not in qs:
@@ -213,6 +231,151 @@ def recent_json(cfg: ServeConfig, hours: int, now: dt.datetime | None = None) ->
             for s in load_species(cfg, hours, now)
         ],
     }
+
+
+# ----------------------------------------------------------------- species pop-up
+def parse_species_segment(path: str) -> str:
+    """The trust boundary for /api/species/<name>: one path segment, decoded
+    once, letters, spaces and . ' - only."""
+    raw = path[len(SPECIES_PREFIX):]
+    if not raw or "/" in raw:
+        raise BadRequest("bad species name")
+    try:
+        name = unquote(raw, encoding="utf-8", errors="strict")
+    except UnicodeDecodeError:
+        raise BadRequest("bad species name") from None
+    if not _NAME_RE.fullmatch(name):
+        raise BadRequest("bad species name")
+    return name
+
+
+def species_known(cfg: ServeConfig, name: str) -> bool:
+    """Heard at or above MIN_CONFIDENCE, or in the Audubon table (when on)."""
+    if cfg.db_path.exists():
+        conn = frame.open_ro(cfg.db_path)
+        try:
+            row = conn.execute("SELECT 1 FROM detections WHERE scientific_name = ? AND confidence >= ? LIMIT 1",
+                               (name, cfg.min_confidence)).fetchone()
+        finally:
+            conn.close()
+        if row:
+            return True
+    return cfg.art.audubon is not None and cfg.art.audubon.entry(name) is not None
+
+
+def local_time(heard_at: str, tz: dt.tzinfo) -> dt.datetime:
+    t = dt.datetime.fromisoformat(heard_at)
+    if t.tzinfo is None:              # never written today (record() writes +00:00); guard anyway
+        t = t.replace(tzinfo=dt.timezone.utc)
+    return t.astimezone(tz)
+
+
+def display_time(t: dt.datetime, now_local: dt.datetime) -> str:
+    """'6:41 PM' today, 'Yesterday 6:41 PM', else 'Oct 1, 6:41 PM'."""
+    clock = f"{t.hour % 12 or 12}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
+    if t.date() == now_local.date():
+        return clock
+    if t.date() == now_local.date() - dt.timedelta(days=1):
+        return f"Yesterday {clock}"
+    return f"{MONTHS[t.month - 1]} {t.day}, {clock}"
+
+
+def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> tuple[dict, str]:
+    """(heard, common_name): what we heard in the window, by local hour."""
+    rows: list = []
+    fallback_common = None
+    if cfg.db_path.exists():
+        since = (now - dt.timedelta(hours=hours)).isoformat(timespec="seconds")
+        conn = frame.open_ro(cfg.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT heard_at, camera, confidence, common_name FROM detections"
+                " WHERE scientific_name = ? AND heard_at >= ? AND confidence >= ?"
+                " ORDER BY heard_at DESC, id DESC", (name, since, cfg.min_confidence)).fetchall()
+            if not rows:
+                r = conn.execute("SELECT common_name FROM detections WHERE scientific_name = ?"
+                                 " ORDER BY heard_at DESC LIMIT 1", (name,)).fetchone()
+                fallback_common = r[0] if r else None
+        finally:
+            conn.close()
+    if rows:
+        common = rows[0][3]
+    elif fallback_common:
+        common = fallback_common
+    else:
+        e = cfg.art.audubon.entry(name) if cfg.art.audubon is not None else None
+        common = (e or {}).get("title") or name
+    if not rows:
+        return {"count": 0, "by_hour": [0] * 24}, common
+    tz = cfg.tz
+    now_local = now.astimezone(tz)
+    confs = [r[2] for r in rows]
+    by_hour = [0] * 24
+    for r in rows:
+        by_hour[local_time(r[0], tz).hour] += 1
+    cameras: list[str] = []
+    for r in rows:
+        if r[1] not in cameras:
+            cameras.append(r[1])
+    first, last = local_time(rows[-1][0], tz), local_time(rows[0][0], tz)
+    return {
+        "count": len(rows), "max_conf": round(max(confs), 3),
+        "median_conf": round(statistics.median(confs), 3),
+        "first_heard": rows[-1][0], "last_heard": rows[0][0],
+        "first_local": display_time(first, now_local), "last_local": display_time(last, now_local),
+        "cameras": cameras, "by_hour": by_hour, "busiest_hour": by_hour.index(max(by_hour)),
+    }, common
+
+
+def species_json(srv: "CollageServer", name: str, hours: int, now: dt.datetime) -> dict:
+    """Built field by field from whitelisted values; never upstream bodies or config."""
+    cfg = srv.cfg
+    binomial = bool(facts.BINOMIAL_RE.fullmatch(name))
+    heard, common = species_stats(cfg, name, hours, now)
+    s = frame.stem(name)
+    art = cfg.art.art_kind(name) if s else None
+    found, pending = {}, []
+    if binomial:
+        try:
+            r = srv.facts.lookup(name, common, now, tz=cfg.tz)
+            found, pending = r.facts, r.pending
+        except Exception as exc:  # noqa: BLE001 -- facts are optional; never a 5xx
+            log.warning("facts lookup for %s failed: %s", name, type(exc).__name__)
+    return {
+        "scientific_name": name, "common_name": common, "hours": hours, "binomial": binomial,
+        "art": art, "plate_url": f"/plate/{s}.png" if art else None,
+        "heard": heard, "facts": found,
+        "links": {"allaboutbirds": facts.aab_url(common)} if binomial else {},
+        "pending": pending, "tz": getattr(cfg.tz, "key", "UTC"),
+    }
+
+
+def plate_file(art: frame.Artwork, s: str) -> Path | None:
+    """The cut-out, else the vignette, on disk only; `s` is regex-checked."""
+    p = art.dir / "birds" / f"{s}.webp"
+    if p.exists():
+        return p
+    if art.audubon is not None:
+        v = art.audubon.dir / frame.VIGNETTE_VERSION / f"{s}.webp"
+        if v.exists():
+            return v
+    return None
+
+
+@lru_cache(maxsize=64)
+def plate_png(path: str, mtime_ns: int) -> bytes:
+    """A 480 px PNG of a cached plate; keyed by mtime so a replaced file is re-read."""
+    with Image.open(path) as im:
+        im = ImageOps.contain(im.convert("RGBA"), (PLATE_MAX, PLATE_MAX), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return buf.getvalue()
+
+
+@lru_cache(maxsize=None)
+def font_file(name: str) -> bytes:
+    """`name` only ever comes from FONT_ROUTES."""
+    return (frame.FONT_DIR / name).read_bytes()
 
 
 def layout_json(rendered: frame.Rendered, w: int, h: int, hours: int) -> dict:
@@ -386,6 +549,31 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, "application/json; charset=utf-8", body)
             elif path == "/attribution":
                 self._send(200, "text/html; charset=utf-8", attribution_html(cfg.art).encode())
+            elif path.startswith(SPECIES_PREFIX):
+                name = parse_species_segment(path)
+                hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
+                if not species_known(cfg, name):
+                    raise NotKnown("unknown species")
+                body = json.dumps(species_json(self.server, name, hours, now), ensure_ascii=False).encode()
+                self._send(200, "application/json; charset=utf-8", body)
+            elif path.startswith("/plate/") and path.endswith(".png"):
+                s = path[len("/plate/"):-len(".png")]
+                if not _STEM_RE.fullmatch(s):
+                    raise BadRequest("bad plate name")
+                p = plate_file(cfg.art, s)
+                data = None
+                if p is not None:
+                    try:
+                        data = plate_png(str(p), p.stat().st_mtime_ns)
+                    except Exception as exc:  # noqa: BLE001 -- unreadable cache file
+                        log.warning("plate %s unreadable: %s", p.name, type(exc).__name__)
+                if data is None:
+                    self._send(404, "text/plain; charset=utf-8", b"not found\n")
+                else:
+                    self._send(200, "image/png", data, cache="max-age=3600")
+            elif path in FONT_ROUTES:
+                name, ctype = FONT_ROUTES[path]
+                self._send(200, ctype, font_file(name), cache="max-age=86400")
             elif path in STATIC_FILES:
                 name, ctype = STATIC_FILES[path]
                 self._send(200, ctype, static_file(name), cache="max-age=300")
@@ -396,6 +584,9 @@ class Handler(BaseHTTPRequestHandler):
         except BadRequest as exc:
             log.warning("GET %s: %s", self.path, exc)
             self._send(400, "text/plain; charset=utf-8", f"bad request: {exc}\n".encode())
+        except NotKnown as exc:
+            log.warning("GET %s: %s", self.path, exc)
+            self._send(404, "text/plain; charset=utf-8", f"not found: {exc}\n".encode())
         except (BrokenPipeError, ConnectionResetError):
             return   # client went away, nothing to send
         except Exception:  # noqa: BLE001 -- one bad request must not take the thread down
