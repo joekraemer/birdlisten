@@ -11,6 +11,7 @@ import json
 import re
 import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -801,3 +802,90 @@ def test_attribution_notes_sections(aud_server):
     wiki = text[text.index("<h2>Wikipedia</h2>"):text.index("<h2>Wikidata</h2>")]
     assert '<li><a href="https://en.wikipedia.org/wiki/A?b=1&amp;c=2">Bush&lt;b&gt;tit&amp;</a></li>' in wiki
     assert "(none cached yet)" not in wiki and "<b>" not in wiki
+
+
+# ----------------------------------------------------------------- the eBird key never leaks (AC 46)
+SENTINEL = "SENTINELKEY123"
+
+
+def test_ebird_key_never_leaves_the_process(tmp_path: Path, monkeypatch, caplog):
+    env = {"SERVE_PORT": "1", "DATA_DIR": str(tmp_path), "EBIRD_API_KEY": SENTINEL,
+           "LATITUDE": "47.6", "LONGITUDE": "-122.3"}
+    caplog.set_level("DEBUG")
+    cfg = serve.load_serve_config(env)
+    assert cfg.facts.ebird_key is not None and cfg.facts.nearby_on
+    cfg = serve.ServeConfig(**{**cfg.__dict__, "port": 0})
+    seed(tmp_path)
+    p = cfg.art.plate_path("Turdus migratorius")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (40, 40), (90, 60, 40, 255)).save(p, "WEBP")
+    tax = json.dumps([{"sciName": f"Genus s{i}", "comName": f"B {i}", "speciesCode": f"c{i}x"} for i in range(5100)]
+                     + [{"sciName": "Turdus migratorius", "comName": "American Robin", "speciesCode": "amerob"}]).encode()
+    errors = iter([urllib.error.HTTPError(facts.EBIRD_NEARBY, 500, "boom", {}, None),
+                   urllib.error.URLError("network down")])
+
+    def nearby(url):
+        return next(errors, urllib.error.URLError("down again"))
+
+    calls = []
+
+    def fake(url, headers=None, timeout=None, max_bytes=None):
+        calls.append((url, dict(headers or {})))
+        if url.startswith(facts.EBIRD_TAXONOMY):
+            return tax
+        if url.startswith(facts.EBIRD_NEARBY):
+            raise nearby(url)
+        raise urllib.error.HTTPError(url, 500, "upstream", {}, None)
+
+    monkeypatch.setattr(facts, "http_get", fake)
+    srv = serve.CollageServer(cfg, host="127.0.0.1")
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    seen: list[str] = []
+    try:
+        def hit(path):
+            try:
+                status, headers, body = get(base + path)
+            except urllib.error.HTTPError as exc:
+                headers, body = exc.headers, exc.read()
+            seen.append(str(headers))
+            seen.append(body.decode("latin-1"))
+        lay = json.loads(get(base + "/api/layout")[2])
+        for path in ("/", "/collage.png", lay["png"], "/api/layout", "/api/recent",
+                     "/api/species/Turdus%20migratorius", "/plate/turdus-migratorius.png",
+                     "/fonts/OFL.txt", "/static/page.js", "/attribution", "/nope",
+                     "/api/species/..%2Fx", "/api/species/Corvus%20corax"):
+            hit(path)
+        for _ in range(100):
+            if not srv.facts._inflight:
+                break
+            time.sleep(0.05)
+        # Second round after the background jobs finished (nearby failed twice by now).
+        rec = facts.read_rec(cfg.facts.dir, "nearby", "turdus-migratorius")
+        if rec is not None:
+            facts.write_rec(cfg.facts.dir, "nearby", "turdus-migratorius", "error",
+                            frame.utcnow() - dt.timedelta(hours=2), None, "x")
+        hit("/api/species/Turdus%20migratorius")
+        for _ in range(100):
+            if not srv.facts._inflight:
+                break
+            time.sleep(0.05)
+        hit("/api/species/Turdus%20migratorius")
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    assert seen and all(SENTINEL not in s for s in seen)
+    for r in caplog.records:
+        assert SENTINEL not in r.getMessage() and SENTINEL not in (r.exc_text or "")
+        assert SENTINEL not in str(r.args)
+    for f in tmp_path.rglob("*"):
+        if f.is_file():
+            assert SENTINEL.encode() not in f.read_bytes(), f
+    assert SENTINEL not in repr(cfg) and SENTINEL not in repr(cfg.facts)
+    ebird = [(u, h) for u, h in calls if "ebird.org" in u]
+    assert any(u.startswith(facts.EBIRD_NEARBY) for u, _ in ebird) and len(ebird) >= 3
+    for u, h in calls:
+        assert SENTINEL not in u
+        assert (h.get("X-eBirdApiToken") == SENTINEL) == ("ebird.org" in u)
+    assert "facts: nearby for Turdus migratorius failed: HTTPError 500" in caplog.text
+    assert "facts: nearby for Turdus migratorius failed: URLError" in caplog.text
