@@ -73,7 +73,58 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
 * `CLIP_SECONDS` 30 gives ten 3-second BirdNET windows per camera per pass.
   Longer clips catch more but delay notifications.
 * CPU: on the 2017 Intel MacBook a 30 s clip analyzes in a few seconds.
-  Two cameras is comfortable; six would still be fine.
+  Two cameras is comfortable; six would still be fine. Measure it with the
+  timing lines below.
+
+## Performance logging
+
+Every pass logs `timing` lines at INFO, for sizing concurrent capture (#4):
+
+```
+timing model_load_s=4.10 cpu_s=3.90 rss_mb=400            # once per process
+timing camera=garage clip_s=30.0 capture_s=31.40 analyze_s=3.82 detections=2 cpu_s=3.70 rss_mb=612
+timing camera=yard clip_s=30.0 capture_s=40.02 rss_mb=612 error=ffmpeg_failed:_Connection_refused
+timing pass cameras=5 ok=4 wall_s=171.30 analyze_total_s=15.20 rss_mb=612
+```
+
+* `capture_s`: wall time of the ffmpeg call. `analyze_s`: wall time of the
+  BirdNET analysis of that clip, model load excluded.
+* `cpu_s`: user+sys CPU of the process (all threads) plus reaped children,
+  from `getrusage`, during analysis. Above `analyze_s` means BirdNET used more
+  than one core.
+* `rss_mb`: `ru_maxrss`, the process's peak RSS so far, not current usage.
+* `detections`: species kept after `MIN_CONFIDENCE`.
+* A failed camera still gets a line, with `error=` (spaces become `_`) and
+  whatever was measured before the failure.
+* The model is loaded once per process (loop.py calls `main()` in the same
+  process), so `model_load_s` appears once after each container start.
+* Duty cycle per camera is `clip_s / wall_s` of the pass line.
+
+`--dry-run` prints the same lines for one pass without writing to the DB or
+notifying: `docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--dry-run" app`.
+
+On the fleet Mac:
+
+```
+docker compose -f ~/fleet/compose.yaml logs birdlisten --since 24h | grep ' timing '
+```
+
+Summary (mean/p95 `analyze_s` per camera, errors, mean pass `wall_s`):
+
+```
+docker compose -f ~/fleet/compose.yaml logs birdlisten --since 24h | grep ' timing ' | python3 -c '
+import sys,statistics as st,collections as C
+a=C.defaultdict(list);w=[];e=C.Counter()
+for l in sys.stdin:
+  f=dict(t.split("=",1) for t in l.split(" timing ",1)[1].split() if "=" in t)
+  if "wall_s" in f: w.append(float(f["wall_s"]))
+  elif "error" in f: e[f["camera"]]+=1
+  elif "analyze_s" in f: a[f["camera"]].append(float(f["analyze_s"]))
+for c,v in sorted(a.items()): v.sort(); print(f"{c:<14} n={len(v):<5} mean={st.mean(v):.2f}s p95={v[int(.95*(len(v)-1))]:.2f}s errors={e[c]}")
+for c in sorted(set(e)-set(a)): print(f"{c:<14} n=0     errors={e[c]}")
+w and print(f"pass           n={len(w):<5} mean_wall={st.mean(w):.1f}s")
+'
+```
 
 ## Collage page
 

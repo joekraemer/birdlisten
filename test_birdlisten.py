@@ -149,6 +149,95 @@ def test_listen_once_with_mocks(tmp_path: Path, monkeypatch):
     assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
 
 
+def _timing_fields(caplog, prefix: str) -> list[dict[str, str]]:
+    out = []
+    for r in caplog.records:
+        msg = r.getMessage()
+        if msg.startswith(prefix):
+            out.append(dict(tok.split("=", 1) for tok in msg.split()[1:] if "=" in tok))
+    return out
+
+
+def test_listen_once_logs_timing(tmp_path: Path, monkeypatch, caplog):
+    cfg = bl.load_config({
+        "CAMERAS": "front=rtsp://x,back=rtsp://admin:s3cret@10.0.0.2/y", "LATITUDE": "0", "LONGITUDE": "0",
+        "DATA_DIR": str(tmp_path),
+    })
+    conn = bl.open_db(cfg.data_dir)
+
+    def fake_capture(cam, seconds, out):
+        if cam.name == "back":
+            raise RuntimeError("ffmpeg failed: rtsp://admin:s3cret@10.0.0.2/y Connection refused")
+        out.write_bytes(b"RIFF" + b"\0" * 100_000)
+
+    def fake_analyze(wav, cfg_, when):
+        return [bl.Detection("Bushtit", "P. minimus", 0.7, 0, 3), bl.Detection("Bushtit", "P. minimus", 0.9, 3, 6),
+                bl.Detection("Song Sparrow", "M. melodia", 0.8, 6, 9)]
+
+    monkeypatch.setattr(bl, "capture", fake_capture)
+    monkeypatch.setattr(bl, "analyze", fake_analyze)
+    monkeypatch.setattr(bl, "notify", lambda *a: None)
+    caplog.set_level("INFO", logger="birdlisten")
+    assert bl.listen_once(cfg, conn, dry_run=True) == 1
+
+    cams = {f["camera"]: f for f in _timing_fields(caplog, "timing camera=")}
+    assert set(cams) == {"front", "back"}
+    front = cams["front"]
+    assert set(front) == {"camera", "clip_s", "capture_s", "analyze_s", "detections", "cpu_s", "rss_mb"}
+    assert front["clip_s"] == "30.0" and front["detections"] == "2"
+    for k in ("capture_s", "analyze_s", "cpu_s", "rss_mb"):
+        assert float(front[k]) >= 0
+
+    back = cams["back"]
+    assert back["error"].startswith("ffmpeg_failed:") and "s3cret" not in back["error"]
+    assert "capture_s" in back and "analyze_s" not in back and "detections" not in back
+
+    (p,) = _timing_fields(caplog, "timing pass ")
+    assert p["cameras"] == "2" and p["ok"] == "1"
+    assert float(p["wall_s"]) >= float(p["analyze_total_s"]) >= 0
+
+
+def test_listen_once_timing_on_analysis_failure(tmp_path: Path, monkeypatch, caplog):
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
+    conn = bl.open_db(cfg.data_dir)
+    monkeypatch.setattr(bl, "capture", lambda cam, s, out: None)
+    monkeypatch.setattr(bl, "analyze", lambda *a: (_ for _ in ()).throw(RuntimeError("model missing")))
+    caplog.set_level("INFO", logger="birdlisten")
+    assert bl.listen_once(cfg, conn) == 0
+    (f,) = _timing_fields(caplog, "timing camera=")
+    assert f["error"] == "model_missing" and "analyze_s" in f and "cpu_s" in f and "detections" not in f
+
+
+def test_model_load_logged_once_and_kept_out_of_analyze_s(tmp_path: Path, monkeypatch, caplog):
+    import sys
+    import time
+    import types
+
+    class SlowAnalyzer:
+        def __init__(self):
+            time.sleep(0.3)
+
+    fake = types.ModuleType("birdnetlib.analyzer")
+    fake.Analyzer = SlowAnalyzer
+    monkeypatch.setitem(sys.modules, "birdnetlib", types.ModuleType("birdnetlib"))
+    monkeypatch.setitem(sys.modules, "birdnetlib.analyzer", fake)
+    monkeypatch.setattr(bl, "_ANALYZER", None)
+    monkeypatch.setattr(bl, "_MODEL_LOAD_COST", [0.0, 0.0])
+    monkeypatch.setattr(bl, "capture", lambda cam, s, out: None)
+    monkeypatch.setattr(bl, "analyze", lambda *a: (bl.analyzer(), [])[1])
+
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
+    conn = bl.open_db(cfg.data_dir)
+    caplog.set_level("INFO", logger="birdlisten")
+    bl.listen_once(cfg, conn)
+    bl.listen_once(cfg, conn)
+
+    (load,) = _timing_fields(caplog, "timing model_load_s=")
+    assert float(load["model_load_s"]) >= 0.3
+    for f in _timing_fields(caplog, "timing camera="):
+        assert float(f["analyze_s"]) < 0.2
+
+
 def test_listen_once_all_cameras_fail(tmp_path: Path, monkeypatch):
     cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
     conn = bl.open_db(cfg.data_dir)

@@ -38,11 +38,13 @@ import datetime as dt
 import logging
 import os
 import re
+import resource
 import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -177,15 +179,23 @@ class Detection:
 
 
 _ANALYZER = None
+# Cumulative (wall_s, cpu_s) spent loading the model, so listen_once can keep
+# a first-pass model load out of that clip's analyze_s / cpu_s.
+_MODEL_LOAD_COST = [0.0, 0.0]
 
 
 def analyzer():
     """Load the BirdNET model once per process; it takes a few seconds."""
     global _ANALYZER
     if _ANALYZER is None:
+        t0, c0 = time.perf_counter(), _cpu_seconds()
         from birdnetlib.analyzer import Analyzer  # heavy import, keep it lazy
 
         _ANALYZER = Analyzer()
+        wall, cpu = time.perf_counter() - t0, _cpu_seconds() - c0
+        _MODEL_LOAD_COST[0] += wall
+        _MODEL_LOAD_COST[1] += cpu
+        log.info("timing model_load_s=%.2f cpu_s=%.2f rss_mb=%.0f", wall, cpu, _max_rss_mb())
     return _ANALYZER
 
 
@@ -291,24 +301,70 @@ def notify(cfg: Config, title: str, body: str) -> None:
         log.warning("ntfy failed: %s", exc)
 
 
+# ----------------------------------------------------------------- timing
+# One `timing ...` INFO line per camera per pass, one per pass, one per model
+# load. Sizing data for concurrent capture (issue #4); grep ' timing '.
+def _cpu_seconds() -> float:
+    """User+sys CPU of this process (all threads) plus reaped children."""
+    s = resource.getrusage(resource.RUSAGE_SELF)
+    c = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return s.ru_utime + s.ru_stime + c.ru_utime + c.ru_stime
+
+
+def _max_rss_mb() -> float:
+    """High-water RSS of this process. ru_maxrss is KB on Linux, bytes on macOS."""
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss / (1024 * 1024) if sys.platform == "darwin" else rss / 1024
+
+
+def _timing_line(cam: str, clip_s: float, **fields) -> str:
+    parts = [f"camera={cam}", f"clip_s={clip_s:.1f}"]
+    for key, fmt in (("capture_s", "{:.2f}"), ("analyze_s", "{:.2f}"), ("detections", "{}"),
+                     ("cpu_s", "{:.2f}"), ("rss_mb", "{:.0f}")):
+        if fields.get(key) is not None:
+            parts.append(f"{key}={fmt.format(fields[key])}")
+    if fields.get("error"):
+        # Single token so `key=value` parsing stays trivial.
+        parts.append("error=" + re.sub(r"\s+", "_", fields["error"].strip())[:80])
+    return "timing " + " ".join(parts)
+
+
 # ----------------------------------------------------------------- one pass
 def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) -> int:
     """Capture + analyze every camera once. Returns the number of cameras that
     produced a usable clip (0 => the pass failed)."""
     ok = 0
+    pass_t0 = time.perf_counter()
+    analyze_total = 0.0
     for cam in cfg.cameras:
         when = dt.datetime.now(dt.timezone.utc)
         with tempfile.TemporaryDirectory(prefix="birdlisten-") as tmp:
             wav = Path(tmp) / f"{cam.name}.wav"
+            t: dict = {}
             try:
-                capture(cam, cfg.clip_seconds, wav)
-                dets = analyze(wav, cfg, when)
+                t0 = time.perf_counter()
+                try:
+                    capture(cam, cfg.clip_seconds, wav)
+                finally:
+                    t["capture_s"] = time.perf_counter() - t0
+                load_wall, load_cpu = _MODEL_LOAD_COST
+                t0, c0 = time.perf_counter(), _cpu_seconds()
+                try:
+                    dets = analyze(wav, cfg, when)
+                finally:
+                    # A first-call model load is logged on its own line; keep it out of this clip.
+                    t["analyze_s"] = time.perf_counter() - t0 - (_MODEL_LOAD_COST[0] - load_wall)
+                    t["cpu_s"] = _cpu_seconds() - c0 - (_MODEL_LOAD_COST[1] - load_cpu)
+                    analyze_total += t["analyze_s"]
             except Exception as exc:  # noqa: BLE001 -- one camera failing must not stop the others
-                log.error("%s: %s", cam.name, scrub(str(exc)))
+                reason = scrub(str(exc))
+                log.error("%s: %s", cam.name, reason)
+                log.info("%s", _timing_line(cam.name, cfg.clip_seconds, rss_mb=_max_rss_mb(), error=reason, **t))
                 continue
             ok += 1
 
             best = best_per_species(dets)
+            log.info("%s", _timing_line(cam.name, cfg.clip_seconds, detections=len(best), rss_mb=_max_rss_mb(), **t))
             if not best:
                 log.info("%s: %ss, nothing above %.2f", cam.name, cfg.clip_seconds, cfg.min_conf)
                 continue
@@ -328,6 +384,8 @@ def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) ->
                 if should_notify(conn, name, when, cfg.notify_cooldown):
                     local = when.astimezone().strftime("%H:%M")
                     notify(cfg, f"{name}", f"{local} on {cam.name} camera, {d.confidence:.0%} confidence")
+    log.info("timing pass cameras=%d ok=%d wall_s=%.2f analyze_total_s=%.2f rss_mb=%.0f",
+             len(cfg.cameras), ok, time.perf_counter() - pass_t0, analyze_total, _max_rss_mb())
     return ok
 
 
