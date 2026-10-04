@@ -17,6 +17,7 @@ a plain paper card stands in. Priority: cut-out, vignette, card.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import io
 import itertools
 import json
@@ -29,6 +30,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -959,6 +961,30 @@ class Rendered:
     dropped: int
     quiet: bool              # True when the "all quiet" path was taken
     deferred: int            # plates not attempted because FETCH_BUDGET ran out
+    boxes: tuple[Box, ...] = ()                   # one per shown species, as pack() made them
+    names: tuple[tuple[str, str], ...] = ()       # (scientific, common) per box
+    arts: tuple[str | None, ...] = ()             # what was actually drawn per box
+    token: str = field(init=False, repr=False)    # content hash; names the PNG URL
+
+    def __post_init__(self) -> None:
+        # The names are part of the token: identical pixels with different
+        # scientific names give different click targets.
+        meta = json.dumps([self.names, self.arts], ensure_ascii=True).encode()
+        object.__setattr__(self, "token", hashlib.sha256(self.png + meta).hexdigest()[:16])
+
+    def layout(self, width: int, height: int) -> dict:
+        """Click targets as percentages of the image, from the same boxes the
+        pixels were drawn in."""
+        pct = lambda v, d: round(100 * v / d, 4)  # noqa: E731
+        return {
+            "token": self.token, "w": width, "h": height,
+            "shown": self.shown, "dropped": self.dropped,
+            "targets": [
+                {"scientific_name": sci, "common_name": com, "stem": stem(sci), "art": kind,
+                 "x": pct(b.x, width), "y": pct(b.y, height), "w": pct(b.w, width), "h": pct(b.h, height)}
+                for b, (sci, com), kind in zip(self.boxes, self.names, self.arts)
+            ],
+        }
 
 
 def _png(img: Image.Image) -> bytes:
@@ -1027,11 +1053,13 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
                               min(round(cell / 10), round(2.3 * unit)))   # never rivals the title
     ascent, descent = font.getmetrics()
     line_h = round((ascent + descent) * 1.1)
+    arts: list[str | None] = []
     for sp, box, lines in zip(species, boxes, names):
         px, py, pw, ph = box.x + inset, box.y + inset, cell - 2 * inset, cell - 2 * inset
         name = sp.scientific_name
         kind = art.art_kind(name) if stem(name) else None
         drawn = False
+        drew: str | None = None
         if kind == "fugleramme":
             path = art.plate_path(name)
             try:
@@ -1039,6 +1067,7 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
                     im = ImageOps.contain(im.convert("RGBA"), (pw, ph))
                 img.paste(im, (px + (pw - im.width) // 2, py + ph - im.height), im)
                 drawn = True
+                drew = "fugleramme"
             except Exception as exc:  # noqa: BLE001 -- corrupt cached file
                 log.warning("bad cached plate %s: %s; deleting", path, exc)
                 try:
@@ -1047,8 +1076,10 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
                     pass
         if not drawn and aud is not None and aud.has_art(name):
             drawn = _vignette_card(img, draw, aud.vignette_path(name), px, py, pw, ph)
+            drew = "audubon" if drawn else None
         if not drawn:
             _plate_card(draw, px, py, pw, ph)
+        arts.append(drew)
         # Names hang from the same line in every cell; a wrapped name adds a
         # second line below rather than shifting the first.
         y = box.y + cell - inset + round(cell * 0.05) + ascent
@@ -1056,7 +1087,8 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
             draw.text((box.x + cell // 2, y), line, font=font, fill=INK, anchor="ms")
             y += line_h
 
-    return Rendered(_png(img), len(boxes), dropped, False, deferred)
+    return Rendered(_png(img), len(boxes), dropped, False, deferred, tuple(boxes),
+                    tuple((s.scientific_name, s.common_name) for s in species[:len(boxes)]), tuple(arts))
 
 
 # ----------------------------------------------------------------- cache
@@ -1074,23 +1106,42 @@ def cache_key(species: list[Species], art: Artwork) -> tuple:
 class RenderCache:
     art: Artwork
     max_entries: int = 4
+    max_tokens: int = 8                               # PNGs kept for /collage.png?v=
     renders: int = 0                                  # test observability
     _lock: threading.Lock = field(default_factory=threading.Lock)
-    _entries: dict[tuple[int, int, int], tuple[tuple, bytes]] = field(default_factory=dict)
+    _entries: dict[tuple[int, int, int], tuple[tuple, Rendered]] = field(default_factory=dict)
+    _tok_lock: threading.Lock = field(default_factory=threading.Lock)
+    _by_token: OrderedDict[str, Rendered] = field(default_factory=OrderedDict)
 
     def get(self, species: list[Species], width: int, height: int, hours: int,
             now: dt.datetime | None = None) -> bytes:
+        return self.get_rendered(species, width, height, hours, now).png
+
+    def get_rendered(self, species: list[Species], width: int, height: int, hours: int,
+                     now: dt.datetime | None = None) -> Rendered:
         with self._lock:
             k = (width, height, hours)
             key = cache_key(species, self.art)
             hit = self._entries.get(k)
             if hit and hit[0] == key:
-                return hit[1]
-            out = render(species, self.art, width, height, hours, now=now)
-            self.renders += 1
-            log.info("rendered %sx%s: %s species, %s dropped, %s deferred, quiet=%s",
-                     width, height, out.shown, out.dropped, out.deferred, out.quiet)
-            if k not in self._entries and len(self._entries) >= self.max_entries:
-                self._entries.pop(next(iter(self._entries)))   # oldest inserted
-            self._entries[k] = (key, out.png)
-            return out.png
+                out = hit[1]
+            else:
+                t0 = time.monotonic()
+                out = render(species, self.art, width, height, hours, now=now)
+                self.renders += 1
+                log.info("rendered %sx%s in %d ms: %s species, %s dropped, %s deferred, quiet=%s",
+                         width, height, (time.monotonic() - t0) * 1000,
+                         out.shown, out.dropped, out.deferred, out.quiet)
+                if k not in self._entries and len(self._entries) >= self.max_entries:
+                    self._entries.pop(next(iter(self._entries)))   # oldest inserted
+                self._entries[k] = (key, out)
+        with self._tok_lock:
+            self._by_token[out.token] = out
+            self._by_token.move_to_end(out.token)
+            while len(self._by_token) > self.max_tokens:
+                self._by_token.popitem(last=False)
+        return out
+
+    def by_token(self, token: str) -> Rendered | None:
+        with self._tok_lock:
+            return self._by_token.get(token)

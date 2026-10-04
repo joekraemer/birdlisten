@@ -1066,3 +1066,81 @@ def test_committed_audubon_table(tmp_path: Path):
     assert not [k for k in raw if k.split()[0] in ("Sciurus", "Tamias", "Tamiasciurus", "Canis")]
     assert raw.get("Anous minutus", {}).get("plate") != 275
     assert {e["on_plate"] for e in raw.values() if e["plate"] == 353} == {3}
+
+
+# ----------------------------------------------------------------- render layout (pop-up targets)
+def test_render_boxes_names_arts(tmp_path: Path):
+    species, art, now = golden_fixture(tmp_path)
+    out = frame.render(species, art, 1600, 1200, 24, now=now)
+    _, margin, gap, top = frame._metrics(1600, 1200)
+    boxes, dropped = frame.pack(len(species), 1600, 1200, top, margin, gap)
+    assert out.boxes == tuple(boxes) and out.dropped == dropped == 0
+    assert out.names == tuple((s.scientific_name, s.common_name) for s in species)
+    assert out.arts == ("fugleramme", "audubon", None, None)
+    assert [t["art"] for t in out.layout(1600, 1200)["targets"]] == list(out.arts)
+    quiet = frame.render([], art, 1600, 1200, 24, now=now)
+    assert quiet.boxes == quiet.names == quiet.arts == () and quiet.layout(1600, 1200)["targets"] == []
+
+
+def test_render_arts_records_drawn_kind_not_predicted(tmp_path: Path):
+    species, art, now = golden_fixture(tmp_path)
+    # A corrupt cut-out for a species that also has a vignette: the vignette is drawn.
+    p = art.plate_path("Meleagris gallopavo")
+    p.write_bytes(b"not a webp")
+    out = frame.render(species[1:2], art, 800, 600, 24, now=now)
+    assert out.arts == ("audubon",) and not p.exists()
+    # A corrupt cut-out with no vignette: the placeholder is drawn.
+    q = art.plate_path("Corvus corax")
+    q.write_bytes(b"not a webp")
+    assert frame.render(species[2:3], art, 800, 600, 24, now=now).arts == (None,)
+
+
+def test_rendered_token_and_positional_form():
+    import hashlib
+    r = frame.Rendered(b"png", 1, 0, False, 0)
+    meta = json.dumps([(), ()], ensure_ascii=True).encode()
+    assert r.token == hashlib.sha256(b"png" + meta).hexdigest()[:16] and len(r.token) == 16
+    names = (("A b", "A"),)
+    r2 = frame.Rendered(b"png", 1, 0, False, 0, (frame.Box(0, 0, 1, 1),), names, (None,))
+    assert r2.token == hashlib.sha256(b"png" + json.dumps([names, (None,)]).encode()).hexdigest()[:16]
+    r3 = frame.Rendered(b"png", 1, 0, False, 0, (frame.Box(0, 0, 1, 1),), (("A c", "A"),), (None,))
+    assert r2.token != r3.token            # same pixels, different targets
+    assert "token" not in repr(r)
+
+
+def test_by_token_keeps_last_8(tmp_path: Path):
+    cache = frame.RenderCache(frame.Artwork(tmp_path / "art"))
+    tokens = []
+    for i in range(10):
+        tokens.append(cache.get_rendered([sp(f"Genus s{i}", f"Bird {i}")], 300, 200, 24, now=T0).token)
+    assert len(set(tokens)) == 10
+    assert cache.by_token(tokens[0]) is None and cache.by_token(tokens[1]) is None
+    for t in tokens[2:]:
+        assert cache.by_token(t) is not None and cache.by_token(t).token == t
+    assert cache.by_token("0" * 16) is None
+
+
+def test_layout_percentages(tmp_path: Path):
+    species = many(40)
+    out = frame.render(species, frame.Artwork(tmp_path / "art"), 400, 300, 24, now=T0)
+    lay = out.layout(400, 300)
+    assert out.dropped > 0 and len(lay["targets"]) == out.shown == len(out.boxes)
+    assert lay["token"] == out.token and (lay["w"], lay["h"]) == (400, 300)
+    assert lay["dropped"] == out.dropped
+    shown = {t["scientific_name"] for t in lay["targets"]}
+    assert all(s.scientific_name not in shown for s in species[out.shown:])
+    for t, b, s in zip(lay["targets"], out.boxes, species):
+        assert t["scientific_name"] == s.scientific_name and t["common_name"] == s.common_name
+        assert t["stem"] == frame.stem(s.scientific_name)
+        for k, v, d in (("x", b.x, 400), ("y", b.y, 300), ("w", b.w, 400), ("h", b.h, 300)):
+            assert abs(t[k] - 100 * v / d) < 0.0001
+
+
+def test_get_rendered_once_for_unchanged_set(tmp_path: Path, caplog):
+    cache = frame.RenderCache(frame.Artwork(tmp_path / "art"))
+    a = [sp()]
+    with caplog.at_level("INFO", logger="frame"):
+        r1 = cache.get_rendered(a, 300, 200, 24, now=T0)
+    assert cache.get(a, 300, 200, 24, now=T0) == r1.png and cache.renders == 1
+    assert cache.get_rendered(a, 300, 200, 24, now=T0) is r1
+    assert "rendered 300x200 in " in caplog.text and " ms: 1 species" in caplog.text
