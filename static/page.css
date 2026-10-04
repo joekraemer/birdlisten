@@ -1,0 +1,38 @@
+/* birdlisten collage page and pop-up card. Served from /static/page.css;
+   the HTML carries a strict CSP, so all styles live here. */
+
+/* Overlay alignment contract. The click targets are percentages of
+   #targets, so #targets' box must equal #c's rendered box. Do NOT add
+   max-height, max-width, object-fit, aspect-ratio, padding, border, margin
+   or transform to #c or #stage; a change that wants to fit the page to the
+   iframe height must size #stage and #c together. There is deliberately no
+   global img rule. */
+html, body { margin: 0; background: #f4ecd8; }
+#stage   { position: relative; margin: 0; padding: 0; border: 0; }
+#c       { display: block; width: 100%; height: auto; margin: 0; padding: 0; border: 0; }
+#targets { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+
+#targets .t {
+  position: absolute;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#targets .t:focus { outline: none; }
+#targets .t:focus-visible { outline: 2px solid #baaa8e; outline-offset: 2px; }
+
+footer {
+  font: italic 11px/1.4 "Libre Baskerville", Baskerville, "Baskerville Old Face", Georgia, serif;
+  text-align: center;
+  padding: 2px 8px 8px;
+  color: #7c705e;
+}
+footer a { color: inherit; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* /attribution */
+body.attribution { font: 14px sans-serif; margin: 2em; background: #f4ecd8; color: #28241e; }
+body.attribution pre { white-space: pre-wrap; }

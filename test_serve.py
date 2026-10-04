@@ -8,6 +8,7 @@ import datetime as dt
 import html
 import io
 import json
+import re
 import socket
 import threading
 import urllib.error
@@ -89,17 +90,27 @@ def test_start_from_env_bad_config_logs_and_returns_none(caplog):
 
 
 # ----------------------------------------------------------------- routes
+def page_layout(text: str) -> dict:
+    m = re.search(r'<script type="application/json" id="layout">(.*?)</script>', text, re.S)
+    assert m, "no embedded layout"
+    return json.loads(m.group(1))
+
+
 def test_index_html(server):
     _, base = server
     status, headers, body = get(base + "/")
     text = body.decode()
     assert status == 200 and headers["Content-Type"].startswith("text/html")
     assert headers["Cache-Control"] == "no-store" and int(headers["Content-Length"]) == len(body)
-    assert "/collage.png?hours=24" in text and "/attribution" in text
-    assert "setInterval" in text and 'http-equiv="refresh"' in text
+    lay = page_layout(text)
+    assert lay["hours"] == 24 and lay["png"] == f"/collage.png?v={lay['token']}"
+    assert f'<img id="c" src="/collage.png?v={lay["token"]}" width="1600" height="1200"' in text
+    assert "/attribution" in text and 'http-equiv="refresh"' in text
+    assert '<script src="/static/page.js" defer></script>' in text
+    assert 'data-refresh-ms="60000"' in text
     assert "X-Frame-Options" not in headers
     status, _, body = get(base + "/?hours=6")
-    assert "/collage.png?hours=6" in body.decode()
+    assert page_layout(body.decode())["hours"] == 6
 
 
 def test_collage_png_sizes_and_400s(server, tmp_path: Path):
@@ -328,7 +339,8 @@ def test_footer_names_audubon_when_on(server, aud_server):
     assert '<a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0</a>' in off_text
     assert ('<a href="/attribution">Plates from Fugleramme (CC BY-SA 4.0) and Audubon\'s '
             '<i>Birds of America</i></a>') in on_text
-    assert serve.index_html(24) == serve.index_html(24, False)
+    lay = {"png": "/collage.png?v=" + "0" * 16, "targets": []}
+    assert serve.index_html(lay, 800, 600) == serve.index_html(lay, 800, 600, audubon=False)
 
 
 def test_api_recent_has_plate_with_only_a_vignette(aud_server, tmp_path: Path):
@@ -340,3 +352,126 @@ def test_api_recent_has_plate_with_only_a_vignette(aud_server, tmp_path: Path):
     assert flags == {"Ixoreus naevius": True, "Turdus migratorius": False}
     assert set(data["species"][0]) == {"scientific_name", "common_name", "last_heard", "count",
                                        "cameras", "first_ever", "has_plate"}
+
+
+# ----------------------------------------------------------------- click targets
+def test_index_embeds_layout_matching_image(server, tmp_path: Path):
+    srv, base = server
+    assert page_layout(get(base + "/")[2].decode())["targets"] == []      # empty db: no targets
+    seed(tmp_path)
+    text = get(base + "/")[2].decode()
+    lay = page_layout(text)
+    assert [t["scientific_name"] for t in lay["targets"]] == ["Ixoreus naevius", "Turdus migratorius"]
+    assert re.search(r'src="/collage\.png\?v=([0-9a-f]{16})"', text).group(1) == lay["token"]
+    r = srv.cache.by_token(lay["token"])
+    assert r is not None and r.layout(1600, 1200)["targets"] == lay["targets"]
+    # The layout block is the same object /api/layout returns.
+    assert json.loads(get(base + "/api/layout")[2]) == lay
+
+
+def test_layout_block_escapes_markup(server, tmp_path: Path):
+    _, base = server
+    conn = bl.open_db(tmp_path)
+    bl.record(conn, dt.datetime.now(UTC), bl.Camera("back", "rtsp://x"),
+              bl.Detection("</script><b>&", "Turdus migratorius", 0.9, 0, 3), None)
+    conn.close()
+    text = get(base + "/")[2].decode()
+    block = re.search(r'id="layout">(.*?)</script>', text, re.S).group(1)
+    assert "<" not in block and ">" not in block and "&" not in block
+    assert "\\u003c/script\\u003e\\u003cb\\u003e\\u0026" in block
+    assert page_layout(text)["targets"][0]["common_name"] == "</script><b>&"
+
+
+def test_index_size_and_refresh_params(server):
+    _, base = server
+    text = get(base + "/?w=533&h=400&refresh_ms=1000")[2].decode()
+    lay = page_layout(text)
+    assert (lay["w"], lay["h"]) == (533, 400) and 'width="533" height="400"' in text
+    assert 'data-refresh-ms="1000"' in text
+    for q in ("w=10", "w=abc", "refresh_ms=1", "refresh_ms=x", "h=99999"):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            get(base + "/?" + q)
+        assert exc.value.code == 400, q
+
+
+def test_collage_by_token(server, tmp_path: Path):
+    srv, base = server
+    seed(tmp_path)
+    lay = json.loads(get(base + "/api/layout?w=800&h=600")[2])
+    status, headers, body = get(base + lay["png"])
+    assert status == 200 and headers["Content-Type"] == "image/png"
+    assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert body == srv.cache.by_token(lay["token"]).png
+    assert Image.open(io.BytesIO(body)).size == (800, 600)
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        get(base + "/collage.png?v=" + "0" * 16)
+    assert exc.value.code == 404 and exc.value.headers["Cache-Control"] == "no-store"
+    for bad in ("xyz", "0" * 15, "A" * 16, "0" * 17):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            get(base + "/collage.png?v=" + bad)
+        assert exc.value.code == 400, bad
+    _, headers, _ = get(base + "/collage.png")
+    assert headers["Cache-Control"] == "no-store"
+
+
+def test_api_layout_new_token_after_db_change(server, tmp_path: Path):
+    srv, base = server
+    seed(tmp_path)
+    a = json.loads(get(base + "/api/layout?w=800&h=600")[2])
+    conn = bl.open_db(tmp_path)
+    bl.record(conn, dt.datetime.now(UTC), bl.Camera("back", "rtsp://x"),
+              bl.Detection("Mallard", "Anas platyrhynchos", 0.9, 0, 3), None)
+    conn.close()
+    b = json.loads(get(base + "/api/layout?w=800&h=600")[2])
+    assert a["token"] != b["token"] and len(b["targets"]) == 3
+    assert b["targets"][0]["scientific_name"] == "Anas platyrhynchos"
+    r = srv.cache.by_token(b["token"])
+    assert get(base + b["png"])[2] == r.png and r.layout(800, 600)["targets"] == b["targets"]
+    assert get(base + a["png"])[0] == 200        # the old token is still served
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        get(base + "/api/layout?w=1")
+    assert exc.value.code == 400
+
+
+def test_csp_and_nosniff(server):
+    _, base = server
+    for path in ("/", "/attribution"):
+        _, headers, body = get(base + path)
+        assert headers["Content-Security-Policy"] == serve.CSP
+        assert "script-src 'self'" in serve.CSP and "frame-ancestors" not in serve.CSP
+        assert headers["X-Content-Type-Options"] == "nosniff"
+        text = body.decode()
+        assert "<style" not in text
+        for m in re.finditer(r"<script([^>]*)>(.*?)</script>", text, re.S):
+            attrs, code = m.groups()
+            assert 'src="' in attrs or 'type="application/json"' in attrs, attrs
+            if 'src="' in attrs:
+                assert code == ""
+    _, headers, _ = get(base + "/api/recent")
+    assert headers["X-Content-Type-Options"] == "nosniff" and "Content-Security-Policy" not in headers
+
+
+def test_static_files(server):
+    _, base = server
+    for path, ctype in (("/static/page.js", "text/javascript; charset=utf-8"),
+                        ("/static/page.css", "text/css; charset=utf-8")):
+        status, headers, body = get(base + path)
+        assert status == 200 and headers["Content-Type"] == ctype and body
+        assert headers["Cache-Control"] == "max-age=300"
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        get(base + "/static/../serve.py")
+    assert exc.value.code == 404
+
+
+def test_page_css_keeps_overlay_aligned():
+    css = (Path(serve.__file__).parent / "static" / "page.css").read_text()
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    rules = re.findall(r"([^{}]+)\{([^}]*)\}", css)
+    assert rules
+    for sel, body in rules:
+        sels = [x.strip() for x in sel.split(",")]
+        assert "img" not in sels, sel
+        if "#c" in sels or "#stage" in sels:
+            for bad in ("max-height", "object-fit", "aspect-ratio", "transform"):
+                assert bad not in body, (sel, bad)
+            assert all(v.strip() == "0" for v in re.findall(r"padding\s*:([^;]*)", body)), (sel, body)

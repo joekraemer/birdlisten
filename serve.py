@@ -30,6 +30,7 @@ import os
 import re
 import threading
 from dataclasses import dataclass
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -43,6 +44,15 @@ MIN_SIZE, MAX_SIZE = 200, 4000
 MAX_HOURS = 24 * 30
 REFRESH_SECONDS = 60
 _REF_RE = re.compile(r"[A-Za-z0-9._/-]+")
+_TOKEN_RE = re.compile(r"[0-9a-f]{16}")
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_FILES = {
+    "/static/page.js": ("page.js", "text/javascript; charset=utf-8"),
+    "/static/page.css": ("page.css", "text/css; charset=utf-8"),
+}
+CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; "
+       "img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'")
+IMMUTABLE = "public, max-age=31536000, immutable"
 
 CREDIT_HTML = (
     'Bird plates are from the <a href="https://github.com/arnegiacomo/fugleramme">Fugleramme</a> '
@@ -143,12 +153,26 @@ def recent_json(cfg: ServeConfig, hours: int, now: dt.datetime | None = None) ->
     }
 
 
-def index_html(hours: int, audubon: bool = False) -> str:
-    """Swapping img.src avoids the white flash of a full reload inside the HA
-    iframe; the <noscript> meta refresh (which browsers only honour in <head>)
-    is the fallback. `hours` is a validated int, so nothing needs escaping.
-    `audubon` names the second artwork source in the footer."""
-    src = f"/collage.png?hours={hours}"
+def layout_json(rendered: frame.Rendered, w: int, h: int, hours: int) -> dict:
+    """What /api/layout returns and / embeds: the render's click targets and
+    the URL of exactly the PNG they were built from."""
+    return {**rendered.layout(w, h), "png": f"/collage.png?v={rendered.token}", "hours": hours}
+
+
+def _json_block(obj: dict) -> str:
+    """JSON safe inside <script type="application/json">: no name can close the element."""
+    text = json.dumps(obj, ensure_ascii=True)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS * 1000,
+               audubon: bool = False) -> str:
+    """The collage <img> plus its click targets' layout as a JSON data block.
+    static/page.js draws the targets, swaps image and targets together on
+    refresh, and runs the pop-up; without JS the page is the plain image and
+    the <noscript> meta refresh (only honoured in <head>). `w`, `h` and
+    `refresh_ms` are validated ints and the token is hex, so only the JSON
+    block needs escaping. `audubon` names the second artwork source."""
     credit = ("Plates from Fugleramme (CC BY-SA 4.0) and Audubon's <i>Birds of America</i>"
               if audubon else "Plates from Fugleramme, CC BY-SA 4.0")
     return f"""<!doctype html>
@@ -158,17 +182,18 @@ def index_html(hours: int, audubon: bool = False) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <noscript><meta http-equiv="refresh" content="300"></noscript>
 <title>birds heard recently</title>
-<style>
-html,body{{margin:0;background:#f4ecd8}}
-img{{display:block;width:100%;height:auto}}
-footer{{font:italic 11px/1.4 "Libre Baskerville",Baskerville,"Baskerville Old Face",Georgia,serif;text-align:center;padding:2px 8px 8px;color:#7c705e}}
-footer a{{color:inherit;text-decoration:none}} footer a:hover{{text-decoration:underline}}
-</style>
+<link rel="stylesheet" href="/static/page.css">
+<script src="/static/page.js" defer></script>
 </head>
-<body>
-<img id="c" src="{src}" alt="birds heard recently">
+<body data-refresh-ms="{int(refresh_ms)}">
+<div id="stage">
+<img id="c" src="{layout['png']}" width="{int(w)}" height="{int(h)}" alt="birds heard recently" tabindex="-1">
+<div id="targets"></div>
+</div>
 <footer><a href="/attribution">{credit}</a></footer>
-<script>setInterval(() => {{ c.src = '{src}&t=' + Date.now() }}, {REFRESH_SECONDS * 1000})</script>
+<div id="scrim" hidden></div>
+<section id="card" role="dialog" aria-modal="true" aria-labelledby="card-title" hidden></section>
+<script type="application/json" id="layout">{_json_block(layout)}</script>
 </body>
 </html>
 """
@@ -188,8 +213,8 @@ def attribution_html(art: frame.Artwork) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>artwork attribution</title>
-<style>body{{font:14px sans-serif;margin:2em;background:#f4ecd8;color:#28241e}} pre{{white-space:pre-wrap}}</style></head>
-<body>
+<link rel="stylesheet" href="/static/page.css"></head>
+<body class="attribution">
 <p>{CREDIT_HTML}{tail}</p>
 {body}
 {audubon}</body>
@@ -229,19 +254,37 @@ cropped and recoloured.</p>
 """
 
 
+@lru_cache(maxsize=None)
+def static_file(name: str) -> bytes:
+    """page.js / page.css, read once; `name` only ever comes from STATIC_FILES."""
+    return (STATIC_DIR / name).read_bytes()
+
+
 # ----------------------------------------------------------------- http
 class Handler(BaseHTTPRequestHandler):
     server: "CollageServer"
 
-    def _send(self, status: int, ctype: str | None, body: bytes) -> None:
+    def _send(self, status: int, ctype: str | None, body: bytes, cache: str = "no-store",
+              extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
         if ctype:
             self.send_header("Content-Type", ctype)
+            if ctype.startswith("text/html"):
+                self.send_header("Content-Security-Policy", CSP)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for k, v in (extra_headers or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         if body:
             self.wfile.write(body)
+
+    def _size_params(self, qs: dict[str, list[str]]) -> tuple[int, int, int]:
+        cfg = self.server.cfg
+        return (int_param(qs, "hours", cfg.hours, 1, MAX_HOURS),
+                int_param(qs, "w", DEFAULT_W, MIN_SIZE, MAX_SIZE),
+                int_param(qs, "h", DEFAULT_H, MIN_SIZE, MAX_SIZE))
 
     def do_GET(self) -> None:  # noqa: N802 -- http.server API
         url = urlparse(self.path)
@@ -251,21 +294,39 @@ class Handler(BaseHTTPRequestHandler):
             qs = parse_qs(url.query, keep_blank_values=False)
             now = frame.utcnow()   # once per request: window, generated_at, and marker checks agree
             if path == "/":
-                hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
-                page = index_html(hours, cfg.art.audubon is not None)
+                hours, w, h = self._size_params(qs)
+                refresh_ms = int_param(qs, "refresh_ms", REFRESH_SECONDS * 1000, 500, 3_600_000)
+                r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now)
+                page = index_html(layout_json(r, w, h, hours), w, h, refresh_ms, cfg.art.audubon is not None)
                 self._send(200, "text/html; charset=utf-8", page.encode())
+            elif path == "/collage.png" and "v" in qs:
+                token = qs["v"][0]
+                if not _TOKEN_RE.fullmatch(token):
+                    raise BadRequest("v must be 16 hex digits")
+                r = self.server.cache.by_token(token)
+                if r is None:
+                    log.debug("GET %s: token gone", self.path)
+                    self._send(404, "text/plain; charset=utf-8", b"gone\n")
+                else:
+                    self._send(200, "image/png", r.png, cache=IMMUTABLE)
             elif path == "/collage.png":
-                hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
-                w = int_param(qs, "w", DEFAULT_W, MIN_SIZE, MAX_SIZE)
-                h = int_param(qs, "h", DEFAULT_H, MIN_SIZE, MAX_SIZE)
+                hours, w, h = self._size_params(qs)
                 species = load_species(cfg, hours, now)
                 self._send(200, "image/png", self.server.cache.get(species, w, h, hours, now=now))
+            elif path == "/api/layout":
+                hours, w, h = self._size_params(qs)
+                r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now)
+                body = json.dumps(layout_json(r, w, h, hours), ensure_ascii=False).encode()
+                self._send(200, "application/json; charset=utf-8", body)
             elif path == "/api/recent":
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
                 body = json.dumps(recent_json(cfg, hours, now), ensure_ascii=False).encode()
                 self._send(200, "application/json; charset=utf-8", body)
             elif path == "/attribution":
                 self._send(200, "text/html; charset=utf-8", attribution_html(cfg.art).encode())
+            elif path in STATIC_FILES:
+                name, ctype = STATIC_FILES[path]
+                self._send(200, ctype, static_file(name), cache="max-age=300")
             elif path == "/favicon.ico":
                 self._send(204, None, b"")
             else:
