@@ -2,11 +2,12 @@
 # Python 3.11 (tflite-runtime has no 3.12 wheel), ffmpeg from Debian, and an
 # optional collage port (SERVE_PORT, see README).
 FROM python:3.11-slim
-# ffmpeg pulls the RTSP audio; libsndfile is librosa's WAV reader. Both come
-# from Debian so uv.lock stays pure-Python. The apt cache is cleared in the
+# ffmpeg pulls the RTSP audio; libsndfile is librosa's WAV reader; tzdata
+# gives zoneinfo the IANA zones for TZ. All come from Debian so uv.lock stays
+# pure-Python. The apt cache is cleared in the
 # same layer so it never lands in the image.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
+ && apt-get install -y --no-install-recommends ffmpeg libsndfile1 tzdata \
  && apt-get clean \
  && find /var/lib/apt/lists -mindepth 1 -delete
 # uv from its official image: reproducible, no curl|sh.
@@ -27,12 +28,15 @@ RUN uv sync --frozen --no-dev --no-install-project
 # and draws labels with its bundled FreeType. Fail the build if a future wheel
 # drops either, instead of shipping an image that renders only placeholders.
 RUN /app/.venv/bin/python -c "import PIL.features as f; assert f.check('webp') and f.check('freetype2')"
-# Then the code, including fonts/ (the collage's serif) and audubon.json
-# (the Audubon plate map); .dockerignore keeps both in. Fail here rather than
-# ship an image that falls back to the sans or to placeholder cards.
+# The pop-up's local times need the zone database from tzdata above.
+RUN /app/.venv/bin/python -c "import zoneinfo; zoneinfo.ZoneInfo('America/Los_Angeles')"
+# Then the code, including fonts/ (the collage's serif, also served to the
+# pop-up), audubon.json (the Audubon plate map), facts.py and static/ (the
+# page's script and style); .dockerignore keeps them in. Fail here rather than
+# ship an image that falls back to the sans, placeholder cards or a dead page.
 COPY . .
 RUN test -f fonts/LibreBaskerville.ttf && test -f fonts/LibreBaskerville-Italic.ttf && test -f fonts/OFL.txt \
- && test -f audubon.json
+ && test -f audubon.json && test -f static/page.js && test -f static/page.css && test -f facts.py
 # /data holds the SQLite db, optional clips, and the artwork cache; compose
 # mounts a volume there.
 RUN useradd --create-home --uid 10001 app && mkdir /data && chown -R app:app /app /data

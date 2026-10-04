@@ -889,3 +889,13 @@ def test_ebird_key_never_leaves_the_process(tmp_path: Path, monkeypatch, caplog)
         assert (h.get("X-eBirdApiToken") == SENTINEL) == ("ebird.org" in u)
     assert "facts: nearby for Turdus migratorius failed: HTTPError 500" in caplog.text
     assert "facts: nearby for Turdus migratorius failed: URLError" in caplog.text
+
+
+def test_new_settings_documented():
+    root = Path(serve.__file__).parent
+    env = (root / ".env.example").read_text()
+    readme = (root / "README.md").read_text()
+    for var in ("FACTS_FETCH", "FACTS_DIR", "EBIRD_API_KEY"):
+        assert var in env and f"`{var}`" in readme, var
+    line = [ln for ln in env.splitlines() if "EBIRD_API_KEY=" in ln]
+    assert line and all(ln.split("EBIRD_API_KEY=", 1)[1] == "" for ln in line)

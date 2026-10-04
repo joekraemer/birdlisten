@@ -140,10 +140,16 @@ own read-only connection; it never changes what the loop records or notifies.
 
 | route | what |
 |---|---|
-| `GET /` | HTML page showing `/collage.png`, swaps the image every 60 s (meta refresh fallback without JS). `?hours=` |
+| `GET /` | HTML page: the collage with a tappable bird pop-up (below), refreshed every 60 s (meta refresh fallback without JS). `?hours=`, `?w=`, `?h=` as for `/collage.png`. It renders in the request, so the first load after a restart can wait for plates (up to the 15 s fetch budget). |
 | `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
+| `GET /collage.png?v=<token>` | one cached render by its 16-hex content token (the last 8 are kept), `Cache-Control: public, max-age=31536000, immutable`; 404 once evicted |
+| `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
+| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
 | `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, cameras, first_ever, has_plate}]}`. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
-| `GET /attribution` | artwork credit: Fugleramme plus its `ATTRIBUTION.md`, and the Audubon plates fetched so far |
+| `GET /plate/<stem>.png` | a cached cut-out or vignette as a 480 px PNG, from disk only |
+| `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
+| `GET /static/page.js`, `/static/page.css` | the page's script and style (HTML responses carry a strict same-origin CSP) |
+| `GET /attribution` | credits: Fugleramme plus its `ATTRIBUTION.md`, the Audubon plates fetched so far, the Wikipedia articles quoted so far, Wikidata, eBird, and Libre Baskerville |
 | `GET /favicon.ico` | 204 |
 
 Artwork comes from two sources, tried in this order for each species:
@@ -179,6 +185,31 @@ are dropped and the count reads `N species, M not shown`; that is 32 species
 at 800x600 and 98 at the default 1600x1200 (`frame.capacity(w, h)` computes
 it).
 
+### Pop-up
+
+Tap a bird (or Tab to it and press Enter) and a field-guide card opens over
+the page: the plate, common and scientific name, then **What we heard**
+(detections in the window, best and typical confidence, first and last heard,
+cameras, and a small chart of detections per hour of day) and **About the
+bird** (a Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird
+reports, and links to eBird, All About Birds and Wikipedia). Esc, the close
+button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
+60 s refresh swaps the image and its tap targets together and never touches an
+open card. `/#species=<scientific name>` opens a card directly.
+
+Facts are fetched lazily the first time a card opens, never during a render:
+Wikidata (taxon name P225 to the English Wikipedia article, sizes, eBird taxon
+ID), the Wikipedia summary of that article, and with `EBIRD_API_KEY` the eBird
+taxonomy (species code) and recent reports within 25 km of
+`LATITUDE`/`LONGITUDE`. A card waits at most 2.5 s for them; anything still
+running shows on a follow-up a few seconds later. Results are cached per
+source and species under `FACTS_DIR` (`/data/facts`): 30 days, a miss 24 h,
+an error 1 h, nearby reports 6 h. Without a key no eBird request is made and
+the eBird link comes from Wikidata. Times and hours are local to `TZ`
+(default `America/Los_Angeles`; an unknown zone logs a warning and falls back,
+it never disables the server). Wikidata covers sizes for only about 60% of
+species, so many cards have no size line.
+
 Type is Libre Baskerville (regular and italic) from `fonts/`, SIL Open Font
 License 1.1 (`fonts/OFL.txt`; source commit in `fonts/SOURCE.txt`). Without
 those files the renderer falls back to Pillow's bundled sans.
@@ -205,6 +236,15 @@ Commons page and credit. Thumbnails are requested from
 `commons.wikimedia.org/wiki/Special:FilePath/<file>?width=960` with the
 User-Agent `birdlisten/1.0 (https://github.com/joekraemer/birdlisten)`, as
 Wikimedia's User-Agent policy asks; each species' thumbnail is fetched once and cached.
+
+Pop-up notes are excerpts from [Wikipedia](https://en.wikipedia.org/) articles,
+licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); each
+card links its article and `/attribution` lists every article quoted so far.
+Sizes are from [Wikidata](https://www.wikidata.org/) (CC0). Species links and
+nearby reports are data from [eBird.org](https://ebird.org) (Cornell Lab of
+Ornithology), credited where shown as the eBird API terms ask. Wikimedia
+requests send the same User-Agent. The page's type, Libre Baskerville, is
+served from `/fonts/` under the SIL Open Font License 1.1 (`/fonts/OFL.txt`).
 
 #### Rebuilding audubon.json
 
@@ -262,6 +302,11 @@ sensor:
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
 | `ARTWORK_DIR` | `$DATA_DIR/artwork` | plate cache, a few hundred KB per species |
 | `AUDUBON_FALLBACK` | `1` | `1` = Audubon plates for species Fugleramme lacks, `0` = Fugleramme only (pages are then exactly as before) |
+| `FACTS_FETCH` | `1` | `1` = fetch pop-up facts from Wikidata, Wikipedia and eBird; `0` = serve only what is already cached, no outbound requests |
+| `FACTS_DIR` | `$DATA_DIR/facts` | pop-up facts cache, a few KB per species plus a ~600 KB eBird taxonomy |
+| `EBIRD_API_KEY` | unset | secret. Unset = no eBird requests (the eBird link then comes from Wikidata, and there are no nearby reports). Sent only as the `X-eBirdApiToken` header to api.ebird.org, never logged or shown. On the fleet it lives in `~/.config/fleet/birdlisten.env`, never in git. A malformed key logs a warning and turns eBird off |
+| `LATITUDE`, `LONGITUDE` | unset | also used (rounded to 0.01°) for nearby eBird reports; invalid or missing turns only those off |
+| `TZ` | `America/Los_Angeles` | zone for the pop-up's times and hour chart; unknown values warn and fall back |
 
 A bad value logs `config error: ... (server disabled)` and the loop runs on
 without the server; a busy port logs `cannot bind SERVE_PORT=...` and does the
@@ -278,7 +323,7 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_frame.py test_serve.py test_build_audubon_map.py   # arm64 macOS
+  test_birdlisten.py test_frame.py test_serve.py test_build_audubon_map.py test_facts.py   # arm64 macOS
 ```
 
 The second form exists because `tflite-runtime` has no macOS arm64 wheel, so
@@ -287,7 +332,19 @@ Pillow (`birdnetlib` is imported lazily by the analyzer). Both must pass. No
 test touches the network: artwork fetches are monkeypatched to 404, and the
 build script's fetch layer is monkeypatched too. The vignette tests use
 synthetic sheets plus three public-domain 480 px Havell thumbnails in
-`tests/fixtures/audubon/` (plates 8, 362, 376).
+`tests/fixtures/audubon/` (plates 8, 362, 376). Fact fetches
+(`facts.http_get`) are refused too; the facts tests use fake upstreams.
+`test_render_matches_golden` pins the collage pixels to hashes recorded by
+`tools/golden_render.py` before the pop-up work.
+
+Manual checks, not part of pytest:
+
+```
+# browser checks of the pop-up and screenshots (Playwright 1.59.0, chromium 1217)
+uv run --no-project --python 3.11 --with playwright==1.59.0 --with pillow==12.3.0 python tools/popup_shots.py
+# real-network fact coverage for the heard species
+uv run --no-project --python 3.11 --with pillow==12.3.0 python tools/facts_coverage.py
+```
 
 ## Ideas not built
 
@@ -323,10 +380,13 @@ synthetic sheets plus three public-domain 480 px Havell thumbnails in
 | `audubon.json` | BirdNET scientific name → Havell plate on Commons (file, page, credit); generated, committed |
 | `tools/build_audubon_map.py` | offline builder of `audubon.json`; not in the image |
 | `serve.py` | the collage HTTP server; `start_from_env()` is what `loop.py` calls |
+| `facts.py` | pop-up facts: Wikidata, Wikipedia and eBird fetching, single flight, cache under `FACTS_DIR` |
+| `static/` | `page.js` (tap targets, refresh swap, pop-up card) and `page.css` |
+| `tools/facts_coverage.py`, `tools/popup_shots.py`, `tools/golden_render.py` | manual checks (real-network fact coverage, browser checks and screenshots, collage golden hashes); not in the image |
 | `loop.py` | container entrypoint (fleet template), runs `main()` back to back; starts the server when `SERVE_PORT` is set |
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main` |
-| `test_birdlisten.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py` | see Tests |
+| `test_birdlisten.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_facts.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
