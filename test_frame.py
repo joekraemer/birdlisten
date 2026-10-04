@@ -479,6 +479,62 @@ def jpeg(img: Image.Image) -> bytes:
     return buf.getvalue()
 
 
+# ----------------------------------------------------------------- golden collage (AC 25)
+GOLDEN_NOW = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)
+
+
+def golden_fixture(tmp: Path) -> tuple[list[frame.Species], frame.Artwork, dt.datetime]:
+    """Fixed inputs for the collage golden hashes; tools/golden_render.py uses
+    the same helper so both build byte-identical inputs."""
+    a = audubon(tmp)
+    art = frame.Artwork(tmp / "artwork", audubon=a)
+    cut = Image.new("RGBA", (60, 80), (90, 60, 40, 255))
+    cut.paste((0, 0, 0, 0), (0, 0, 10, 10))
+    p = art.plate_path("Ixoreus naevius")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    cut.save(p, "WEBP", lossless=True)
+    v = a.vignette_path("Meleagris gallopavo")
+    v.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (70, 50), (120, 90, 60)).save(v, "WEBP", lossless=True)
+    species = [sp("Ixoreus naevius", "Varied Thrush"), sp("Meleagris gallopavo", "Wild Turkey"),
+               sp("Corvus corax", "Common Raven"), sp("Dog", "Dog")]
+    return species, art, GOLDEN_NOW
+
+
+def golden_renders(tmp: Path) -> dict[tuple[int, int, bool], bytes]:
+    species, art, now = golden_fixture(tmp)
+    return {
+        (1600, 1200, False): frame.render(species, art, 1600, 1200, 24, now=now).png,
+        (533, 400, False): frame.render(species, art, 533, 400, 24, now=now).png,
+        (1600, 1200, True): frame.render([], art, 1600, 1200, 24, now=now).png,
+    }
+
+
+# Recorded by tools/golden_render.py at beead01, before the pop-up change
+# touched frame.py. Never regenerate these from changed rendering code.
+GOLDEN_PX = {
+    (1600, 1200, False): 'dee9b792d8f9af98cda0abc6d349ccada9e621ee03958b3ba51c15d4888e1687',
+    (533, 400, False): 'a3316b56c4019b03613ba4654aa272f01e7c00c50798c604cad1e69cd2cee3e6',
+    (1600, 1200, True): '2022876fe517928f0f6b77571a8ee1b07fb89aa0a54af676c1a98dc5ca3658f0',
+}
+GOLDEN_RAW = {   # macOS only: the PNG bytes depend on the platform's zlib build
+    (1600, 1200, False): 'f45cee5d2bbde151ca00bde699ac68ada1485701275e6a51f561ee666c899531',
+    (533, 400, False): '592805ad99c00a2e2329fe0f8fec6407af27c620e4506282538d32a7d7ae3164',
+    (1600, 1200, True): 'bb9d25f56394eec829be041fe168fdc73e6074a90a958dc9dd166dec46b4ea35',
+}
+
+
+def test_render_matches_golden(tmp_path: Path):
+    import hashlib
+    import sys
+    for k, png in golden_renders(tmp_path).items():
+        decoded = Image.open(io.BytesIO(png)).convert("RGB")
+        assert hashlib.sha256(decoded.tobytes()).hexdigest() == GOLDEN_PX[k], k
+        assert frame._png(decoded) == png, k
+        if sys.platform == "darwin":
+            assert hashlib.sha256(png).hexdigest() == GOLDEN_RAW[k], k
+
+
 def test_audubon_lookup_and_validation(tmp_path: Path, caplog):
     species = {
         "Meleagris gallopavo": entry(),
