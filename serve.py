@@ -15,6 +15,11 @@ Environment (read once by load_serve_config):
   AUDUBON_FALLBACK  1 (default) = Audubon plates for species Fugleramme lacks, 0 = off
   MIN_CONFIDENCE  rows below this are left off the page and /api/recent
                   (default 0.5, the same variable and default as the capture loop)
+  FACTS_FETCH     1 (default) = fetch pop-up facts from Wikidata/Wikipedia/eBird, 0 = cache only
+  FACTS_DIR       facts cache (default $DATA_DIR/facts)
+  EBIRD_API_KEY   secret; unset = no eBird requests (the eBird link comes from Wikidata)
+  LATITUDE, LONGITUDE  where to look for nearby eBird reports (with EBIRD_API_KEY)
+  TZ              zone for pop-up times (default America/Los_Angeles; never fatal)
 
 The server is a daemon thread beside the capture loop. Each request opens its
 own read-only SQLite connection; nothing is shared with the loop.
@@ -29,12 +34,14 @@ import logging
 import os
 import re
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import facts
 import frame
 from birdlisten import ConfigError
 
@@ -62,6 +69,38 @@ CREDIT_HTML = (
 
 
 # ----------------------------------------------------------------- config
+DEFAULT_TZ = "America/Los_Angeles"
+_KEY_RE = re.compile(r"[A-Za-z0-9]{1,64}")
+
+
+def load_tz(env=os.environ) -> dt.tzinfo:
+    """TZ for pop-up times. Empty, unset or ':'-prefixed forms are fine; an
+    unknown zone warns and falls back, because a label must never take the
+    collage page down."""
+    raw = env.get("TZ", "").strip().removeprefix(":")
+    if raw:
+        try:
+            return ZoneInfo(raw)
+        except (ZoneInfoNotFoundError, ValueError):
+            log.warning("TZ=%r is not an IANA zone; using %s for pop-up times", raw, DEFAULT_TZ)
+    try:
+        return ZoneInfo(DEFAULT_TZ)
+    except (ZoneInfoNotFoundError, ValueError):
+        log.warning("no zoneinfo data for %s; using UTC for pop-up times", DEFAULT_TZ)
+        return dt.timezone.utc
+
+
+def _coord(env, name: str, lim: float) -> float | None:
+    raw = env.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    return v if -lim <= v <= lim else None
+
+
 @dataclass(frozen=True)
 class ServeConfig:
     port: int
@@ -69,6 +108,8 @@ class ServeConfig:
     db_path: Path
     art: frame.Artwork
     min_confidence: float = 0.5
+    facts: facts.FactsConfig = field(default_factory=lambda: facts.FactsConfig(Path("/nonexistent"), fetch=False))
+    tz: dt.tzinfo = field(default_factory=lambda: _DEFAULT_ZONE)
 
 
 def load_serve_config(env=os.environ) -> ServeConfig | None:
@@ -96,10 +137,31 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
         raise ConfigError("AUDUBON_FALLBACK must be 0 or 1")
     data_dir = Path(env.get("DATA_DIR", "/data"))
     art_dir = Path(env.get("ARTWORK_DIR", "").strip() or data_dir / "artwork")
+    fetch = env.get("FACTS_FETCH", "1").strip()
+    if fetch not in ("0", "1"):
+        raise ConfigError("FACTS_FETCH must be 0 or 1")
+    facts_dir = Path(env.get("FACTS_DIR", "").strip() or data_dir / "facts")
+    key = None
+    raw_key = env.get("EBIRD_API_KEY", "").strip()
+    if raw_key:
+        if _KEY_RE.fullmatch(raw_key):
+            key = facts.Secret(raw_key)
+        else:
+            log.warning("EBIRD_API_KEY is malformed (expected 1-64 letters and digits); eBird features off")
+    del raw_key
+    lat, lon = _coord(env, "LATITUDE", 90), _coord(env, "LONGITUDE", 180)
+    if key is not None and (lat is None or lon is None):
+        log.info("LATITUDE/LONGITUDE missing or invalid; nearby eBird reports off")
+        lat = lon = None
     # A table that fails to load logs an ERROR and leaves the fallback off.
     audubon = frame.Audubon.load(art_dir / "audubon") if fallback == "1" else None
     return ServeConfig(port=port, hours=hours, db_path=data_dir / "birdlisten.sqlite",
-                       art=frame.Artwork(art_dir, ref, audubon), min_confidence=min_conf)
+                       art=frame.Artwork(art_dir, ref, audubon), min_confidence=min_conf,
+                       facts=facts.FactsConfig(facts_dir, fetch == "1", key, lat, lon),
+                       tz=load_tz(env))
+
+
+_DEFAULT_ZONE = load_tz({})
 
 
 # ----------------------------------------------------------------- request helpers
@@ -356,6 +418,7 @@ class CollageServer(ThreadingHTTPServer):
         super().__init__((host, cfg.port), Handler)
         self.cfg = cfg
         self.cache = frame.RenderCache(cfg.art)
+        self.facts = facts.Facts(cfg.facts)
 
 
 def start_server(cfg: ServeConfig) -> threading.Thread | None:

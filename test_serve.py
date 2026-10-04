@@ -44,7 +44,8 @@ def no_network(monkeypatch):
 @pytest.fixture
 def server(tmp_path):
     cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
-                            art=frame.Artwork(tmp_path / "artwork"))
+                            art=frame.Artwork(tmp_path / "artwork"),
+                            facts=facts.FactsConfig(tmp_path / "facts", fetch=True))
     srv = serve.CollageServer(cfg, host="127.0.0.1")
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield srv, f"http://127.0.0.1:{srv.server_address[1]}"
@@ -284,7 +285,8 @@ def _cache_vignette(aud: frame.Audubon, sci: str) -> None:
 def aud_server(tmp_path):
     aud = _audubon(tmp_path)
     cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
-                            art=frame.Artwork(tmp_path / "artwork", audubon=aud))
+                            art=frame.Artwork(tmp_path / "artwork", audubon=aud),
+                            facts=facts.FactsConfig(tmp_path / "facts", fetch=True))
     srv = serve.CollageServer(cfg, host="127.0.0.1")
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield srv, f"http://127.0.0.1:{srv.server_address[1]}"
@@ -481,3 +483,58 @@ def test_page_css_keeps_overlay_aligned():
             for bad in ("max-height", "object-fit", "aspect-ratio", "transform"):
                 assert bad not in body, (sel, bad)
             assert all(v.strip() == "0" for v in re.findall(r"padding\s*:([^;]*)", body)), (sel, body)
+
+
+# ----------------------------------------------------------------- facts config
+def test_facts_config_defaults_and_validation(tmp_path: Path, caplog):
+    base = {"SERVE_PORT": "8085", "DATA_DIR": str(tmp_path)}
+    cfg = serve.load_serve_config(base)
+    assert cfg.facts == facts.FactsConfig(tmp_path / "facts", True, None, None, None)
+    assert str(cfg.tz) == "America/Los_Angeles"
+    assert serve.load_serve_config({**base, "FACTS_FETCH": "0", "FACTS_DIR": "/x/f"}).facts.dir == Path("/x/f")
+    assert serve.load_serve_config({**base, "FACTS_FETCH": "0"}).facts.fetch is False
+    for bad in ("2", "yes", ""):
+        with pytest.raises(bl.ConfigError, match="FACTS_FETCH must be 0 or 1"):
+            serve.load_serve_config({**base, "FACTS_FETCH": bad})
+    with caplog.at_level("INFO"):
+        cfg = serve.load_serve_config({**base, "EBIRD_API_KEY": "bad key!SENTINELKEY123"})
+    assert cfg.facts.ebird_key is None
+    assert "EBIRD_API_KEY is malformed" in caplog.text and "SENTINELKEY123" not in caplog.text
+    caplog.clear()
+    with caplog.at_level("INFO"):
+        cfg = serve.load_serve_config({**base, "EBIRD_API_KEY": "SENTINELKEY123", "LATITUDE": "47.6",
+                                       "LONGITUDE": "-222"})
+    assert cfg.facts.ebird_key.reveal() == "SENTINELKEY123" and not cfg.facts.nearby_on
+    assert "nearby eBird reports off" in caplog.text
+    cfg = serve.load_serve_config({**base, "EBIRD_API_KEY": "SENTINELKEY123", "LATITUDE": "47.6",
+                                   "LONGITUDE": "-122.3"})
+    assert cfg.facts.nearby_on and (cfg.facts.lat, cfg.facts.lon) == (47.6, -122.3)
+    assert "SENTINELKEY123" not in repr(cfg) and "SENTINELKEY123" not in str(cfg.facts)
+    for lat in ("x", "91", "nan"):
+        c = serve.load_serve_config({**base, "EBIRD_API_KEY": "k", "LATITUDE": lat, "LONGITUDE": "1"})
+        assert not c.facts.nearby_on
+
+
+@pytest.mark.parametrize("raw,zone,warns", [
+    (None, "America/Los_Angeles", False), ("", "America/Los_Angeles", False),
+    ("  ", "America/Los_Angeles", False), (":America/Los_Angeles", "America/Los_Angeles", False),
+    ("America/New_York", "America/New_York", False), ("Not/AZone", "America/Los_Angeles", True),
+    ("/etc/passwd", "America/Los_Angeles", True), ("../x", "America/Los_Angeles", True),
+])
+def test_tz_rule(raw, zone, warns, tmp_path: Path, caplog):
+    env = {} if raw is None else {"TZ": raw}
+    with caplog.at_level("WARNING", logger="serve"):
+        assert str(serve.load_tz(env)) == zone
+    assert ("is not an IANA zone" in caplog.text) == warns
+    probe = socket.socket()
+    probe.bind(("", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    thread = serve.start_from_env({**env, "SERVE_PORT": str(port), "DATA_DIR": str(tmp_path)})
+    assert thread is not None and thread.is_alive()
+    srv = thread._target.__self__
+    try:
+        assert str(srv.cfg.tz) == zone
+    finally:
+        srv.shutdown()
+        srv.server_close()
