@@ -36,3 +36,155 @@ footer a:hover { text-decoration: underline; }
 /* /attribution */
 body.attribution { font: 14px sans-serif; margin: 2em; background: #f4ecd8; color: #28241e; }
 body.attribution pre { white-space: pre-wrap; }
+
+/* ------------------------------------------------------------ pop-up card
+   Palette from frame.py: page #f4ecd8, card #ece2ca, ink #342c22,
+   grey #7c705e, rule #baaa8e. Libre Baskerville (SIL OFL 1.1). */
+@font-face {
+  font-family: "Libre Baskerville";
+  src: url("/fonts/LibreBaskerville.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Libre Baskerville";
+  src: url("/fonts/LibreBaskerville-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+html.modal { overflow: hidden; }
+
+#scrim {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(52, 44, 34, 0.18);
+  z-index: 10;
+}
+
+#card {
+  position: fixed;
+  z-index: 11;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 16px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #f4ecd8;
+  color: #342c22;
+  border: 1px solid #baaa8e;
+  outline: 1px solid #baaa8e;
+  outline-offset: -5px;
+  box-shadow: 0 6px 28px rgba(52, 44, 34, 0.22);
+  font: 13px/1.5 "Libre Baskerville", Baskerville, "Baskerville Old Face", Georgia, serif;
+}
+#scrim[hidden], #card[hidden] { display: none; }
+
+#card header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px 10px 14px;
+  margin: 0 10px;
+  border-bottom: 1px solid #baaa8e;
+}
+#card .plate { flex: 0 0 88px; width: 88px; height: 88px; }
+#card .plate img { display: block; width: 88px; height: 88px; object-fit: contain; }
+#card .plate-ph {
+  box-sizing: border-box;
+  width: 88px;
+  height: 88px;
+  background: #ece2ca;
+  border: 1px solid #baaa8e;
+  outline: 1px solid #baaa8e;
+  outline-offset: -4px;
+}
+#card .names { flex: 1 1 auto; min-width: 0; }
+#card h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+#card .sci { margin: 3px 0 0; font-style: italic; color: #7c705e; font-size: 13px; }
+#card .close {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 36px;
+  height: 36px;
+  margin: -4px -2px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7c705e;
+  font: 24px/1 "Libre Baskerville", Georgia, serif;
+  cursor: pointer;
+}
+#card .close:focus { outline: none; }
+#card .close:focus-visible { outline: 2px solid #baaa8e; outline-offset: 2px; }
+
+#card .body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 24px 16px;
+}
+#card h3 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7c705e;
+}
+#card h3::after {
+  content: "";
+  display: block;
+  width: 28px;
+  margin-top: 4px;
+  border-top: 1px solid #baaa8e;
+}
+#card p { margin: 0 0 6px; }
+#card .loading, #card .quiet { font-style: italic; color: #7c705e; }
+#card .credit { font-size: 11px; font-style: italic; color: #7c705e; }
+#card a { color: inherit; text-decoration: underline; text-decoration-color: #baaa8e; text-underline-offset: 2px; }
+#card a:focus-visible { outline: 2px solid #baaa8e; outline-offset: 1px; }
+#card .chart { display: block; width: 100%; height: auto; margin: 6px 0 2px; }
+#card .chart text { font-family: "Libre Baskerville", Georgia, serif; font-style: italic; font-size: 8px; }
+#card dl.size { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 6px 0 4px; }
+#card dl.size dt { color: #7c705e; font-style: italic; }
+#card dl.size dd { margin: 0; }
+#card .links { margin-top: 8px; }
+
+/* Narrow screens and phones: a bottom sheet, framed on the top and sides. */
+@media (max-width: 600px) {
+  #card {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    width: 100%;
+    max-height: 85vh;
+    border-bottom: 0;
+    outline: 0;
+    box-shadow: 0 -4px 24px rgba(52, 44, 34, 0.22);
+  }
+  #card::before {
+    content: "";
+    position: absolute;
+    top: 4px; left: 4px; right: 4px; bottom: 0;
+    border: 1px solid #baaa8e;
+    border-bottom: 0;
+    pointer-events: none;
+  }
+}

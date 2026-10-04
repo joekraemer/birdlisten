@@ -344,9 +344,10 @@ def test_footer_names_audubon_when_on(server, aud_server):
     _, off = server
     _, on = aud_server
     off_text, on_text = get(off + "/")[2].decode(), get(on + "/")[2].decode()
-    assert '<a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0</a>' in off_text
+    notes = " · notes from Wikipedia, Wikidata and eBird</a>"
+    assert '<a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0' + notes in off_text
     assert ('<a href="/attribution">Plates from Fugleramme (CC BY-SA 4.0) and Audubon\'s '
-            '<i>Birds of America</i></a>') in on_text
+            '<i>Birds of America</i>' + notes) in on_text
     lay = {"png": "/collage.png?v=" + "0" * 16, "targets": []}
     assert serve.index_html(lay, 800, 600) == serve.index_html(lay, 800, 600, audubon=False)
 
@@ -759,3 +760,44 @@ def test_fonts_routes(server):
         assert body == (frame.FONT_DIR / path.rsplit("/", 1)[1]).read_bytes()
     assert get_err(base + "/fonts/SOURCE.txt") == 404
     assert get_err(base + "/fonts/../serve.py") == 404
+
+
+# ----------------------------------------------------------------- pop-up card markup
+def test_card_skeleton_and_script_guards(server):
+    _, base = server
+    text = get(base + "/")[2].decode()
+    assert '<section id="card" role="dialog" aria-modal="true" aria-labelledby="card-title" hidden>' in text
+    assert '<h2 id="card-title"></h2>' in text and '<p class="sci"></p>' in text
+    assert '<button type="button" class="close" aria-label="Close">' in text
+    assert '<section class="heard"><h3>What we heard</h3>' in text
+    assert '<section class="about"><h3>About the bird</h3>' in text
+    assert '<div id="scrim" hidden></div>' in text
+    js = (Path(serve.__file__).parent / "static" / "page.js").read_text()
+    for bad in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "onerror="):
+        assert bad not in js, bad
+    css = (Path(serve.__file__).parent / "static" / "page.css").read_text()
+    assert 'url("/fonts/LibreBaskerville.ttf")' in css and 'url("/fonts/LibreBaskerville-Italic.ttf")' in css
+    assert "font-display: swap" in css
+
+
+def test_attribution_notes_sections(aud_server):
+    srv, base = aud_server
+    text = get(base + "/attribution")[2].decode()
+    assert serve.CREDIT_HTML in text and "<h2>Audubon</h2>" in text
+    for h in ("<h2>Wikipedia</h2>", "<h2>Wikidata</h2>", "<h2>eBird</h2>", "<h2>Libre Baskerville</h2>"):
+        assert h in text
+    assert text.index("<h2>Audubon</h2>") < text.index("<h2>Wikipedia</h2>")
+    assert "CC BY-SA 4.0" in text and "CC0" in text and 'href="https://ebird.org"' in text
+    assert 'href="/fonts/OFL.txt"' in text and "SIL Open Font License 1.1" in text
+    assert "https://github.com/google/fonts/tree/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/librebaskerville" in text
+    wiki = text[text.index("<h2>Wikipedia</h2>"):text.index("<h2>Wikidata</h2>")]
+    assert "(none cached yet)" in wiki
+    d = srv.cfg.facts.dir
+    facts.write_rec(d, "wikipedia", "psaltriparus-minimus", "ok", frame.utcnow(),
+                    {"title": "Bush<b>tit&", "extract": "x", "trimmed": False,
+                     "url": "https://en.wikipedia.org/wiki/A?b=1&c=2"})
+    facts.write_rec(d, "wikipedia", "genus-species", "miss", frame.utcnow())
+    text = get(base + "/attribution")[2].decode()
+    wiki = text[text.index("<h2>Wikipedia</h2>"):text.index("<h2>Wikidata</h2>")]
+    assert '<li><a href="https://en.wikipedia.org/wiki/A?b=1&amp;c=2">Bush&lt;b&gt;tit&amp;</a></li>' in wiki
+    assert "(none cached yet)" not in wiki and "<b>" not in wiki

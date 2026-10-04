@@ -399,7 +399,7 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
     `refresh_ms` are validated ints and the token is hex, so only the JSON
     block needs escaping. `audubon` names the second artwork source."""
     credit = ("Plates from Fugleramme (CC BY-SA 4.0) and Audubon's <i>Birds of America</i>"
-              if audubon else "Plates from Fugleramme, CC BY-SA 4.0")
+              if audubon else "Plates from Fugleramme, CC BY-SA 4.0") + " · notes from Wikipedia, Wikidata and eBird"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -417,14 +417,24 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
 </div>
 <footer><a href="/attribution">{credit}</a></footer>
 <div id="scrim" hidden></div>
-<section id="card" role="dialog" aria-modal="true" aria-labelledby="card-title" hidden></section>
+<section id="card" role="dialog" aria-modal="true" aria-labelledby="card-title" hidden>
+<header>
+<div class="plate"></div>
+<div class="names"><h2 id="card-title"></h2><p class="sci"></p></div>
+<button type="button" class="close" aria-label="Close">&times;</button>
+</header>
+<div class="body">
+<section class="heard"><h3>What we heard</h3><div class="content"></div></section>
+<section class="about"><h3>About the bird</h3><div class="content"></div></section>
+</div>
+</section>
 <script type="application/json" id="layout">{_json_block(layout)}</script>
 </body>
 </html>
 """
 
 
-def attribution_html(art: frame.Artwork) -> str:
+def attribution_html(art: frame.Artwork, facts_dir: Path | None = None) -> str:
     """Always 200: the static credit does not depend on the fetched file."""
     art.ensure_meta()
     text = art.attribution_text()
@@ -435,6 +445,7 @@ def attribution_html(art: frame.Artwork) -> str:
         tail = "Full per-plate sources are in the project's ATTRIBUTION.md, reproduced below."
         body = f"<pre>{html.escape(text)}</pre>"
     audubon = audubon_html(art.audubon) if art.audubon is not None else ""
+    notes = notes_html(facts_dir)
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>artwork attribution</title>
@@ -442,7 +453,7 @@ def attribution_html(art: frame.Artwork) -> str:
 <body class="attribution">
 <p>{CREDIT_HTML}{tail}</p>
 {body}
-{audubon}</body>
+{audubon}{notes}</body>
 </html>
 """
 
@@ -452,6 +463,54 @@ AUDUBON_EDITIONS = {
                "(plates 1&ndash;10 first engraved by W. H. Lizars, Edinburgh)"),
     "octavo": "(Philadelphia, 1840&ndash;1844), octavo edition: hand-coloured lithographs by J. T. Bowen",
 }
+
+
+def _font_source_url() -> str:
+    """The pinned upstream URL from fonts/SOURCE.txt (first https line)."""
+    try:
+        for line in (frame.FONT_DIR / "SOURCE.txt").read_text().splitlines():
+            line = line.strip()
+            if line.startswith("https://"):
+                return line
+    except OSError:
+        pass
+    return "https://github.com/google/fonts/tree/main/ofl/librebaskerville"
+
+
+def cached_articles(facts_dir: Path | None) -> list[tuple[str, str]]:
+    """(title, url) of every cached Wikipedia summary, from disk only."""
+    if facts_dir is None:
+        return []
+    out = []
+    for p in sorted((facts_dir / "v1" / "wikipedia").glob("*.json")):
+        rec = facts.read_rec(facts_dir, "wikipedia", p.stem)
+        d = rec.get("data") if rec and rec["status"] == "ok" else None
+        if isinstance(d, dict) and isinstance(d.get("title"), str) and isinstance(d.get("url"), str):
+            out.append((d["title"], d["url"]))
+    return sorted(set(out), key=lambda t: t[0].lower())
+
+
+def notes_html(facts_dir: Path | None) -> str:
+    """The pop-up sources on /attribution: Wikipedia, Wikidata, eBird, the font."""
+    esc = lambda v: html.escape(str(v), quote=True)  # noqa: E731
+    items = "\n".join(f'<li><a href="{esc(u)}">{esc(t)}</a></li>' for t, u in cached_articles(facts_dir))
+    items = items or "<li>(none cached yet)</li>"
+    font = esc(_font_source_url())
+    return f"""<h2>Wikipedia</h2>
+<p>Species notes in the pop-up are excerpts from Wikipedia articles, licensed
+<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. Each note links its article:</p>
+<ul>
+{items}
+</ul>
+<h2>Wikidata</h2>
+<p>Sizes are from <a href="https://www.wikidata.org/">Wikidata</a>, CC0.</p>
+<h2>eBird</h2>
+<p>Species links and nearby reports: data from <a href="https://ebird.org">eBird.org</a>
+(Cornell Lab of Ornithology), used under the eBird API terms of use.</p>
+<h2>Libre Baskerville</h2>
+<p>Type is Libre Baskerville by Impallari Type, under the SIL Open Font License 1.1
+(<a href="/fonts/OFL.txt">licence text</a>). Source: <a href="{font}">{font}</a>.</p>
+"""
 
 
 def audubon_html(aud: frame.Audubon) -> str:
@@ -548,7 +607,8 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps(recent_json(cfg, hours, now), ensure_ascii=False).encode()
                 self._send(200, "application/json; charset=utf-8", body)
             elif path == "/attribution":
-                self._send(200, "text/html; charset=utf-8", attribution_html(cfg.art).encode())
+                page = attribution_html(cfg.art, cfg.facts.dir)
+                self._send(200, "text/html; charset=utf-8", page.encode())
             elif path.startswith(SPECIES_PREFIX):
                 name = parse_species_segment(path)
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
