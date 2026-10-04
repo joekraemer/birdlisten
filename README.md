@@ -18,11 +18,12 @@ camera, cameras in turn, so the Mac only ever runs one analysis at a time.
 
 Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
-synthetic clip runs through analysis and storage; 98 test functions (168 cases
+synthetic clip runs through analysis and storage; 167 test functions (254 cases
 with parametrization) cover config parsing, dedupe, cooldown, storage, the
 per-pass error handling, the collage page (query, packer, renderer, both
-plate caches, vignette processing, HTTP routes), and the `audubon.json`
-build rules. NOT yet
+plate caches, vignette processing, HTTP routes, click targets), the pop-up
+(species stats, fact fetching and caching, input validation, the eBird key),
+and the `audubon.json` build rules. NOT yet
 verified: an actual Reolink RTSP stream, and real bird detections. Expect to
 tune `MIN_CONFIDENCE` once you see what the yard sounds like to BirdNET.
 
