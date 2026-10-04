@@ -19,10 +19,15 @@ import pytest
 from PIL import Image
 
 import birdlisten as bl
+import facts
 import frame
 import serve
 
 UTC = dt.timezone.utc
+
+
+def refuse_facts(url, *a, **kw):
+    raise AssertionError(f"facts network call in a test: {url}")
 
 
 @pytest.fixture(autouse=True)
@@ -32,6 +37,7 @@ def no_network(monkeypatch):
     def refuse(url, timeout=None):
         raise frame.NotFound(url)
     monkeypatch.setattr(frame, "fetch_url", refuse)
+    monkeypatch.setattr(facts, "http_get", refuse_facts)
     frame._meta_tried.clear()
 
 
