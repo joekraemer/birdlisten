@@ -529,6 +529,31 @@ def run_checks(pages: Pages, srv, base: str, shown) -> None:
     check("AC14/15", abs(r["bottom"] - 844) <= 1 and abs(r["left"]) <= 1 and abs(r["width"] - 390) <= 1
           and r["height"] <= 0.85 * 844 + 1, f"390x844 sheet {r['width']:.0f}x{r['height']:.0f}, bottom={r['bottom']:.0f}")
     page.context.close()
+    # #8: the bottom sheet on a short phone viewport (85vh = 340 px). The header
+    # stays on screen and the body scrolls under it.
+    page = pages.open("/#species=Psaltriparus%20minimus", 390, 400)
+    wait_loaded(page)
+    page.evaluate("() => document.fonts.ready")
+    m = page.evaluate("""() => { const r = e => e.getBoundingClientRect().toJSON();
+        const b = document.querySelector('#card .body');
+        const out = {card: r(document.getElementById('card')), title: r(document.getElementById('card-title')),
+                     close: r(document.querySelector('#card .close')), vw: innerWidth, vh: innerHeight,
+                     body_h: b.clientHeight, body_scroll_h: b.scrollHeight};
+        b.scrollTop = 120;
+        out.scrolled = b.scrollTop;
+        out.title_after = r(document.getElementById('card-title'));
+        out.close_after = r(document.querySelector('#card .close'));
+        return out; }""")
+    vis = lambda r: (r["width"] > 0 and r["height"] > 0 and r["left"] >= -0.5 and r["top"] >= -0.5  # noqa: E731
+                     and r["right"] <= m["vw"] + 0.5 and r["bottom"] <= m["vh"] + 0.5)
+    c = m["card"]
+    sheet = abs(c["bottom"] - 400) <= 1 and abs(c["left"]) <= 1 and abs(c["width"] - 390) <= 1 and c["height"] <= 0.85 * 400 + 1
+    header = vis(m["title"]) and vis(m["close"]) and vis(m["title_after"]) and vis(m["close_after"])
+    scrolls = m["body_scroll_h"] > m["body_h"] and m["scrolled"] > 0
+    check("#8", sheet and header and scrolls and m["body_h"] >= 150,
+          f"390x400 sheet {c['width']:.0f}x{c['height']:.0f} bottom={c['bottom']:.0f}; title/close visible={header}; "
+          f"body {m['body_h']}px of {m['body_scroll_h']}px, scrolled to {m['scrolled']}")
+    page.context.close()
 
     # AC13: refresh while the card is open and scrolled
     page = pages.open("/?refresh_ms=1000&w=533&h=400", 533, 400)
@@ -644,7 +669,7 @@ def shots(pages: Pages, base: str, empty_base: str) -> None:
              "placeholder": (PLACEHOLDER[0], base), "all-facts": (ALL_FACTS[0], base),
              "no-facts": (NO_FACTS[0], base), "non-binomial": (NON_BINOMIAL[0], base), "empty-page": ("Psaltriparus minimus", empty_base)}
     for name, (sci, b) in picks.items():
-        for w, h in ((1600, 1200), (533, 400), (390, 844)):
+        for w, h in ((1600, 1200), (533, 400), (390, 844), (390, 400)):
             ctx = pages.browser.new_context(viewport={"width": w, "height": h})
             page = ctx.new_page()
             page.goto(b + "/#species=" + sci.replace(" ", "%20"), wait_until="load")
@@ -664,7 +689,7 @@ def shots(pages: Pages, base: str, empty_base: str) -> None:
         page.wait_for_timeout(400)
         page.screenshot(path=str(AGENTS / f"{name}.png"))
         ctx.close()
-    print(f"screenshots: {out}/ (21) and .agents/popup-desktop.png, popup-mobile.png, popup-vignette.png")
+    print(f"screenshots: {out}/ (28) and .agents/popup-desktop.png, popup-mobile.png, popup-vignette.png")
 
 
 def main() -> int:
