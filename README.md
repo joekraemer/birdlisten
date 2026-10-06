@@ -354,11 +354,12 @@ it).
 ### Pop-up
 
 Tap a bird (or Tab to it and press Enter) and a field-guide card opens over
-the page: the plate, common and scientific name, then **What we heard**
+the page: the plate, common and scientific name, then **About the bird** (a
+Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird reports, and
+links to eBird, All About Birds and Wikipedia) and **What we heard**
 (detections in the window, best and typical confidence, first and last heard,
-cameras, and a small chart of detections per hour of day) and **About the
-bird** (a Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird
-reports, and links to eBird, All About Birds and Wikipedia). Esc, the close
+cameras, and a small chart of detections per hour of day). Names that are not
+a binomial skip About the bird. Esc, the close
 button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
 60 s refresh swaps the image and its tap targets together and never touches an
 open card. `/#species=<scientific name>` opens a card directly.

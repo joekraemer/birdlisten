@@ -795,6 +795,7 @@ def test_card_skeleton_and_script_guards(server):
     assert '<button type="button" class="close" aria-label="Close">' in text
     assert '<section class="heard"><h3>What we heard</h3>' in text
     assert '<section class="about"><h3>About the bird</h3>' in text
+    assert text.index('<section class="about">') < text.index('<section class="heard">')   # #11
     assert '<div id="scrim" hidden></div>' in text
     js = (Path(serve.__file__).parent / "static" / "page.js").read_text()
     for bad in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "onerror="):
