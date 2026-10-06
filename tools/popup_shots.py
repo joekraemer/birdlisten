@@ -3,7 +3,8 @@
   uv run --no-project --python 3.11 --with playwright==1.59.0 --with pillow==12.3.0 python tools/popup_shots.py
 
 Builds a temp DATA_DIR: a db seeded from the live server's /api/recent (or
-a fixed list if it is unreachable) plus the approved species, "Dog", an
+a fixed list if it is unreachable) plus the approved species, "Dog" (must stay hidden, #10), "Larus sp." (a
+name that is not a binomial), an
 aged-out species and an XSS species, with detections spread over the day;
 the cached art from .agents/artwork; and facts cache records copied from
 .agents/facts-cache (written by tools/facts_coverage.py) plus synthetic ones.
@@ -57,6 +58,7 @@ APPROVED = [
 FALLBACK_LIVE = [("Corvus brachyrhynchos", "American Crow", 19), ("Haemorhous mexicanus", "House Finch", 4)]
 AGED = ("Mergus merganser", "Common Merganser")
 PLACEHOLDER = ("Calypte anna", "Anna's Hummingbird")
+NON_BINOMIAL = ("Larus sp.", "gull sp.")
 XSS = ("Pipilo maculatus", "Spotted Towhee")
 ALL_FACTS = ("Cygnus buccinator", "Trumpeter Swan")
 NO_FACTS = ("Junco hyemalis", "Dark-eyed Junco")
@@ -110,6 +112,9 @@ def seed_db(data_dir: Path, now: dt.datetime, tz) -> list[tuple[str, str]]:
         shown.append((sci, com))
     bl.record(conn, now - dt.timedelta(minutes=50), bl.Camera("garage", "x"), bl.Detection("Dog", "Dog", 0.93, 0, 3), None)
     bl.record(conn, now - dt.timedelta(minutes=30), bl.Camera("garage", "x"), bl.Detection("Dog", "Dog", 0.95, 0, 3), None)
+    for m in (40, 20):
+        bl.record(conn, now - dt.timedelta(minutes=m), bl.Camera("garage", "x"),
+                  bl.Detection(NON_BINOMIAL[1], NON_BINOMIAL[0], 0.94, 0, 3), None)
     bl.record(conn, now - dt.timedelta(days=3), bl.Camera("garage", "x"), bl.Detection(AGED[1], AGED[0], 0.95, 0, 3), None)
     conn.close()
     return shown
@@ -476,8 +481,15 @@ def run_checks(pages: Pages, srv, base: str, shown) -> None:
           f"injected-elements={bad} literal-text-shown={'<script>alert(1)</script>' in text} dialogs={len(pages.dialogs)}")
     page.context.close()
 
-    # art: placeholder species and Dog never request /plate/
-    for sci in (PLACEHOLDER[0], "Dog"):
+    # #10: Dog rows are in the db but get no tap target, and its pop-up is a 404
+    page = pages.open("/", 1280, 900)
+    dog_targets = page.locator('#targets .t[data-sci="Dog"]').count()
+    status = page.request.get(page.url.split("#")[0] + "api/species/Dog").status
+    check("#10", dog_targets == 0 and status == 404, f"Dog tap targets={dog_targets} /api/species/Dog={status}")
+    page.context.close()
+
+    # art: the placeholder species and a non-binomial name never request /plate/
+    for sci in (PLACEHOLDER[0], NON_BINOMIAL[0]):
         page = pages.open("/", 1280, 900)
         page.locator(f'#targets .t[data-sci="{sci}"]').click()
         wait_loaded(page)
@@ -584,7 +596,7 @@ def shots(pages: Pages, base: str, empty_base: str) -> None:
     out.mkdir(exist_ok=True)
     picks = {"fugleramme": ("Melospiza melodia", base), "audubon": ("Psaltriparus minimus", base),
              "placeholder": (PLACEHOLDER[0], base), "all-facts": (ALL_FACTS[0], base),
-             "no-facts": (NO_FACTS[0], base), "dog": ("Dog", base), "empty-page": ("Psaltriparus minimus", empty_base)}
+             "no-facts": (NO_FACTS[0], base), "non-binomial": (NON_BINOMIAL[0], base), "empty-page": ("Psaltriparus minimus", empty_base)}
     for name, (sci, b) in picks.items():
         for w, h in ((1600, 1200), (533, 400), (390, 844)):
             ctx = pages.browser.new_context(viewport={"width": w, "height": h})
@@ -622,7 +634,7 @@ def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="popup-shots-"))
     srv, base, shown = build(tmp / "a")
     esrv, ebase, _ = build(tmp / "b", empty=True)
-    print(f"demo server {base} with {len(shown)} species + Dog; empty server {ebase}")
+    print(f"demo server {base} with {len(shown)} species + Dog + Larus sp.; empty server {ebase}")
     with sync_playwright() as p:
         try:
             browser = p.chromium.launch()
