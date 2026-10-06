@@ -75,3 +75,11 @@ jobs:
           tag=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | grep ':sha-' | head -1)
           echo "testing $tag"
           docker run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--help" "$tag" 2>&1 | tail -20
+
+      # The image's real ffmpeg cuts a 7 s test tone into segments through the
+      # exact stream-mode flags. Fails the build if segmenting is broken.
+      - name: Segment muxer self-test
+        if: github.event_name != 'pull_request'
+        run: |
+          tag=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | grep ':sha-' | head -1)
+          docker run --rm --entrypoint python "$tag" stream.py --selftest

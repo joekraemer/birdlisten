@@ -27,6 +27,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -1149,3 +1150,142 @@ def main_stream(cfg: bl.Config, once: bool = False, **seams) -> int:
         for sig, prev in saved.items():
             if prev is not None:
                 signal.signal(sig, prev)
+
+
+# ----------------------------------------------------------------- CI self-test
+class SelftestError(RuntimeError):
+    """One selftest() check failed; the message says which."""
+
+
+class _ListHandler(logging.Handler):
+    def __init__(self, records: list):
+        super().__init__(logging.DEBUG)
+        self.records = records
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+SELFTEST_INPUT = ["-re", "-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=16000:duration=7"]
+
+
+def selftest(spawn=None, deadline_s: float = 20.0, records: list | None = None) -> None:
+    """Run one real CameraSupervisor against a 7 s lavfi sine, through the exact
+    segment_cmd flags, and check the three clips it hands off (3 s, 3 s, 1 s
+    tail). Raises SelftestError on any mismatch. spawn defaults to the real
+    Popen; tests pass a fake. Log records are collected into `records` and kept
+    off stderr."""
+    real_spawn = spawn or popen_spawn
+    spawns = [0]
+
+    def counting_spawn(cmd, env):
+        spawns[0] += 1
+        return real_spawn(cmd, env)
+
+    records = [] if records is None else records
+    handler = _ListHandler(records)
+    logger = logging.getLogger("birdlisten")
+    prev_propagate, prev_level = logger.propagate, logger.level
+    logger.addHandler(handler)
+    logger.propagate = False
+    if logger.getEffectiveLevel() > logging.INFO:
+        logger.setLevel(logging.INFO)
+    try:
+        with tempfile.TemporaryDirectory(prefix="birdlisten-selftest-") as tmp:
+            _selftest_run(Path(tmp), counting_spawn, spawns, deadline_s, records)
+    finally:
+        logger.removeHandler(handler)
+        logger.propagate = prev_propagate
+        logger.setLevel(prev_level)
+
+
+def _selftest_run(seg_dir: Path, spawn, spawns: list, deadline_s: float, records: list) -> None:
+    queued = seg_dir / "queued"
+    queued.mkdir()
+    stats = Stats(time.monotonic)
+    queue = ClipQueue(8, stats, time.monotonic)
+    registry = ProcRegistry()
+    stop = threading.Event()
+    tuning = StreamTuning(min_segment_s=0.5, stagger_s=0, backoff_base_s=30, backoff_cap_s=30, poll_s=0.1)
+    sup = CameraSupervisor(0, bl.Camera("selftest", "rtsp://selftest.invalid/"), seg_dir=seg_dir,
+                           clip_seconds=3, queue=queue, stats=stats, registry=registry, stop=stop,
+                           signalled=lambda: False, once=False, spawn=spawn, tuning=tuning,
+                           clock=time.monotonic, now_utc=_utcnow, rng=random.Random(0),
+                           input_args=list(SELFTEST_INPUT))
+    clips: list[Clip] = []
+    try:
+        sup.start()
+        start = time.monotonic()
+        while len(clips) < 3 and time.monotonic() < start + deadline_s:
+            c = queue.get(timeout=0.5)
+            if isinstance(c, Clip):
+                clips.append(c)
+        # The tail is handed off just before the supervisor logs the exit and
+        # enters its backoff; stopping earlier would skip that log line.
+        while (len(clips) == 3 and time.monotonic() < start + deadline_s
+               and not any(r.levelno == logging.ERROR for r in list(records))):
+            time.sleep(0.05)
+    finally:
+        stop.set()
+        sup.join(timeout=5)
+        if sup.is_alive():                            # never leave an ffmpeg behind
+            for _cam, proc in registry.snapshot():
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+            sup.join(timeout=2)
+
+    def check(ok: bool, msg: str) -> None:
+        if not ok:
+            raise SelftestError(msg)
+
+    check(not sup.is_alive(), "supervisor still running 5 s after stop")
+    check(spawns[0] == 1, f"expected 1 ffmpeg spawn, got {spawns[0]}")
+    check(len(clips) == 3, f"expected 3 clips, got {len(clips)}")
+    for i, c in enumerate(clips[:2]):
+        check(abs(c.duration_s - 3.0) <= 0.1, f"clip {i + 1} is {c.duration_s:.2f}s, expected 3.0s")
+    check(0.5 <= clips[2].duration_s <= 1.5, f"tail clip is {clips[2].duration_s:.2f}s, expected 0.5-1.5s")
+    for i, c in enumerate(clips):
+        check(c.path.parent == queued, f"clip {i + 1} is in {c.path.parent}, not queued/")
+        check(c.path.name.startswith("00-selftest_r0001_"), f"clip {i + 1} is named {c.path.name}")
+        try:
+            with wave.open(str(c.path), "rb") as w:
+                fmt = (w.getframerate(), w.getnchannels(), w.getsampwidth())
+        except (wave.Error, EOFError, OSError) as exc:
+            raise SelftestError(f"clip {i + 1} does not open as WAV: {exc}") from exc
+        check(fmt == (48000, 1, 2), f"clip {i + 1} is {fmt}, expected (48000, 1, 2)")
+    for a, b in zip(clips, clips[1:]):
+        gap = (b.start_utc - a.start_utc).total_seconds()
+        check(2 <= gap <= 4, f"clip starts {a.start_utc} and {b.start_utc} are {gap:g}s apart, expected 2-4s")
+    errors = [r.getMessage() for r in records if r.levelno == logging.ERROR]
+    check(len(errors) == 1 and "ffmpeg exited" in errors[0] and "exit 0" in errors[0],
+          f"expected one 'ffmpeg exited ... exit 0' ERROR, got {errors}")
+    warnings = [r.getMessage() for r in records if r.levelno == logging.WARNING]
+    check(not warnings, f"unexpected WARNING records: {warnings}")
+    for c in clips:
+        c.path.unlink()
+    check(registry.snapshot() == [], f"process registry not empty: {registry.snapshot()}")
+    for d in (seg_dir / sup.dirname, queued):
+        left = sorted(os.listdir(d)) if d.is_dir() else []
+        check(not left, f"{d.name}/ not empty: {left}")
+
+
+def _selftest_main() -> int:
+    records: list = []
+    try:
+        selftest(records=records)
+    except Exception as exc:  # noqa: BLE001 -- any failure fails the CI step
+        print(f"selftest FAILED: {bl.scrub(str(exc)) or type(exc).__name__}")
+        for r in records:
+            print(f"  {r.levelname} {r.threadName}: {bl.scrub(r.getMessage())}")
+        return 1
+    print("selftest ok")
+    return 0
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["--selftest"]:
+        sys.exit(_selftest_main())
+    print("usage: python stream.py --selftest", file=sys.stderr)
+    sys.exit(2)

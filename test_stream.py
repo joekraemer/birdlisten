@@ -12,6 +12,7 @@ import os
 import queue as queue_mod
 import random
 import re
+import shutil
 import signal
 import sqlite3
 import struct
@@ -1760,6 +1761,66 @@ def test_excepthook_restored_after_clean_run(tmp_path, spies, install_hook):
     sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
     assert run(cfg, sp, once=True) == 0
     assert threading.excepthook is hook
+
+
+# ----------------------------------------------------------------- 19: selftest
+class SegFake(FakeFfmpeg):
+    """FakeFfmpeg writing one segment per entry of `durations` (seconds), then exiting rc 0."""
+
+    def __init__(self, cmd, env, durations, **kw):
+        self.durations = list(durations)
+        super().__init__(cmd, env, n_segments=len(self.durations), **kw)
+
+    def _segment(self, i):
+        self.seg_s = self.durations[i]
+        return super()._segment(i)
+
+
+def _logger_state():
+    lg = logging.getLogger("birdlisten")
+    return lg.propagate, list(lg.handlers), lg.level
+
+
+def test_selftest_passes_with_a_fake_ffmpeg_and_restores_the_logger():
+    before = _logger_state()
+    fakes = []
+
+    def spawn(cmd, env):
+        assert cmd[6:11] == stream.SELFTEST_INPUT and cmd[cmd.index("-segment_time") + 1] == "3"
+        fakes.append(SegFake(cmd, env, [3.0, 3.0, 1.0]))
+        return fakes[-1]
+
+    records = []
+    stream.selftest(spawn=spawn, records=records)
+    assert len(fakes) == 1 and _reaped(fakes[0])
+    assert _logger_state() == before
+    loud = [r.getMessage() for r in records if r.levelno >= logging.WARNING]
+    assert len(loud) == 1 and loud[0].startswith("selftest: ffmpeg exited after ") and "exit 0; retry in" in loud[0]
+
+
+def test_selftest_one_segment_fails_with_clip_count():
+    before = _logger_state()
+    with pytest.raises(stream.SelftestError, match=r"^expected 3 clips, got 1$"):
+        stream.selftest(spawn=lambda cmd, env: SegFake(cmd, env, [3.0]), deadline_s=1.0)
+    assert _logger_state() == before
+
+
+def test_selftest_main_prints_failure_and_records(monkeypatch, capsys):
+    def boom(records=None, **kw):
+        records.append(logging.makeLogRecord({"levelno": logging.ERROR, "levelname": "ERROR",
+                                              "threadName": "cam-selftest", "msg": f"x {SECRET_URL}"}))
+        raise stream.SelftestError("expected 3 clips, got 0")
+
+    monkeypatch.setattr(stream, "selftest", boom)
+    assert stream._selftest_main() == 1
+    out = capsys.readouterr().out
+    assert out.startswith("selftest FAILED: expected 3 clips, got 0\n")
+    assert "  ERROR cam-selftest: x rtsp://admin:***@10.0.0.2/x" in out and "s3cret" not in out
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs a real ffmpeg (runs in CI as stream.py --selftest)")
+def test_selftest_real_ffmpeg():
+    stream.selftest()
 
 
 # ----------------------------------------------------------------- plan decision 7: what main() must keep doing
