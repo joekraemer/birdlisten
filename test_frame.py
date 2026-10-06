@@ -1170,3 +1170,20 @@ def test_get_rendered_once_for_unchanged_set(tmp_path: Path, caplog):
     assert cache.get(a, 300, 200, 24, now=T0) == r1.png and cache.renders == 1
     assert cache.get_rendered(a, 300, 200, 24, now=T0) is r1
     assert "rendered 300x200 in " in caplog.text and " ms: 1 species" in caplog.text
+
+
+def test_recent_species_queries_use_indexes(tmp_path: Path):
+    """The collage query must stay indexed as the db grows (a full scan per
+    render was ~170 ms at a year of detections)."""
+    db = seed(tmp_path, [(dt.datetime(2026, 10, 2, 14, 0, tzinfo=UTC), "back", "American Robin", "Turdus migratorius")])
+    conn = frame.open_ro(db)
+    try:
+        plan = lambda q, a: " ".join(str(r[-1]) for r in conn.execute("EXPLAIN QUERY PLAN " + q, a))  # noqa: E731
+        window = plan("SELECT scientific_name FROM detections WHERE heard_at >= ? AND confidence >= ?"
+                      " ORDER BY heard_at DESC, id DESC", ("x", 0.5))
+        before = plan("SELECT EXISTS(SELECT 1 FROM detections WHERE scientific_name = ? AND heard_at < ?"
+                      " AND confidence >= ?)", ("x", "y", 0.5))
+    finally:
+        conn.close()
+    assert "idx_detections_time" in window
+    assert "idx_detections_sci_time" in before

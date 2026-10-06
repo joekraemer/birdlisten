@@ -566,16 +566,14 @@ Other ideas:
 * MQTT / Home Assistant discovery for the collage data. The REST sensor above
   covers the species count.
 * E-ink output. Fugleramme already does this well; this project stops at a PNG.
-* Scaling plates by body mass so a crow is bigger than a chickadee. Needs a
-  mass table, and Fugleramme's manifest has none.
+* Scaling plates by body mass so a crow is bigger than a chickadee. Fugleramme's
+  manifest has no masses, but `sizes.json` (AVONET, #5) now covers 6,044 species.
 * A BirdNET-to-Fugleramme name alias table for species whose scientific names
   differ between the two. Many of those now get an Audubon plate instead of a
   placeholder, but a Fugleramme cut-out would still look better.
 * Audubon's octavo edition (Bowen lithographs) for the dozen or so species
   first figured there, and per-figure crops of multi-species plates. Neither
   has machine-readable metadata, so both need hand work.
-* An index on `detections(scientific_name, heard_at)` if the db ever grows
-  enough for the recent-species query to show up in render time.
 
 ## Files
 

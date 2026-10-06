@@ -104,11 +104,9 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
         " WHERE heard_at >= ? AND confidence >= ? ORDER BY heard_at DESC, id DESC",
         (since, min_confidence),
     ).fetchall()
-    first_heard = dict(conn.execute(
-        "SELECT scientific_name, MIN(heard_at) FROM detections"
-        " WHERE confidence >= ? GROUP BY scientific_name",
-        (min_confidence,),
-    ).fetchall())
+    # first_ever: no qualifying row before the window. One indexed probe per
+    # species shown, instead of a MIN() over the whole table on every render.
+    heard_before = "SELECT EXISTS(SELECT 1 FROM detections WHERE scientific_name = ? AND heard_at < ? AND confidence >= ?)"
 
     order: list[str] = []
     common: dict[str, str] = {}
@@ -128,7 +126,8 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
         if cam not in cameras[sci]:
             cameras[sci].append(cam)   # most recent camera first
     return [
-        Species(sci, common[sci], last[sci], count[sci], tuple(cameras[sci]), first_heard[sci] >= since)
+        Species(sci, common[sci], last[sci], count[sci], tuple(cameras[sci]),
+                not conn.execute(heard_before, (sci, since, min_confidence)).fetchone()[0])
         for sci in order
     ]
 

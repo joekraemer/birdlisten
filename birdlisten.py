@@ -333,6 +333,9 @@ CREATE TABLE IF NOT EXISTS detections (
   clip_path     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_detections_species_time ON detections(common_name, heard_at);
+-- the collage's recent window, and the pop-up's per-species stats and typical day
+CREATE INDEX IF NOT EXISTS idx_detections_time ON detections(heard_at);
+CREATE INDEX IF NOT EXISTS idx_detections_sci_time ON detections(scientific_name, heard_at);
 CREATE TABLE IF NOT EXISTS notified (
   common_name TEXT PRIMARY KEY,
   last_sent   TEXT NOT NULL
