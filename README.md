@@ -28,7 +28,7 @@ Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
 synthetic clip runs through analysis and storage; the stream-mode segment
 muxer cuts a test tone into the expected clips with the image's own ffmpeg
-(`python stream.py --selftest`, run by CI). 265 test functions (368 cases
+(`python stream.py --selftest`, run by CI). 266 test functions (369 cases
 with parametrization, one of which needs a local ffmpeg and is skipped on
 macOS) cover config parsing, dedupe, cooldown, storage, the per-pass error
 handling, stream capture (segment hand-off, restarts and backoff, the queue,

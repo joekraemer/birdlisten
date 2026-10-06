@@ -348,7 +348,12 @@ def _claim_run() -> int | None:
 
 
 def _track(t: threading.Thread) -> None:      # called just before every t.start()
-    with _GUARD: _RUN["threads"].append(t)
+    """Add t to the guard set and drop threads that have already finished, so a
+    long run with many ffmpeg restarts (one stderr reader each) stays bounded.
+    A tracked thread that has not started yet (ident None) is kept."""
+    with _GUARD:
+        _RUN["threads"] = [x for x in _RUN["threads"] if x.ident is None or x.is_alive()]
+        _RUN["threads"].append(t)
 
 
 def _release_run() -> None:                   # outermost finally of run_stream

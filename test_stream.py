@@ -471,6 +471,23 @@ def test_run_guard_claim_release_and_threads():
     stream._release_run()
 
 
+def test_run_guard_drops_finished_threads():
+    """One stderr reader per ffmpeg restart must not grow the guard set forever."""
+    assert stream._claim_run() is None
+    try:
+        for i in range(50):
+            t = threading.Thread(target=lambda: None, name=f"cam-x-stderr-{i}")
+            stream._track(t)
+            t.start(); t.join()
+        pending = threading.Thread(target=lambda: None, name="not-started")
+        stream._track(pending)                    # tracked before start(): kept
+        stream._track(pending)
+        assert [t.name for t in stream._RUN["threads"]] == ["not-started", "not-started"]
+    finally:
+        pending.start(); pending.join()
+        stream._release_run()
+
+
 # ----------------------------------------------------------------- 20: /proc sums
 def _stat(pid: int, comm: str, utime: int, stime: int) -> str:
     rest = ["S"] + ["0"] * 10 + [str(utime), str(stime)] + ["0"] * 10   # rest[11], rest[12]
@@ -831,6 +848,8 @@ def test_segment_queued_only_after_successor_or_exit(tmp_path, caplog):
         assert fake.exited_mono is not None and c1.ready_mono >= fake.exited_mono
         assert c1.path.name == "00-front_r0001_20261005T231530Z.wav"
         assert not list((rig.seg / "00-front").glob("r0001_*"))
+        # The tail is queued just before the exit is logged; stopping first would skip the log.
+        wait_for(lambda: any("exit 0" in m for m in _msgs(caplog, logging.ERROR)))
     assert rig.stats.totals()["failed"] == 0
     assert "exit 0" in "\n".join(_msgs(caplog, logging.ERROR))
 
