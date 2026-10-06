@@ -7,10 +7,11 @@ renamed into SEGMENT_DIR/queued/ and put on a bounded drop-oldest queue. One
 analysis worker thread owns the BirdNET analyzer, the SQLite write connection
 and ntfy.
 
-This module holds the building blocks: tuning constants, the ffmpeg command,
+This module holds the building blocks (tuning constants, the ffmpeg command,
 the queue, the process registry, the summary statistics, /proc sums, the
-process-wide run guard, signal and excepthook helpers, segment file helpers,
-and the per-camera supervisor thread. Everything is stdlib only.
+process-wide run guard, signal and excepthook helpers, segment file helpers),
+the per-camera supervisor thread, the analysis worker, and run_stream /
+main_stream, which run the pipeline until a signal. Everything is stdlib only.
 """
 
 from __future__ import annotations
@@ -19,15 +20,18 @@ import collections
 import datetime as dt
 import logging
 import os
+import random
 import re
 import resource
 import shutil
 import signal
 import subprocess
+import sys
 import threading
+import time
 import traceback
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import birdlisten as bl
@@ -724,3 +728,424 @@ class CameraSupervisor(threading.Thread):
             log.warning("%s: still failing (%d attempts since %s): %s; retry in %.1fs",
                         name, self.fails, self._streak_since.strftime("%H:%M:%SZ"), reason, d)
         return d
+
+
+# ----------------------------------------------------------------- worker
+class Worker(threading.Thread):
+    """The one analysis thread. It makes every BirdNET call, owns the only
+    SQLite write connection (opened in this thread) and is the only ntfy sender."""
+
+    def __init__(self, cfg: bl.Config, *, queue: ClipQueue, stats: Stats, stop: threading.Event,
+                 cameras: dict[str, bl.Camera], analyze_fn, clock):
+        super().__init__(name="birdlisten-worker", daemon=True)
+        self.cfg = cfg
+        self.ready = threading.Event()                # set once open_db returned or failed
+        self.open_error: str | None = None
+        self._queue = queue
+        self._stats = stats
+        self._stop_event = stop                       # not _stop: Thread uses that name
+        self._cameras = cameras
+        self._analyze = analyze_fn
+        self._clock = clock
+
+    def run(self) -> None:
+        try:
+            conn = bl.open_db(self.cfg.data_dir)      # thread-bound sqlite3 connection
+        except Exception as exc:
+            self.open_error = bl.scrub(str(exc)) or type(exc).__name__
+            self.ready.set()
+            return
+        self.ready.set()
+        try:
+            while True:
+                if self._stop_event.is_set():         # shutdown: take no other clip
+                    break
+                clip = self._queue.get(timeout=0.5)
+                if clip is CLOSED:                    # once mode: closed and drained
+                    break
+                if clip is None:
+                    continue
+                if self._stop_event.is_set():         # woken by close() after stop
+                    safe_unlink(clip.path)            # shutdown deletion, not counted
+                    break
+                self._process(conn, clip)
+        finally:
+            conn.close()
+
+    def _process(self, conn, clip: Clip) -> None:
+        self._stats.busy_begin()
+        queue_wait = self._clock() - clip.ready_mono
+        lag = (clip.ready_utc - (clip.start_utc + dt.timedelta(seconds=clip.duration_s))).total_seconds()
+        analyze_s = cpu_s = None
+        try:
+            c0, t0 = _self_cpu_seconds(), self._clock()
+            try:
+                dets = self._analyze(clip.path, self.cfg, clip.start_utc)
+            finally:
+                analyze_s, cpu_s = self._clock() - t0, _self_cpu_seconds() - c0
+            best = bl.best_per_species(dets)
+            log.info("%s", self._timing(clip, lag, queue_wait, analyze_s, len(best), cpu_s))
+            notify_s = bl.store_clip(self.cfg, conn, self._cameras[clip.camera], clip.start_utc,
+                                     clip.path, best, clip_s=clip.duration_s, dry_run=False)
+            self._stats.analyzed(analyze_s, notify_s)
+        except Exception as exc:                      # one bad clip never stops the worker
+            self._stats.add(failed=1)
+            reason = bl.scrub(str(exc)) or type(exc).__name__
+            log.error("%s: %s", clip.camera, reason)
+            log.info("%s", self._timing(clip, lag, queue_wait, analyze_s, None, cpu_s, error=reason))
+        finally:
+            safe_unlink(clip.path)
+            self._stats.busy_end()
+
+    @staticmethod
+    def _timing(clip: Clip, lag, queue_wait, analyze_s, detections, cpu_s, error=None) -> str:
+        return bl._fmt_timing(f"camera={clip.camera}", [
+            ("clip_s", clip.duration_s, "{:.1f}"),
+            ("segment_lag_s", lag, "{:.2f}"),
+            ("queue_wait_s", queue_wait, "{:.2f}"),
+            ("analyze_s", analyze_s, "{:.2f}"),
+            ("detections", detections, "{}"),
+            ("cpu_s", cpu_s, "{:.2f}"),
+            ("rss_mb", bl._max_rss_mb(), "{:.0f}"),
+            ("error", error, "{}"),
+        ])
+
+
+# ----------------------------------------------------------------- pipeline
+@dataclass
+class _Pipeline:
+    """What run_stream has built so far. Fields stay None/empty until created,
+    so the crash path can clean up after a failure at any point."""
+    cameras: int = 0
+    queue: ClipQueue | None = None
+    registry: ProcRegistry | None = None
+    stats: Stats | None = None
+    worker: Worker | None = None
+    supervisors: list = field(default_factory=list)
+    started: list = field(default_factory=list)   # every thread run_stream started itself
+    prev_cpu: dict = field(default_factory=dict)  # /proc CPU per ffmpeg pid at the last summary
+    cpu_mark: float = 0.0                         # _self_cpu_seconds() at the last summary
+    final_logged: bool = False
+
+
+def _start(p: _Pipeline, t: threading.Thread) -> None:
+    _track(t)
+    p.started.append(t)
+    t.start()
+
+
+def _wait(seconds: float, signalled, tick_s: float, clock) -> None:
+    """Sleep in ticks for `seconds`, returning early on a signal."""
+    end = clock() + seconds
+    while clock() < end and not signalled():
+        time.sleep(tick_s)
+
+
+def _join_until(threads, deadline: float, tick_s: float, clock) -> None:
+    for t in threads:
+        while t.is_alive() and clock() < deadline:
+            time.sleep(tick_s)
+
+
+_SUMMARY_FMT = {"window_s": "{:.0f}", "analyze_mean_s": "{:.2f}", "analyze_p95_s": "{:.2f}",
+                "duty": "{:.2f}", "notify_s": "{:.1f}", "cpu_s": "{:.1f}", "ffmpeg_cpu_s": "{:.1f}",
+                "rss_mb": "{:.0f}", "ffmpeg_rss_mb": "{:.0f}"}
+
+
+def _format_summary(s: dict, final: bool) -> str:
+    """'timing summary window_s=... [final=1] cameras=...' in snapshot order; None skipped."""
+    pairs = []
+    for k, v in s.items():
+        pairs.append((k, v, _SUMMARY_FMT.get(k, "{}")))
+        if k == "window_s" and final:
+            pairs.append(("final", 1, "{}"))
+    return bl._fmt_timing("summary", pairs)
+
+
+def _summary(p: _Pipeline, clock, *, final: bool) -> None:
+    now = clock()
+    cpu = _self_cpu_seconds()
+    ffmpeg_cpu, ffmpeg_rss, p.prev_cpu = _proc_sums(p.registry.snapshot(), p.prev_cpu)
+    s = p.stats.snapshot_and_reset(now, queue_len=len(p.queue), cameras=p.cameras,
+                                   cameras_up=sum(1 for sup in p.supervisors if sup.up),
+                                   cpu_s=cpu - p.cpu_mark, rss_mb=bl._max_rss_mb(),
+                                   ffmpeg_cpu_s=ffmpeg_cpu, ffmpeg_rss_mb=ffmpeg_rss)
+    p.cpu_mark = cpu
+    log.info("%s", _format_summary(s, final))
+
+
+def _final_summary(p: _Pipeline, clock) -> None:
+    if p.stats is None or p.queue is None or p.registry is None or p.final_logged:
+        return
+    _summary(p, clock, final=True)
+    p.final_logged = True
+
+
+def _sweep(registry: ProcRegistry | None, clock) -> None:
+    """Close the registry, kill every ffmpeg still listed, then reap them all
+    against one shared 0.5 s deadline."""
+    if registry is None:
+        return
+    procs = registry.close()
+    for _cam, proc in procs:
+        try:
+            proc.kill()
+        except OSError:
+            pass
+    deadline = clock() + 0.5
+    for _cam, proc in procs:
+        try:
+            proc.wait(timeout=max(0.0, deadline - clock()))
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def _refuse(n: int, signalled, once: bool, tuning: StreamTuning, clock) -> int:
+    log.error("stream pipeline already running (%d threads alive), not starting another", n)
+    if not once:
+        _wait(tuning.fatal_wait_s, signalled, tuning.tick_s, clock)
+    return 1
+
+
+def _shutdown(p: _Pipeline, stop: threading.Event, tuning: StreamTuning, clock) -> int:
+    """Normal (signal) shutdown inside the shutdown budget. Returns 0."""
+    stop.set()
+    p.queue.close()
+    log.info("stopping capture (signal)")
+    start = clock()
+    _join_until(p.supervisors, start + tuning.supervisor_join_s, tuning.tick_s, clock)
+    if p.worker is not None:
+        _join_until([p.worker], start + tuning.shutdown_budget_s, tuning.tick_s, clock)
+    p.queue.drain()
+    _final_summary(p, clock)
+    _sweep(p.registry, clock)
+    log.info("stream pipeline stopped")
+    return 0
+
+
+def _crash_shutdown(p: _Pipeline, stop: threading.Event, signalled, once: bool, tuning: StreamTuning,
+                    clock, is_base_exc: bool) -> int:
+    """The rc 1 path: stop everything run_stream started and wait for it. It
+    never raises, every step is idempotent, and it can follow a normal shutdown
+    that failed half way. Returns 1."""
+    t = tuning
+
+    def step(name, fn):
+        try:
+            fn()
+        except Exception:
+            log.error("stream shutdown step %s failed:\n%s", name, bl.scrub(traceback.format_exc()))
+
+    def stop_all():
+        stop.set()
+        if p.queue is not None:
+            p.queue.close()
+
+    # A BaseException means the process is about to exit: signal-path bounds from now.
+    sig_start = [clock() if is_base_exc else None]
+
+    def join_all():
+        for th in list(p.started):
+            bound = t.shutdown_budget_s if th is p.worker else t.supervisor_join_s
+            # A worker still inside open_db is joined for at most worker_ready_s;
+            # the run guard keeps tracking it.
+            ready_limit = clock() + t.worker_ready_s if th is p.worker and not th.ready.is_set() else None
+            while th.is_alive():
+                now = clock()
+                if sig_start[0] is None and signalled():
+                    sig_start[0] = now
+                if sig_start[0] is not None and now >= sig_start[0] + bound:
+                    break
+                if ready_limit is not None and now >= ready_limit:
+                    break
+                time.sleep(t.tick_s)
+
+    def drain_and_summary():
+        if p.queue is not None:
+            p.queue.drain()
+        _final_summary(p, clock)
+
+    step("stop", stop_all)
+    step("join", join_all)
+    step("summary", drain_and_summary)
+    step("sweep", lambda: _sweep(p.registry, clock))
+    if sig_start[0] is None and not once:
+        step("wait", lambda: _wait(t.fatal_wait_s, signalled, t.tick_s, clock))
+    return 1
+
+
+def run_stream(cfg: bl.Config, *, stop: threading.Event, signalled=lambda: False, once: bool = False,
+               spawn=None, analyze_fn=None, load_model=None, tuning: StreamTuning = StreamTuning(),
+               clock=time.monotonic, now_utc=_utcnow, rng: random.Random | None = None,
+               summary_s: float | None = None, input_args: list[str] | None = None) -> int:
+    """Run the stream pipeline until stop/signal (or one window in once mode).
+    Returns 0 or 1. Never raises an Exception while a thread it started is
+    alive, and refuses to start while an earlier pipeline's threads live."""
+    n = _claim_run()
+    if n is not None:
+        return _refuse(n, signalled, once, tuning, clock)
+    p = _Pipeline()
+    prev_hook = threading.excepthook
+    try:
+        threading.excepthook = _scrubbed_excepthook
+        try:
+            return _run(cfg, p, stop=stop, signalled=signalled, once=once, spawn=spawn,
+                        analyze_fn=analyze_fn, load_model=load_model, tuning=tuning, clock=clock,
+                        now_utc=now_utc, rng=rng, summary_s=summary_s, input_args=input_args)
+        except BaseException as exc:
+            log.error("stream main loop crashed:\n%s", bl.scrub(traceback.format_exc()))
+            base = not isinstance(exc, Exception)
+            rc = _crash_shutdown(p, stop, signalled, once, tuning, clock, base)
+            if base:
+                raise                                 # KeyboardInterrupt/SystemExit, after cleanup
+            return rc
+    finally:
+        if not _guard_threads_alive():
+            threading.excepthook = prev_hook
+        _release_run()
+
+
+def _run(cfg: bl.Config, p: _Pipeline, *, stop, signalled, once, spawn, analyze_fn, load_model,
+         tuning: StreamTuning, clock, now_utc, rng, summary_s, input_args) -> int:
+    """Startup steps 1-6, the tick loop and the shutdown. Runs inside run_stream's handler."""
+    t = tuning
+    if analyze_fn is None:
+        analyze_fn = lambda w, c, when: bl.analyze(Path(w), c, when)   # noqa: E731
+    if load_model is None:
+        load_model = lambda: bl.analyzer()                             # noqa: E731
+    if rng is None:
+        rng = random.Random()
+    seg_dir = Path(cfg.segment_dir)
+    p.cameras = len(cfg.cameras)
+    qsize = cfg.queue_size or 2 * p.cameras
+    interval = summary_s if summary_s is not None else cfg.summary_minutes * 60
+
+    def fatal(msg: str) -> int:
+        log.error("%s", msg)
+        if not once:
+            _wait(t.fatal_wait_s, signalled, t.tick_s, clock)
+        return 1
+
+    log.info("stream mode: %d cameras, queue %d, summary every %d min, segments %s",
+             p.cameras, qsize, cfg.summary_minutes, seg_dir)
+    for name in bl.main_stream_urls(cfg):
+        log.warning("%s: main-stream URL; use the sub-stream (same audio, less NVR bandwidth)", name)
+
+    # 1. segment dir, writability probe, startup cleanup
+    try:
+        prepare_segment_dir(seg_dir, peak_bytes=(p.cameras + qsize + 1) * (cfg.clip_seconds * 96000 + 44))
+        cleanup_stale(seg_dir)
+    except OSError as exc:
+        return fatal(f"segment dir {seg_dir} not writable: {bl.scrub(str(exc))}")
+    # 2-4. the model, once, in this thread, between two signal checks
+    if signalled():
+        return 0
+    try:
+        load_model()
+    except Exception as exc:
+        return fatal(f"birdnet model failed: {bl.scrub(str(exc)) or type(exc).__name__}")
+    if signalled():
+        return 0
+
+    # 5. the worker, which must open the database before any ffmpeg starts
+    p.stats = Stats(clock)
+    p.queue = ClipQueue(qsize, p.stats, clock)
+    p.registry = ProcRegistry()
+    p.cpu_mark = _self_cpu_seconds()
+    p.worker = Worker(cfg, queue=p.queue, stats=p.stats, stop=stop,
+                      cameras={c.name: c for c in cfg.cameras}, analyze_fn=analyze_fn, clock=clock)
+    _start(p, p.worker)
+    end = clock() + t.worker_ready_s
+    while not p.worker.ready.is_set() and clock() < end:
+        if signalled() or stop.is_set():
+            return _shutdown(p, stop, t, clock)
+        time.sleep(t.tick_s)
+    if p.worker.open_error is not None or not p.worker.ready.is_set():
+        timed_out = not p.worker.ready.is_set()
+        stop.set()                                    # the worker checks it before its first get()
+        _join_until([p.worker], clock() + t.worker_ready_s, t.tick_s, clock)
+        return fatal("database open failed: " + ("timed out" if timed_out else p.worker.open_error))
+
+    # 6. one supervisor per camera; each staggers its own first spawn
+    for i, cam in enumerate(cfg.cameras):
+        sup = CameraSupervisor(i, cam, seg_dir=seg_dir, clip_seconds=cfg.clip_seconds, queue=p.queue,
+                               stats=p.stats, registry=p.registry, stop=stop, signalled=signalled,
+                               once=once, spawn=spawn, tuning=t, clock=clock, now_utc=now_utc,
+                               rng=rng, input_args=input_args)
+        p.supervisors.append(sup)
+        _start(p, sup)
+
+    next_summary = [clock() + interval]
+
+    def maybe_summary():
+        if clock() >= next_summary[0]:
+            _summary(p, clock, final=False)
+            next_summary[0] = clock() + interval
+
+    def worker_died() -> int:
+        log.error("analysis worker died")
+        return _crash_shutdown(p, stop, signalled, once, t, clock, False)
+
+    if not once:
+        while True:
+            if signalled() or stop.is_set():
+                return _shutdown(p, stop, t, clock)
+            if not p.worker.is_alive():
+                return worker_died()
+            dead = next((s for s in p.supervisors if not s.is_alive()), None)
+            if dead is not None:
+                log.error("capture thread %s died", dead.cam.name)
+                return _crash_shutdown(p, stop, signalled, once, t, clock, False)
+            maybe_summary()
+            time.sleep(t.tick_s)
+
+    # once mode: every camera hands off one segment (or fails once), then the
+    # worker analyzes everything queued and exits on CLOSED.
+    while any(s.is_alive() for s in p.supervisors):
+        if signalled() or stop.is_set():
+            return _shutdown(p, stop, t, clock)
+        if not p.worker.is_alive():
+            return worker_died()
+        maybe_summary()
+        time.sleep(t.tick_s)
+    p.queue.close()
+    end = clock() + p.cameras * t.once_worker_per_clip_s
+    while p.worker.is_alive() and clock() < end:
+        if signalled() or stop.is_set():
+            return _shutdown(p, stop, t, clock)
+        maybe_summary()
+        time.sleep(t.tick_s)
+    rc = 0 if p.stats.totals()["analyzed"] else 1
+    if p.worker.is_alive():
+        log.error("analysis worker did not finish")
+        stop.set()
+        rc = 1
+    p.queue.drain()
+    _final_summary(p, clock)
+    _sweep(p.registry, clock)
+    log.info("stream pipeline stopped")
+    return rc
+
+
+def main_stream(cfg: bl.Config, once: bool = False, **seams) -> int:
+    """Install the signal handlers, then run the pipeline until a signal (or
+    one window with once=True). Called from birdlisten.main() in the main thread."""
+    flag = _SignalFlag()
+    saved: dict = {}
+    if threading.current_thread() is threading.main_thread():
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            saved[sig] = signal.getsignal(sig)
+        handler = _make_handler(flag, dict(saved))
+        for sig in saved:
+            signal.signal(sig, handler)
+    try:
+        # A signal that landed while main() parsed its config only reached
+        # loop.py's handler, which set loop._stop.
+        if any(getattr(sys.modules.get(m), "_stop", False) is True for m in ("__main__", "loop")):
+            flag.value = True
+        stop = threading.Event()
+        return run_stream(cfg, stop=stop, signalled=lambda: flag.value, once=once, **seams)
+    finally:
+        for sig, prev in saved.items():
+            if prev is not None:
+                signal.signal(sig, prev)

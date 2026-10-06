@@ -4,6 +4,7 @@ Run: uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.
 from __future__ import annotations
 
 import collections
+import dataclasses
 import datetime as dt
 import itertools
 import logging
@@ -12,8 +13,10 @@ import queue as queue_mod
 import random
 import re
 import signal
+import sqlite3
 import struct
 import subprocess
+import sys
 import threading
 import time
 import wave
@@ -33,6 +36,11 @@ UTC = dt.timezone.utc
 def _run_guard():
     """A thread a test leaks fails that test, not a later one."""
     yield
+    for r in BgRun.live:                      # a background run_stream a failed test left behind
+        r.flag.value = True
+        if r.thread.is_alive():
+            r.thread.join(timeout=5)
+    BgRun.live.clear()
     deadline = time.monotonic() + 2.0
     for t in list(stream._RUN["threads"]):
         t.join(timeout=max(0.0, deadline - time.monotonic()))
@@ -1031,3 +1039,724 @@ def test_once_mode_one_clip_or_one_error(tmp_path, caplog):
     assert len(errors) == 1
     assert re.fullmatch(r"bad: ffmpeg exited after \d\.\ds, 0 segments: Connection refused", errors[0])
     assert not [m for m in _msgs(caplog, start="timing camera=bad ") if "backoff_s" in m]
+
+
+# ----------------------------------------------------------------- run_stream helpers
+BUSHTIT = bl.Detection("Bushtit", "P. minimus", 0.9, 3.0, 6.0)
+HEALTH_RE = re.compile(r"(?i)traceback|error|exception|fatal|panic")      # fleet/bin/health.sh
+SUMMARY_KEYS = ["window_s", "final", "cameras", "cameras_up", "clips", "analyzed", "dropped", "short", "failed",
+                "restarts", "refused", "analyze_mean_s", "analyze_p95_s", "duty", "notify_s", "queue_max",
+                "queue_len", "cpu_s", "ffmpeg_cpu_s", "rss_mb", "ffmpeg_rss_mb"]
+OPTIONAL_KEYS = {"final", "analyze_mean_s", "analyze_p95_s", "ffmpeg_cpu_s", "ffmpeg_rss_mb"}
+
+
+class Die(BaseException):
+    """Escapes every `except Exception`, so it kills the thread it is raised in."""
+
+
+def stream_cfg(tmp_path, names=("front",), **env) -> bl.Config:
+    cams = ",".join(f"{n}=rtsp://admin:s3cret@10.0.0.{i + 2}/x" for i, n in enumerate(names))
+    return bl.load_config({"CAMERAS": cams, "LATITUDE": "0", "LONGITUDE": "0",
+                           "DATA_DIR": str(tmp_path / "data"), "SEGMENT_DIR": str(tmp_path / "seg"), **env})
+
+
+@pytest.fixture
+def spies(monkeypatch):
+    """bl.record runs for real and bl.notify is a no-op; both note the calling thread."""
+    s = SimpleNamespace(record=[], notify=[])
+    real_record = bl.record
+
+    def record(conn, when, cam, d, clip):
+        s.record.append((threading.current_thread().name, when.isoformat(timespec="seconds"), cam.name, d.common_name))
+        real_record(conn, when, cam, d, clip)
+
+    def notify(cfg, title, body):
+        s.notify.append((threading.current_thread().name, title, body))
+
+    monkeypatch.setattr(bl, "record", record)
+    monkeypatch.setattr(bl, "notify", notify)
+    return s
+
+
+@pytest.fixture
+def tracked(monkeypatch):
+    """Every thread run_stream (or a supervisor) registers with the run guard."""
+    out: list[threading.Thread] = []
+    real = stream._track
+
+    def spy(t):
+        out.append(t)
+        real(t)
+
+    monkeypatch.setattr(stream, "_track", spy)
+    return out
+
+
+@pytest.fixture
+def registries(monkeypatch):
+    out: list[stream.ProcRegistry] = []
+
+    class SpyRegistry(stream.ProcRegistry):
+        def __init__(self):
+            super().__init__()
+            out.append(self)
+
+    monkeypatch.setattr(stream, "ProcRegistry", SpyRegistry)
+    return out
+
+
+@pytest.fixture
+def install_hook(monkeypatch):
+    """pytest's threadexception plugin swaps threading.excepthook after fixture
+    setup, so the test body calls this to install a sentinel to compare against."""
+    def install():
+        def sentinel(args):
+            pass
+        monkeypatch.setattr(threading, "excepthook", sentinel)
+        return sentinel
+    return install
+
+
+def run(cfg, spawner, **kw) -> int:
+    kw.setdefault("stop", threading.Event())
+    kw.setdefault("load_model", lambda: None)
+    kw.setdefault("analyze_fn", lambda w, c, t: [])
+    kw.setdefault("tuning", FAST)
+    kw.setdefault("rng", random.Random(0))
+    return stream.run_stream(cfg, spawn=spawner, **kw)
+
+
+class BgRun:
+    """run_stream in a background thread; signal() plays the part of SIGTERM.
+    A run a failing test left behind is signalled and joined at teardown."""
+
+    live: list[BgRun] = []
+
+    def __init__(self, cfg, spawner, **kw):
+        BgRun.live.append(self)
+        self.flag = SimpleNamespace(value=False)
+        self.rc = self.error = self.returned = self.sig_at = None
+        kw.setdefault("signalled", lambda: self.flag.value)
+        self.thread = threading.Thread(target=self._main, args=(cfg, spawner, kw), name="test-run-stream", daemon=True)
+
+    def _main(self, cfg, spawner, kw):
+        try:
+            self.rc = run(cfg, spawner, **kw)
+        except BaseException as exc:                  # noqa: BLE001 -- re-raised in join()
+            self.error = exc
+        finally:
+            self.returned = time.monotonic()
+
+    def start(self):
+        self.thread.start()
+        return self
+
+    def signal(self):
+        self.sig_at = time.monotonic()
+        self.flag.value = True
+
+    def join(self, timeout=5.0) -> int:
+        self.thread.join(timeout)
+        assert not self.thread.is_alive(), "run_stream did not return"
+        if self.error is not None:
+            raise self.error
+        return self.rc
+
+
+def _summaries(caplog) -> list[dict[str, str]]:
+    return [dict(t.split("=", 1) for t in m.split()[2:]) for m in _msgs(caplog, logging.INFO, "timing summary ")]
+
+
+def _spawned(sp: Spawner) -> int:
+    with sp._lock:
+        return sum(len(v) for v in sp.spawns.values())
+
+
+def _rows(cfg) -> list[tuple]:
+    conn = sqlite3.connect(cfg.data_dir / "birdlisten.sqlite")
+    try:
+        return conn.execute("SELECT heard_at, camera, common_name, clip_offset_s, clip_path FROM detections"
+                            " ORDER BY camera, heard_at").fetchall()
+    finally:
+        conn.close()
+
+
+def _reaped(f: FakeFfmpeg) -> bool:
+    return not f.alive() and ("reaped" in [c for c, _ in f.calls] or f.poll() is not None)
+
+
+# ----------------------------------------------------------------- 10: worker storage
+def test_worker_stores_segment_start_keeps_clip_and_applies_cooldown(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path, KEEP_CLIPS="1")
+    conn = bl.open_db(cfg.data_dir)                   # an aware row from 15 min earlier
+    conn.execute("INSERT INTO notified VALUES (?, ?)", ("Bushtit", "2026-10-05T23:00:00+00:00"))
+    conn.commit(); conn.close()
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    seen = []
+
+    def analyze(w, c, when):
+        seen.append((Path(w), Path(w).exists(), when, threading.current_thread().name))
+        return [bl.Detection("Bushtit", "P. minimus", 0.6, 9.0, 12.0), BUSHTIT]
+
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, once=True, analyze_fn=analyze) == 0
+    assert len(seen) == 1
+    wav, existed, when, thread = seen[0]
+    assert wav == cfg.segment_dir / "queued" / "00-front_r0001_20261005T231500Z.wav"
+    assert existed and not wav.exists()
+    assert when == BASE and thread == "birdlisten-worker"
+    kept = cfg.data_dir / "clips" / "2026-10-05" / "231500_front.wav"
+    assert _rows(cfg) == [("2026-10-05T23:15:00+00:00", "front", "Bushtit", 3.0, str(kept))]
+    assert kept.exists()
+    assert spies.notify == []                         # cooldown from the existing aware row
+    assert not list(cfg.segment_dir.rglob("*.wav"))
+    ok = _msgs(caplog, logging.INFO, "timing camera=front ")
+    assert len(ok) == 1 and re.fullmatch(
+        r"timing camera=front clip_s=0\.2 segment_lag_s=-?\d+\.\d\d queue_wait_s=\d+\.\d\d analyze_s=\d+\.\d\d "
+        r"detections=1 cpu_s=-?\d+\.\d\d rss_mb=\d+", ok[0])
+
+
+def test_worker_nothing_above_uses_real_segment_length(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05, seg_s=2.0)]})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, once=True) == 0
+    assert "front: 2s, nothing above 0.50" in _msgs(caplog, logging.INFO)
+    assert _rows(cfg) == []
+
+
+def test_worker_failure_is_counted_and_scrubbed(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+
+    def analyze(w, c, t):
+        raise RuntimeError(f"database is locked {SECRET_URL}")
+
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, once=True, analyze_fn=analyze) == 1     # nothing analyzed
+    assert _msgs(caplog, logging.ERROR) == ["front: database is locked rtsp://admin:***@10.0.0.2/x"]
+    line, = [m for m in _msgs(caplog, logging.INFO, "timing camera=front ") if "error=" in m]
+    assert line.endswith("error=database_is_locked_rtsp://admin:***@10.0.0.2/x") and "detections" not in line
+    assert _summaries(caplog)[-1]["failed"] == "1"
+    _no_secret(caplog)
+    assert not list(cfg.segment_dir.rglob("*.wav"))
+
+
+# ----------------------------------------------------------------- 7: restart while queued
+def test_clip_queued_across_respawn_is_analyzed(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=2, gap_s=0.05, exit_after_s=0.05, exit_code=1,
+                                    stderr_lines=["Connection reset by peer"])]})
+    release = threading.Event()
+    seen = []
+
+    def analyze(w, c, t):
+        seen.append((Path(w).name, Path(w).exists()))
+        release.wait(5)
+        return []
+
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        r = BgRun(cfg, sp, analyze_fn=analyze).start()
+        wait_for(lambda: len(seen) == 1 and sp.count("00-front") >= 2)   # worker blocked; A respawned
+        queued = cfg.segment_dir / "queued" / "00-front_r0001_20261005T231530Z.wav"
+        assert queued.exists()                        # the respawn's cleanup left queued/ alone
+        release.set()
+        wait_for(lambda: len(seen) == 2)
+        r.signal()
+        assert r.join() == 0
+    assert seen == [("00-front_r0001_20261005T231500Z.wav", True), ("00-front_r0001_20261005T231530Z.wav", True)]
+    sums = _summaries(caplog)
+    assert sum(int(s["failed"]) for s in sums) == 0 and sum(int(s["analyzed"]) for s in sums) == 2
+
+
+# ----------------------------------------------------------------- 11: concurrency and cooldown
+def test_three_cameras_one_worker_one_notify(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path, ("a", "b", "c"))
+    plan = [dict(n_segments=3, gap_s=0.03, exit_after_s=0.03)]
+    sp = Spawner({"00-a": plan, "01-b": plan, "02-c": plan})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        r = BgRun(cfg, sp, analyze_fn=lambda w, c, t: [BUSHTIT]).start()
+        wait_for(lambda: len(spies.record) >= 9, timeout=5)
+        r.signal()
+        assert r.join() == 0
+    assert len(spies.record) == 9
+    assert {th for th, *_ in spies.record} == {"birdlisten-worker"}
+    assert [(th, title) for th, title, _ in spies.notify] == [("birdlisten-worker", "Bushtit")]
+    want = [(BASE + dt.timedelta(seconds=30 * k)).isoformat() for k in range(3)]
+    rows = _rows(cfg)
+    assert [r[:2] for r in rows] == [(t, cam) for cam in "abc" for t in want]
+
+
+# ----------------------------------------------------------------- 12: summary integration + health grep
+def test_summary_lines_and_health_grep(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=0, exit_code=1, stderr_lines=["Connection timed out"]),
+                               dict(n_segments=None, gap_s=0.05)]})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        r = BgRun(cfg, sp, analyze_fn=lambda w, c, t: [BUSHTIT], summary_s=0.2).start()
+        wait_for(lambda: "front: recovered after 1 attempts" in _msgs(caplog) and len(_summaries(caplog)) >= 2,
+                 timeout=5)
+        r.signal()
+        assert r.join() == 0
+    sums = _summaries(caplog)
+    for s in sums:
+        assert list(s) == [k for k in SUMMARY_KEYS if k in s]
+        assert set(SUMMARY_KEYS) - OPTIONAL_KEYS <= set(s)
+        assert "errors" not in s and s["cameras"] == "1"
+    assert [s.get("final") for s in sums] == [None] * (len(sums) - 1) + ["1"]
+    assert sum(int(s["restarts"]) for s in sums) == 1
+    assert sum(int(s["analyzed"]) for s in sums) >= 1
+    assert any("analyze_p95_s" in s for s in sums)
+
+    info = _msgs(caplog, logging.INFO)
+    normal = [m for m in info if " error=" not in m]  # failure timing lines are meant to match
+    for want in (f"stream mode: 1 cameras, queue 2, summary every 5 min, segments {cfg.segment_dir}",
+                 "front: recovered after 1 attempts", "stopping capture (signal)", "stream pipeline stopped"):
+        assert want in normal
+    assert [m for m in normal if m.startswith("timing camera=front clip_s=") and "detections=1" in m]
+    assert [m for m in normal if m.startswith("timing summary ")]
+    assert not [m for m in normal if HEALTH_RE.search(m)]
+
+
+# ----------------------------------------------------------------- 13: shutdown
+def test_signal_shutdown_within_budget(tmp_path, caplog, spies, registries):
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    sp = Spawner({"00-a": [dict(n_segments=None, gap_s=0.1, ignore_terminate=True)],
+                  "01-b": [dict(n_segments=None, gap_s=0.1)]})
+
+    class SpyStop(threading.Event):
+        set_at = None
+
+        def set(self):
+            if self.set_at is None:
+                self.set_at = time.monotonic()
+            super().set()
+
+    stop = SpyStop()
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        r = BgRun(cfg, sp, stop=stop, analyze_fn=lambda w, c, t: time.sleep(0.15) or []).start()
+        wait_for(lambda: len(list((cfg.segment_dir / "queued").glob("*.wav"))) >= 2)   # clips waiting
+        r.signal()
+        assert r.join() == 0
+    assert r.returned - r.sig_at <= FAST.shutdown_budget_s + 0.5
+    assert stop.set_at - r.sig_at <= 2 * FAST.tick_s + 0.05
+    a = sp.fakes["00-a"][0]
+    term = next(t for c, t in a.calls if c == "terminate")
+    kill = next(t for c, t in a.calls if c == "kill")
+    assert kill - term >= FAST.term_grace_s - 0.01
+    assert sp.all_fakes() and all(_reaped(f) for f in sp.all_fakes())
+    assert not list(cfg.segment_dir.rglob("*.wav"))
+    assert registries[0].snapshot() == []
+    assert _summaries(caplog)[-1].get("final") == "1"
+
+
+def test_final_sweep_kills_all_then_waits_one_deadline(tmp_path):
+    camdir = tmp_path / "00-x"
+    camdir.mkdir()
+    cmd = ["ffmpeg", "-segment_time", "30", str(camdir / "r0001_%Y%m%dT%H%M%SZ.wav")]
+    fakes = [FakeFfmpeg(cmd, {}, n_segments=0, stall_after=0, reap_delay_s=0.4) for _ in range(4)]
+    reg = stream.ProcRegistry()
+    for i, f in enumerate(fakes):
+        reg.add(f"c{i}", f)
+    t0 = time.monotonic()
+    stream._sweep(reg, time.monotonic)
+    assert time.monotonic() - t0 <= 0.6
+    kills = [t for f in fakes for c, t in f.calls if c == "kill"]
+    waits = [t for f in fakes for c, t in f.calls if c == "wait"]
+    assert len(kills) == 4 and len(waits) == 4 and max(kills) < min(waits)
+    assert not [f for f in fakes if f.alive()]
+    assert reg.add("late", object()) is False
+    stream._sweep(reg, time.monotonic)               # idempotent
+    for f in fakes:
+        f._writer.join(timeout=1)
+
+
+def test_worker_takes_no_clip_after_stop(tmp_path):
+    cfg = stream_cfg(tmp_path)
+    stats = stream.Stats(time.monotonic)
+    q = stream.ClipQueue(4, stats, time.monotonic)
+    stop = threading.Event()
+    calls = []
+    w = stream.Worker(cfg, queue=q, stats=stats, stop=stop, cameras={c.name: c for c in cfg.cameras},
+                      analyze_fn=lambda *a: calls.append(a) or [], clock=time.monotonic)
+    stream._track(w)
+    w.start()
+    assert w.ready.wait(2) and w.open_error is None
+    time.sleep(0.05)                                  # blocked in get() on the empty queue
+    c1, c2 = make_clip(tmp_path / "q" / "1.wav"), make_clip(tmp_path / "q" / "2.wav")
+    with q.cond:                                      # the worker cannot wake in between
+        q.put(c1); q.put(c2)
+        stop.set(); q.close()
+    w.join(timeout=2)
+    assert not w.is_alive() and calls == []
+    assert not c1.path.exists()                       # the clip it took is deleted, not analyzed
+    assert c2.path.exists() and q.drain() == 1
+    assert stats.totals()["failed"] == 0 and stats.totals()["analyzed"] == 0
+
+
+# ----------------------------------------------------------------- 15: once mode
+def test_once_mode_one_camera_failing(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path, ("ok", "bad"))
+    sp = Spawner({"00-ok": [dict(n_segments=None, gap_s=0.05)],
+                  "01-bad": [dict(n_segments=0, exit_code=1, stderr_lines=["Connection refused"])]})
+    seen = []
+
+    def analyze(w, c, t):
+        seen.append(Path(w).exists())
+        time.sleep(0.2)
+        return []
+
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, once=True, analyze_fn=analyze) == 0
+    assert seen == [True]
+    assert sp.count("00-ok") == 1 and sp.count("01-bad") == 1     # no retry
+    s = _summaries(caplog)[-1]
+    assert (s["final"], s["analyzed"], s["restarts"]) == ("1", "1", "1")
+    assert all(_reaped(f) for f in sp.all_fakes())
+
+
+def test_once_mode_every_camera_failing_returns_1(tmp_path, caplog, spies):
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    bad = [dict(n_segments=0, exit_code=1, stderr_lines=["Connection refused"])]
+    sp = Spawner({"00-a": bad, "01-b": bad})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, once=True) == 1
+    assert sp.count("00-a") == 1 and sp.count("01-b") == 1
+
+
+def test_once_mode_fatal_startup_does_not_wait(tmp_path, caplog):
+    cfg = stream_cfg(tmp_path)
+    t0 = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        rc = run(cfg, Spawner({}), once=True, tuning=dataclasses.replace(FAST, fatal_wait_s=5),
+                 load_model=lambda: 1 / 0)
+    assert rc == 1 and time.monotonic() - t0 < 1.0
+    assert _msgs(caplog, logging.ERROR) == ["birdnet model failed: division by zero"]
+
+
+# ----------------------------------------------------------------- 16: fatal startup and the rc 1 path
+def test_model_failure_is_fatal_before_any_thread(tmp_path, caplog, tracked):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({})
+
+    def boom():
+        raise RuntimeError(f"no model at {SECRET_URL}")
+
+    t0 = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, load_model=boom) == 1
+    assert time.monotonic() - t0 >= FAST.fatal_wait_s
+    assert tracked == [] and _spawned(sp) == 0
+    assert _msgs(caplog, logging.ERROR) == ["birdnet model failed: no model at rtsp://admin:***@10.0.0.2/x"]
+
+
+def test_model_loaded_once_in_main_thread_before_first_spawn(tmp_path, spies):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    loads = []
+
+    def load_model():
+        loads.append((time.monotonic(), threading.current_thread() is threading.main_thread(), _spawned(sp)))
+
+    assert run(cfg, sp, once=True, load_model=load_model) == 0
+    assert len(loads) == 1
+    at, in_main, spawned_before = loads[0]
+    assert in_main and spawned_before == 0 and at < sp.spawns["00-front"][0][0]
+
+
+def test_database_open_failure_is_fatal(tmp_path, caplog, monkeypatch):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({})
+
+    def open_db(d):
+        raise sqlite3.OperationalError("unable to open database file")
+
+    monkeypatch.setattr(bl, "open_db", open_db)
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp) == 1
+    assert _msgs(caplog, logging.ERROR) == ["database open failed: unable to open database file"]
+    assert _spawned(sp) == 0
+
+
+def test_signal_cuts_the_fatal_wait_short(tmp_path, caplog):
+    cfg = stream_cfg(tmp_path)
+    flag = SimpleNamespace(value=False)
+    timer = threading.Timer(0.1, lambda: setattr(flag, "value", True))
+    timer.start()
+    t0 = time.monotonic()
+    rc = run(cfg, Spawner({}), signalled=lambda: flag.value, tuning=dataclasses.replace(FAST, fatal_wait_s=5),
+             load_model=lambda: 1 / 0)
+    timer.join()
+    assert rc == 1 and time.monotonic() - t0 < 1.0
+
+
+def test_worker_death_is_rc1_after_fatal_wait(tmp_path, caplog, spies, tracked, install_hook):
+    hook = install_hook()
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+
+    def analyze(w, c, t):
+        raise Die()
+
+    t0 = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, analyze_fn=analyze) == 1
+    took = time.monotonic() - t0
+    worker = next(t for t in tracked if t.name == "birdlisten-worker")
+    assert not worker.is_alive() and not [t.name for t in tracked if t.is_alive()]
+    assert took >= FAST.fatal_wait_s
+    errors = _msgs(caplog, logging.ERROR)
+    assert "analysis worker died" in errors
+    assert any(m.startswith("thread birdlisten-worker crashed:\nTraceback") for m in errors)
+    assert all(_reaped(f) for f in sp.all_fakes())
+    assert threading.excepthook is hook
+
+
+def test_supervisor_death_joins_every_other_supervisor(tmp_path, caplog, spies, tracked, install_hook):
+    hook = install_hook()
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    sp = Spawner({"00-a": [dict(n_segments=0, exit_code=1, exit_after_s=0.3), Die()],
+                  "01-b": [dict(n_segments=None, gap_s=0.03)]})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp) == 1
+    assert not [t.name for t in tracked if t.is_alive()]
+    assert sorted(t.name for t in tracked if t.name.startswith("cam-") and not t.name.endswith("-stderr")) == \
+        ["cam-a", "cam-b"]
+    assert "capture thread a died" in _msgs(caplog, logging.ERROR)
+    assert sp.fakes["01-b"] and all(_reaped(f) for f in sp.all_fakes())
+    assert threading.excepthook is hook
+
+
+def test_signal_during_unbounded_join_returns_within_budget(tmp_path, caplog, spies, tracked, install_hook):
+    install_hook()
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    sp = Spawner({"00-a": [dict(n_segments=None, gap_s=0.03)],
+                  "01-b": [dict(n_segments=0, exit_code=1, exit_after_s=0.3), Die()]})
+    release = threading.Event()
+    busy = threading.Event()
+
+    def analyze(w, c, t):
+        busy.set()
+        release.wait(10)
+        return []
+
+    tuning = dataclasses.replace(FAST, fatal_wait_s=5)
+    try:
+        with caplog.at_level(logging.INFO, logger="birdlisten"):
+            r = BgRun(cfg, sp, analyze_fn=analyze, tuning=tuning).start()
+            wait_for(lambda: busy.is_set() and "capture thread b died" in _msgs(caplog, logging.ERROR))
+            time.sleep(0.1)                           # main is in the unbounded worker join
+            assert r.thread.is_alive()
+            r.signal()
+            assert r.join() == 1
+        assert r.returned - r.sig_at <= tuning.shutdown_budget_s + 0.5
+        worker = next(t for t in tracked if t.name == "birdlisten-worker")
+        assert worker.is_alive()
+        assert threading.excepthook is stream._scrubbed_excepthook      # a started thread still lives
+    finally:
+        release.set()
+    worker.join(timeout=2)
+    assert not worker.is_alive()
+    loads = []
+    assert run(cfg, Spawner({}), once=True, load_model=lambda: loads.append(1) or 1 / 0) == 1
+    assert loads == [1]                               # the guard let a new pipeline start
+
+
+def test_database_open_that_hangs_times_out(tmp_path, caplog, monkeypatch, tracked):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({})
+    gate = threading.Event()
+    real_open = bl.open_db
+    monkeypatch.setattr(bl, "open_db", lambda d: gate.wait(5) and real_open(d))
+    gets = []
+    real_get = stream.ClipQueue.get
+    monkeypatch.setattr(stream.ClipQueue, "get", lambda self, timeout: gets.append(1) or real_get(self, timeout))
+    analyzed = []
+    tuning = dataclasses.replace(FAST, worker_ready_s=0.2)
+    t0 = time.monotonic()
+    try:
+        with caplog.at_level(logging.INFO, logger="birdlisten"):
+            rc = run(cfg, sp, tuning=tuning, analyze_fn=lambda *a: analyzed.append(a) or [])
+        assert rc == 1
+        assert time.monotonic() - t0 <= 2 * tuning.worker_ready_s + tuning.fatal_wait_s + 0.5
+        assert "database open failed: timed out" in _msgs(caplog, logging.ERROR)
+        assert _spawned(sp) == 0
+        worker, = tracked
+        assert worker.is_alive()                      # stuck in open_db, still tracked by the guard
+    finally:
+        gate.set()
+    worker.join(timeout=2)
+    assert not worker.is_alive() and gets == [] and analyzed == []
+
+
+# ----------------------------------------------------------------- 16b: main loop crash
+def _crashing_summary(monkeypatch, always: bool, on_crash=None):
+    real = stream.Stats.snapshot_and_reset
+    calls = [0]
+
+    def snapshot_and_reset(self, *a, **k):
+        calls[0] += 1
+        if always or calls[0] == 1:
+            if on_crash is not None and calls[0] == 1:
+                on_crash()
+            raise RuntimeError(f"boom {SECRET_URL}")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(stream.Stats, "snapshot_and_reset", snapshot_and_reset)
+    return calls
+
+
+def test_main_loop_crash_cleans_up_everything(tmp_path, caplog, monkeypatch, spies, tracked, registries,
+                                              install_hook):
+    hook = install_hook()
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    plan = [dict(n_segments=None, gap_s=0.03)]
+    sp = Spawner({"00-a": plan, "01-b": plan})
+    _crashing_summary(monkeypatch, always=False)
+    t0 = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        rc = run(cfg, sp, summary_s=0.3, analyze_fn=lambda w, c, t: time.sleep(0.05) or [])
+    assert rc == 1 and time.monotonic() - t0 >= 0.3 + FAST.fatal_wait_s
+    assert sorted(t.name for t in tracked) == ["birdlisten-worker", "cam-a", "cam-a-stderr", "cam-b", "cam-b-stderr"]
+    assert not [t.name for t in tracked if t.is_alive()]
+    assert sp.all_fakes() and all(_reaped(f) for f in sp.all_fakes())
+    assert registries[0].snapshot() == []
+    assert not list((cfg.segment_dir / "queued").iterdir())
+    crashed = [m for m in _msgs(caplog, logging.ERROR) if m.startswith("stream main loop crashed:")]
+    assert len(crashed) == 1 and "RuntimeError: boom rtsp://admin:***@10.0.0.2/x" in crashed[0]
+    _no_secret(caplog)
+    assert _summaries(caplog)[-1].get("final") == "1"         # the crash path's summary worked
+    assert threading.excepthook is hook
+    loads = []
+    assert run(cfg, Spawner({}), once=True, load_model=lambda: loads.append(1) or 1 / 0) == 1
+    assert loads == [1]
+
+
+def test_main_loop_crash_with_summary_always_failing(tmp_path, caplog, monkeypatch, spies, tracked, registries):
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    plan = [dict(n_segments=None, gap_s=0.03)]
+    sp = Spawner({"00-a": plan, "01-b": plan})
+    calls = _crashing_summary(monkeypatch, always=True)
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, summary_s=0.2) == 1
+    assert calls[0] == 2
+    assert not [t.name for t in tracked if t.is_alive()]
+    assert all(_reaped(f) for f in sp.all_fakes()) and registries[0].snapshot() == []
+    errors = _msgs(caplog, logging.ERROR)
+    assert any(m.startswith("stream main loop crashed:") for m in errors)
+    assert any(m.startswith("stream shutdown step summary failed:\nTraceback") for m in errors)
+    _no_secret(caplog)
+
+
+def test_main_loop_crash_then_signal_skips_fatal_wait(tmp_path, caplog, monkeypatch, spies, tracked):
+    cfg = stream_cfg(tmp_path, ("a", "b"))
+    plan = [dict(n_segments=None, gap_s=0.03)]
+    sp = Spawner({"00-a": plan, "01-b": plan})
+    flag = SimpleNamespace(value=False, at=None)
+
+    def later():
+        flag.at = time.monotonic()
+        flag.value = True
+
+    timers = []
+    _crashing_summary(monkeypatch, always=False,
+                      on_crash=lambda: timers.append(threading.Timer(0.05, later)) or timers[-1].start())
+    tuning = dataclasses.replace(FAST, fatal_wait_s=5)
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, summary_s=0.2, tuning=tuning, signalled=lambda: flag.value) == 1
+    done = time.monotonic()
+    timers[0].join()
+    assert flag.at is not None and done - flag.at <= tuning.shutdown_budget_s + 0.5
+    assert not [t.name for t in tracked if t.is_alive()]
+
+
+# ----------------------------------------------------------------- 16c: run guard
+def test_run_guard_refuses_a_second_pipeline(tmp_path, caplog, spies, install_hook):
+    hook = install_hook()
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        first = BgRun(cfg, sp).start()
+        try:
+            wait_for(lambda: sp.count("00-front") >= 1)
+            ghost = make_wav(cfg.segment_dir / "queued" / "07-ghost_r0001_20260101T000000Z.wav", 0.1)
+            assert threading.excepthook is stream._scrubbed_excepthook
+            loads, spawns = [], []
+            t0 = time.monotonic()
+            rc = run(cfg, lambda cmd, env: spawns.append(cmd), once=True, load_model=lambda: loads.append(1))
+            assert rc == 1 and time.monotonic() - t0 < 0.5
+            assert loads == [] and spawns == []
+            assert threading.excepthook is stream._scrubbed_excepthook   # the first run's hook, untouched
+            assert ghost.exists()                     # no startup cleanup ran
+            refused = [m for m in _msgs(caplog, logging.ERROR) if m.startswith("stream pipeline already running (")]
+            assert len(refused) == 1 and refused[0].endswith(" threads alive), not starting another")
+        finally:
+            first.signal()
+            assert first.join() == 0
+    assert threading.excepthook is hook
+    loads = []
+
+    def failing():
+        loads.append(1)
+        raise RuntimeError("no model")
+
+    assert run(cfg, sp, once=True, load_model=failing) == 1      # a third run claims the guard
+    assert run(cfg, sp, once=True, load_model=failing) == 1      # and a failed load released it
+    assert loads == [1, 1]
+
+
+# ----------------------------------------------------------------- 18: main_stream
+@pytest.fixture
+def no_loop_stop(monkeypatch):
+    monkeypatch.setitem(sys.modules, "__main__", SimpleNamespace())
+    monkeypatch.delitem(sys.modules, "loop", raising=False)
+
+
+def test_main_stream_installs_and_restores_signal_handlers(tmp_path, caplog, no_loop_stop):
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({})
+    prev_calls = []
+
+    def prev_term(s, f):
+        prev_calls.append(s)
+
+    def prev_int(s, f):
+        prev_calls.append(s)
+
+    old = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+    signal.signal(signal.SIGTERM, prev_term)
+    signal.signal(signal.SIGINT, prev_int)
+    try:
+        seen = {}
+
+        def load_model():
+            seen["term"], seen["int"] = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
+            seen["term"](signal.SIGTERM, None)        # a SIGTERM during the model load
+
+        with caplog.at_level(logging.INFO, logger="birdlisten"):
+            rc = stream.main_stream(cfg, spawn=sp, load_model=load_model, tuning=FAST)
+        assert rc == 0 and _spawned(sp) == 0          # startup step 4 saw the flag
+        assert seen["term"] is seen["int"] and seen["term"] not in (prev_term, prev_int)
+        assert prev_calls == [signal.SIGTERM]         # chained to the previous handler
+        assert signal.getsignal(signal.SIGTERM) is prev_term
+        assert signal.getsignal(signal.SIGINT) is prev_int
+    finally:
+        for s, h in old.items():
+            signal.signal(s, h)
+
+
+def test_main_stream_early_signal_starts_nothing(tmp_path, monkeypatch, no_loop_stop):
+    monkeypatch.setitem(sys.modules, "__main__", SimpleNamespace(_stop=True))   # loop.py saw SIGTERM first
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({})
+    loads = []
+    assert stream.main_stream(cfg, spawn=sp, load_model=lambda: loads.append(1), tuning=FAST) == 0
+    assert loads == [] and _spawned(sp) == 0
+
+
+def test_excepthook_restored_after_clean_run(tmp_path, spies, install_hook):
+    hook = install_hook()
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    assert run(cfg, sp, once=True) == 0
+    assert threading.excepthook is hook
