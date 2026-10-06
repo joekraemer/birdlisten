@@ -1760,3 +1760,89 @@ def test_excepthook_restored_after_clean_run(tmp_path, spies, install_hook):
     sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
     assert run(cfg, sp, once=True) == 0
     assert threading.excepthook is hook
+
+
+# ----------------------------------------------------------------- plan decision 7: what main() must keep doing
+@pytest.fixture
+def main_env(monkeypatch, tmp_path, no_loop_stop):
+    for k in ("CAPTURE_MODE", "QUEUE_SIZE", "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS",
+              "NTFY_TOPIC", "MIN_CONFIDENCE"):
+        monkeypatch.delenv(k, raising=False)
+    base = {"CAMERAS": "front=rtsp://admin:s3cret@10.0.0.2/h264Preview_01_sub", "LATITUDE": "0",
+            "LONGITUDE": "0", "DATA_DIR": str(tmp_path / "data"), "SEGMENT_DIR": str(tmp_path / "seg")}
+
+    def apply(*argv, **env):
+        for k, v in {**base, **env}.items():
+            monkeypatch.setenv(k, v)
+        monkeypatch.setattr(sys, "argv", ["birdlisten.py", *argv])
+        return bl.load_config()
+    return apply
+
+
+def test_main_report_7(main_env, capsys):
+    cfg = main_env("--report", "7")
+    conn = bl.open_db(cfg.data_dir)
+    bl.record(conn, dt.datetime.now(UTC), cfg.cameras[0], BUSHTIT, None)
+    conn.close()
+    assert bl.main() == 0
+    out = capsys.readouterr().out
+    assert out.splitlines()[0].split() == ["species", "heard", "best", "last"]
+    assert "Bushtit" in out
+
+
+def test_main_dry_run_writes_nothing(main_env, monkeypatch, spies):
+    cfg = main_env("--dry-run")
+    monkeypatch.setattr(bl, "capture", lambda cam, seconds, out: out.write_bytes(b"RIFF"))
+    monkeypatch.setattr(bl, "analyze", lambda wav, c, when: [BUSHTIT])
+    assert bl.main() == 0
+    assert spies.record == [] and spies.notify == []
+    assert _rows(cfg) == []
+
+
+def test_main_check_with_mocks(main_env, monkeypatch, capsys):
+    main_env("--check")
+    monkeypatch.setattr(bl.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(bl, "analyzer", lambda: None)
+    monkeypatch.setattr(bl, "capture", lambda cam, seconds, out: out.write_bytes(b"RIFF"))
+    assert bl.main() == 0
+    out = capsys.readouterr().out
+    assert "camera front: ok (rtsp://admin:***@10.0.0.2/h264Preview_01_sub)" in out
+    assert "capture: stream, queue 2, summary every 5 min, segments " in out
+
+
+def test_main_loop_once_stream_end_to_end(main_env, monkeypatch, caplog, spies):
+    cfg = main_env(LOOP_ONCE="1")
+    sp = Spawner({"00-front": [dict(n_segments=1, seg_s=3.0)]})
+    monkeypatch.setattr(stream, "popen_spawn", sp)
+    monkeypatch.setattr(bl, "analyzer", lambda: None)
+    monkeypatch.setattr(bl, "analyze", lambda wav, c, when: [BUSHTIT])
+    t0 = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert bl.main() == 0
+    assert time.monotonic() - t0 < 5
+    assert sp.count("00-front") == 1 and all(_reaped(f) for f in sp.all_fakes())
+    rows = _rows(cfg)
+    assert [(r[1], r[2]) for r in rows] == [("front", "Bushtit")]
+    assert rows[0][0] == "2026-10-05T23:15:00+00:00" and rows[0][3] == 3.0   # segment start, detection offset
+    assert [n for n, *_ in spies.notify] == ["birdlisten-worker"]
+    assert _summaries(caplog)[-1]["final"] == "1"
+    assert "stream pipeline stopped" in _msgs(caplog, logging.INFO)
+    assert not list((tmp := Path(cfg.segment_dir)).rglob("*.wav")), sorted(tmp.rglob("*"))
+
+
+def test_loop_main_starts_the_server_before_the_app(monkeypatch):
+    import loop
+    calls = []
+    monkeypatch.setattr(loop, "app_start_server", lambda: calls.append("server"))
+    monkeypatch.setattr(loop, "app_main", lambda: calls.append("app") or 0)
+    monkeypatch.setattr(loop, "_stop", False)
+    monkeypatch.setenv("LOOP_ONCE", "1")
+    monkeypatch.setenv("RUN_ARGS", "")
+    monkeypatch.setattr(sys, "argv", ["loop.py"])
+    saved = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+    try:
+        assert loop.main() == 0
+    finally:
+        for s, h in saved.items():
+            signal.signal(s, h)
+    assert calls == ["server", "app"]

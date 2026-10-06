@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
 """Listen to Reolink cameras and log which birds BirdNET hears.
 
-Pipeline, once per call to main() (loop.py calls it back to back):
+Pipeline (CAPTURE_MODE=stream, the default; the code is in stream.py):
 
-  camera RTSP stream --ffmpeg--> N-second mono 48 kHz WAV
-                     --BirdNET (birdnetlib)--> [(species, confidence, t0, t1)]
-                     --dedupe per window--> SQLite + stdout + optional ntfy push
+  camera RTSP stream --one long-lived ffmpeg per camera--> back-to-back
+      CLIP_SECONDS mono 48 kHz WAV segments in SEGMENT_DIR
+  --finished segment renamed into SEGMENT_DIR/queued/--> bounded queue
+      (the oldest clip is dropped when analysis falls behind)
+  --one analysis worker: BirdNET (birdnetlib)--> [(species, confidence, t0, t1)]
+  --dedupe per clip--> SQLite + stdout + optional ntfy push
 
-Each camera is one microphone. Cameras are listened to one after another in a
-single pass so the CPU (an old Intel MacBook) only ever runs one BirdNET
-analysis at a time. A pass over two cameras with 30 s clips takes ~70 s.
+Every camera listens all the time. A single worker runs every BirdNET
+analysis, so the CPU (an old Intel MacBook) only ever runs one at a time, and
+it is the only SQLite writer and ntfy sender. main() blocks until SIGTERM or
+SIGINT; loop.py calls it again if it returns 1.
+
+CAPTURE_MODE=roundrobin keeps the old behaviour: each call to main() is one
+pass that captures and analyzes the cameras one after another (a pass over two
+cameras with 30 s clips takes ~70 s). Use it if the NVR refuses concurrent
+sessions. --dry-run always does one round-robin pass.
 
 Environment (all read at startup):
   CAMERAS         required. Comma-separated name=rtsp-url pairs, e.g.
@@ -18,7 +27,9 @@ Environment (all read at startup):
                   "Record Audio" setting must be ON or the stream has no audio.
   LATITUDE        required for BirdNET's location/date species filter
   LONGITUDE       required
-  CLIP_SECONDS    seconds of audio per camera per pass (default 30)
+  CLIP_SECONDS    seconds per analyzed segment (default 30, min 3). In stream
+                  mode it sets the analysis window and heard_at granularity;
+                  in round-robin mode it is the audio per camera per pass.
   MIN_CONFIDENCE  0..1, drop detections below this (default 0.5)
   DATA_DIR        where the SQLite db (and optional clips) live (default /data)
   KEEP_CLIPS      1 = keep the WAV of any clip that had a detection (default 0)
@@ -26,9 +37,21 @@ Environment (all read at startup):
   NTFY_SERVER     default https://ntfy.sh
   NOTIFY_COOLDOWN_MIN  don't re-notify the same species within N min (default 60)
   TZ              for timestamps in messages
+  CAPTURE_MODE    stream (default) or roundrobin
+  QUEUE_SIZE      clips waiting for analysis before the oldest is dropped
+                  (1..1000, default 2 x cameras)
+  SUMMARY_MINUTES minutes between "timing summary" log lines (1..1440, default 5)
+  SEGMENT_DIR     in-flight WAV segments (default /tmp/birdlisten-segments);
+                  absolute, not DATA_DIR or inside it
+  LOOP_ONCE       1 = stream mode listens for one window (every camera hands
+                  off one clip), analyzes it and returns
 
-Exit codes: 0 ok (even with zero detections), 2 config error, 1 every camera
-failed this pass (BirdNET model missing, ffmpeg missing, all cameras down).
+Exit codes: 2 config error. Round-robin: 0 ok (even with zero detections),
+1 every camera failed this pass (BirdNET model missing, ffmpeg missing, all
+cameras down). Stream: 0 after a signal (or, with LOOP_ONCE=1, once at least
+one clip was analyzed); 1 after a fatal startup error, a dead thread or a
+crash (after a 60 s wait, so loop.py restarts the pipeline slowly), or when
+LOOP_ONCE=1 analyzed nothing.
 """
 
 from __future__ import annotations
@@ -502,13 +525,18 @@ def main() -> int:
     if args.check:
         return check(cfg)
 
-    conn = open_db(cfg.data_dir)
-    ok = listen_once(cfg, conn, dry_run=args.dry_run)
-    conn.close()
-    if ok == 0:
-        log.error("every camera failed this pass")
-        return 1
-    return 0
+    if args.dry_run or cfg.capture_mode == "roundrobin":
+        conn = open_db(cfg.data_dir)
+        ok = listen_once(cfg, conn, dry_run=args.dry_run)
+        conn.close()
+        if ok == 0:
+            log.error("every camera failed this pass")
+            return 1
+        return 0
+
+    _alias_module()
+    import stream  # noqa: PLC0415 -- after _alias_module, so stream.bl is this module
+    return stream.main_stream(cfg, once=os.environ.get("LOOP_ONCE", "") == "1")
 
 
 def check(cfg: Config) -> int:
@@ -532,9 +560,37 @@ def check(cfg: Config) -> int:
             except Exception as exc:  # noqa: BLE001
                 print(f"camera {cam.name}: FAILED {scrub(str(exc))} ({cam.redacted()})", file=sys.stderr)
                 problems += 1
+    if cfg.capture_mode == "roundrobin":
+        print("capture: roundrobin, one camera at a time")
+    else:
+        problems += _check_segment_dir(cfg)
+    for name in main_stream_urls(cfg):
+        print(f"hint: {name} uses a main-stream URL; use the sub-stream")
     print(f"location: {cfg.lat}, {cfg.lon}; clip {cfg.clip_seconds}s; min_conf {cfg.min_conf}")
     print(f"notify: {'ntfy ' + cfg.ntfy_server if cfg.ntfy_topic else 'off'}")
     return 1 if problems else 0
+
+
+def _check_segment_dir(cfg: Config) -> int:
+    """Print the stream capture line; 1 if SEGMENT_DIR is not writable. It only
+    creates the directory and a .check-<pid> probe: --check may run next to a
+    live pipeline that shares SEGMENT_DIR, so it never cleans up or touches queued/."""
+    seg = Path(cfg.segment_dir)
+    queue = cfg.queue_size or 2 * len(cfg.cameras)
+    probe = seg / f".check-{os.getpid()}"
+    try:
+        seg.mkdir(parents=True, exist_ok=True)
+        try:
+            probe.write_bytes(b"")
+        finally:
+            probe.unlink(missing_ok=True)
+        free_mb = shutil.disk_usage(seg).free / 1e6
+    except OSError as exc:
+        print(f"capture: stream, segments {seg} NOT WRITABLE ({scrub(str(exc))})", file=sys.stderr)
+        return 1
+    print(f"capture: stream, queue {queue}, summary every {cfg.summary_minutes} min, "
+          f"segments {seg} (writable, {free_mb:.0f} MB free)")
+    return 0
 
 
 def report(cfg: Config, days: int) -> int:

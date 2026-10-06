@@ -4,11 +4,16 @@ BirdNET model. Run: uv run --group dev pytest -q"""
 from __future__ import annotations
 
 import datetime as dt
+import importlib
+import importlib.util
+import re
+import sys
 from pathlib import Path
 
 import pytest
 
 import birdlisten as bl
+import stream
 
 UTC = dt.timezone.utc
 
@@ -333,3 +338,163 @@ def test_store_clip_float_seconds_in_nothing_above(tmp_path: Path, caplog):
     when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
     assert bl.store_clip(cfg, None, cfg.cameras[0], when, tmp_path / "x.wav", {}, clip_s=12.4, dry_run=False) == 0.0
     assert "c: 12s, nothing above 0.50" in caplog.messages
+
+
+# ----------------------------------------------------------------- main() dispatch and check()
+_MAIN_KEYS = ("CAMERAS", "LATITUDE", "LONGITUDE", "DATA_DIR", "SEGMENT_DIR", "CAPTURE_MODE", "QUEUE_SIZE",
+              "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS", "NTFY_TOPIC", "MIN_CONFIDENCE")
+
+
+@pytest.fixture
+def main_env(monkeypatch, tmp_path):
+    """main_env(*argv, **env) sets sys.argv and a clean environment for bl.main().
+    A value of None removes that variable."""
+    for k in _MAIN_KEYS:
+        monkeypatch.delenv(k, raising=False)
+    base = {"CAMERAS": "front=rtsp://admin:s3cret@10.0.0.2/h264Preview_01_sub", "LATITUDE": "0",
+            "LONGITUDE": "0", "DATA_DIR": str(tmp_path / "data"), "SEGMENT_DIR": str(tmp_path / "seg")}
+
+    def apply(*argv, **env):
+        for k, v in {**base, **env}.items():
+            if v is None:
+                monkeypatch.delenv(k, raising=False)
+            else:
+                monkeypatch.setenv(k, v)
+        monkeypatch.setattr(sys, "argv", ["birdlisten.py", *argv])
+    return apply
+
+
+@pytest.fixture
+def dispatch(monkeypatch):
+    """Spies on both capture paths: listen_once returns 1, main_stream returns 0."""
+    calls = []
+
+    def listen_once(cfg, conn, dry_run=False):
+        calls.append(("listen_once", dry_run))
+        return 1
+
+    def main_stream(cfg, once=False, **seams):
+        calls.append(("main_stream", once))
+        return 0
+
+    monkeypatch.setattr(bl, "listen_once", listen_once)
+    monkeypatch.setattr(stream, "main_stream", main_stream)
+    return calls
+
+
+def test_main_roundrobin_runs_one_pass(main_env, dispatch):
+    main_env(CAPTURE_MODE="roundrobin")
+    assert bl.main() == 0
+    assert dispatch == [("listen_once", False)]
+
+
+@pytest.mark.parametrize("loop_once, once", [(None, False), ("1", True), ("0", False)])
+def test_main_default_runs_stream_mode(main_env, dispatch, loop_once, once):
+    main_env(LOOP_ONCE=loop_once)
+    assert bl.main() == 0
+    assert dispatch == [("main_stream", once)]
+
+
+@pytest.mark.parametrize("mode", ["stream", "roundrobin"])
+def test_main_dry_run_is_one_roundrobin_pass_in_both_modes(main_env, dispatch, mode):
+    main_env("--dry-run", CAPTURE_MODE=mode)
+    assert bl.main() == 0
+    assert dispatch == [("listen_once", True)]
+
+
+def test_main_roundrobin_all_cameras_failing_is_rc1(main_env, monkeypatch):
+    main_env(CAPTURE_MODE="roundrobin")
+    monkeypatch.setattr(bl, "listen_once", lambda cfg, conn, dry_run=False: 0)
+    assert bl.main() == 1
+
+
+@pytest.mark.parametrize("env", [
+    {"CAPTURE_MODE": "parallel"},
+    {"QUEUE_SIZE": "0"},
+    {"SEGMENT_DIR": "relative/seg"},
+    {"SEGMENT_DIR": "/tmp/seg%d"},
+    {"SEGMENT_DIR": "DATA"},
+    {"SEGMENT_DIR": "DATA/seg"},
+    {"CLIP_SECONDS": "2"},
+])
+def test_main_config_error_is_rc2(main_env, dispatch, tmp_path, capsys, env):
+    data = str(tmp_path / "data")
+    main_env(**{k: v.replace("DATA", data, 1) if v.startswith("DATA") else v for k, v in env.items()})
+    assert bl.main() == 2
+    assert dispatch == []
+    assert capsys.readouterr().err.startswith("config error: ")
+
+
+def test_main_accepts_segment_dir_sibling_of_data_dir(main_env, dispatch, tmp_path):
+    main_env(SEGMENT_DIR=str(tmp_path / "data-seg"))
+    assert bl.main() == 0
+    assert dispatch == [("main_stream", False)]
+
+
+def _check_mocks(monkeypatch):
+    monkeypatch.setattr(bl.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(bl, "analyzer", lambda: None)
+    monkeypatch.setattr(bl, "capture", lambda cam, seconds, out: out.write_bytes(b"RIFF"))
+
+
+def test_check_stream_mode_never_touches_segments(tmp_path, monkeypatch, capsys):
+    seg = tmp_path / "seg"
+    stale = seg / "00-front" / "r0001_20261005T231500Z.wav"
+    queued = seg / "queued" / "00-front_r0001_20261005T231430Z.wav"
+    for f in (stale, queued):
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"RIFF" + b"\0" * 40)
+    cfg = bl.load_config({**_ENV, "CAMERAS": "front=rtsp://admin:s3cret@h/h264Preview_01_sub,"
+                                             "back=rtsp://admin:s3cret@h/h264Preview_02_main",
+                          "DATA_DIR": str(tmp_path / "data"), "SEGMENT_DIR": str(seg)})
+    _check_mocks(monkeypatch)
+    assert bl.check(cfg) == 0
+    out = capsys.readouterr().out
+    assert f"capture: stream, queue 4, summary every 5 min, segments {seg} (writable, " in out
+    assert re.search(r"\(writable, \d+ MB free\)", out)
+    assert "hint: back uses a main-stream URL; use the sub-stream" in out
+    assert "hint: front" not in out and "s3cret" not in out
+    assert stale.read_bytes().startswith(b"RIFF") and queued.exists()
+    assert sorted(p.name for p in seg.iterdir()) == ["00-front", "queued"]   # no .check-* left
+
+
+def test_check_unwritable_segment_dir_is_a_problem(tmp_path, monkeypatch, capsys):
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    cfg = bl.load_config({**_ENV, "DATA_DIR": str(tmp_path / "data"), "SEGMENT_DIR": str(blocker / "seg")})
+    _check_mocks(monkeypatch)
+    assert bl.check(cfg) == 1
+    err = capsys.readouterr().err
+    assert f"capture: stream, segments {blocker / 'seg'} NOT WRITABLE (" in err
+
+
+def test_check_roundrobin_skips_segment_dir(tmp_path, monkeypatch, capsys):
+    seg = tmp_path / "seg"
+    cfg = bl.load_config({**_ENV, "CAPTURE_MODE": "roundrobin", "DATA_DIR": str(tmp_path / "data"),
+                          "SEGMENT_DIR": str(seg), "CAMERAS": "a=rtsp://h/Preview_01_main"})
+    _check_mocks(monkeypatch)
+    assert bl.check(cfg) == 0
+    out = capsys.readouterr().out
+    assert "capture: roundrobin, one camera at a time" in out
+    assert "hint: a uses a main-stream URL; use the sub-stream" in out
+    assert not seg.exists()
+
+
+def test_alias_module_keeps_one_module_copy(monkeypatch, capsys):
+    """`python birdlisten.py` runs the file as __main__; stream.py's
+    `import birdlisten` must get that same module, not a second copy."""
+    spec = importlib.util.spec_from_file_location("__main__", bl.__file__)
+    direct = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "__main__", direct)
+    monkeypatch.setattr(sys, "argv", ["birdlisten.py", "--help"])   # the file's own main() exits at once
+    with pytest.raises(SystemExit):
+        spec.loader.exec_module(direct)
+    capsys.readouterr()
+    monkeypatch.delitem(sys.modules, "birdlisten")
+    monkeypatch.delitem(sys.modules, "stream", raising=False)
+    direct._alias_module()
+    assert sys.modules["birdlisten"] is direct
+    fresh = importlib.import_module("stream")
+    assert fresh.bl is direct
+    bl._alias_module()                                # the normally imported copy changes nothing
+    assert sys.modules["birdlisten"] is direct
