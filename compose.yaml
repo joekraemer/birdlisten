@@ -3,7 +3,7 @@
 #   cp .env.example .env && $EDITOR .env
 #   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--check" app      # config + ffmpeg + model
 #   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--dry-run" app    # one pass, writes nothing
-#   docker compose run --rm -e LOOP_ONCE=1 app                            # one real pass
+#   docker compose run --rm -e LOOP_ONCE=1 app                            # one real stream window (~45 s for 4 cameras)
 #   docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--report 7" app   # what was heard this week
 #   docker compose up                                                      # the real loop
 #
@@ -15,7 +15,8 @@ services:
     env_file: .env
     environment:
       PYTHONUNBUFFERED: "1"
-      # Back-to-back passes: each main() call is one listen window per camera.
+      # Stream mode: main() runs until the container stops, and a 1 s interval
+      # restarts it quickly after a fatal error. Round-robin: back-to-back passes.
       LOOP_INTERVAL: "1"
       LOOP_JITTER: "0"
     volumes:

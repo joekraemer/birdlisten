@@ -46,6 +46,7 @@ VOLUME /data
 # (and not at all when it is unset). Publish the port in compose.
 EXPOSE 8085
 ENV PATH="/app/.venv/bin:$PATH"
-# loop.py: run main() back to back (LOOP_INTERVAL=1); each call is one pass
-# over every camera.
+# loop.py calls main(). In stream mode (the default) main() runs until the
+# container stops; with CAPTURE_MODE=roundrobin each call is one pass over
+# every camera (LOOP_INTERVAL=1 runs them back to back).
 CMD ["python", "loop.py"]
