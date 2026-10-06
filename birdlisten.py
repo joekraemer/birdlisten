@@ -73,6 +73,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import taxa
+
 log = logging.getLogger("birdlisten")
 
 # This module object, also when it runs as __main__ (see _alias_module).
@@ -454,7 +456,7 @@ def store_clip(cfg: Config, conn: sqlite3.Connection, cam: Camera, when: dt.date
         if dry_run:
             continue
         record(conn, when, cam, d, clip_path)
-        if should_notify(conn, name, when, cfg.notify_cooldown):
+        if taxa.is_bird(d.scientific_name) and should_notify(conn, name, when, cfg.notify_cooldown):
             local = when.astimezone().strftime("%H:%M")
             t0 = time.perf_counter()
             notify(cfg, f"{name}", f"{local} on {cam.name} camera, {d.confidence:.0%} confidence")

@@ -163,6 +163,28 @@ def test_api_recent_shape(server, tmp_path: Path):
     assert [s["scientific_name"] for s in json.loads(body)["species"]] == ["Ixoreus naevius"]
 
 
+def test_non_bird_labels_leave_page_api_and_popup(server, tmp_path: Path):
+    """Issue #10: a Dog detection at or above MIN_CONFIDENCE is kept in SQLite
+    but is not listed by /api/recent or drawn on the collage, and its pop-up
+    is a 404."""
+    _, base = server
+    seed(tmp_path)
+    conn = bl.open_db(tmp_path)
+    bl.record(conn, dt.datetime.now(UTC), bl.Camera("back", "rtsp://x"),
+              bl.Detection("Dog", "Dog", 0.95, 0, 3), None)
+    conn.close()
+    data = json.loads(get(base + "/api/recent")[2])
+    assert [s["scientific_name"] for s in data["species"]] == ["Ixoreus naevius", "Turdus migratorius"]
+    layout = json.loads(get(base + "/api/layout?w=800&h=600")[2])
+    assert "Dog" not in json.dumps(layout)
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        get(base + "/api/species/Dog")
+    assert exc.value.code == 404
+    conn = bl.open_db(tmp_path)
+    assert conn.execute("SELECT COUNT(*) FROM detections WHERE scientific_name = 'Dog'").fetchone()[0] == 1
+    conn.close()
+
+
 def test_min_confidence_filters_page_and_api(tmp_path: Path):
     """Rows below MIN_CONFIDENCE stay in the DB but leave /api/recent and the
     collage at once, even though the capture loop wrote them earlier."""
@@ -709,10 +731,11 @@ def test_species_response_shape_with_facts(server, tmp_path: Path, monkeypatch):
 
 def test_species_non_binomial_stats_only(server, tmp_path: Path, monkeypatch):
     _, base = server
-    insert(tmp_path, [(frame.utcnow().isoformat(timespec="seconds"), "back", "Dog", "Dog", 0.9)])
+    # A bird name that is not a binomial (Dog-style labels are now 404, see #10).
+    insert(tmp_path, [(frame.utcnow().isoformat(timespec="seconds"), "back", "gull sp.", "Larus sp.", 0.9)])
     up = FactsUpstream()
     monkeypatch.setattr(facts, "http_get", up)
-    data = json.loads(get(base + "/api/species/Dog")[2])
+    data = json.loads(get(base + "/api/species/Larus%20sp.")[2])
     assert data["binomial"] is False and data["facts"] == {} and data["links"] == {}
     assert data["heard"]["count"] == 1 and up.calls == []
 

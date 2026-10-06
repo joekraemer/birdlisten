@@ -47,6 +47,7 @@ from PIL import Image, ImageOps
 
 import facts
 import frame
+import taxa
 from birdlisten import ConfigError
 
 log = logging.getLogger("serve")
@@ -250,7 +251,9 @@ def parse_species_segment(path: str) -> str:
 
 
 def species_known(cfg: ServeConfig, name: str) -> bool:
-    """Heard at or above MIN_CONFIDENCE, or in the Audubon table (when on)."""
+    """A bird heard at or above MIN_CONFIDENCE, or in the Audubon table (when on)."""
+    if not taxa.is_bird(name):
+        return False
     if cfg.db_path.exists():
         conn = frame.open_ro(cfg.db_path)
         try:

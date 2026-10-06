@@ -41,6 +41,8 @@ from urllib.parse import quote
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
+import taxa
+
 log = logging.getLogger("frame")
 
 FUGLERAMME_REPO = "https://github.com/arnegiacomo/fugleramme"
@@ -114,6 +116,8 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
     count: dict[str, int] = {}
     cameras: dict[str, list[str]] = {}
     for sci, com, cam, heard in rows:
+        if not taxa.is_bird(sci):
+            continue                   # kept in SQLite, never drawn (Dog, Engine, frogs)
         if sci not in count:
             order.append(sci)
             common[sci] = com          # most recent row wins

@@ -319,6 +319,20 @@ def test_fmt_timing_skips_none_and_puts_error_last():
     assert bl._fmt_timing("summary", [("error", None, "{}"), ("ok", 2, "{}")]) == "timing summary ok=2"
 
 
+def test_store_clip_records_but_does_not_push_non_birds(tmp_path: Path, monkeypatch):
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0",
+                          "DATA_DIR": str(tmp_path), "NTFY_TOPIC": "t"})
+    conn = bl.open_db(cfg.data_dir)
+    sent = []
+    monkeypatch.setattr(bl, "notify", lambda cfg_, title, body: sent.append(title))
+    best = {"Dog": bl.Detection("Dog", "Dog", 0.95, 0, 3),
+            "Bushtit": bl.Detection("Bushtit", "Psaltriparus minimus", 0.9, 3, 6)}
+    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
+    bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=12.4, dry_run=False)
+    assert sent == ["Bushtit"]
+    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
+
+
 def test_store_clip_returns_notify_time(tmp_path: Path, monkeypatch):
     import time
 

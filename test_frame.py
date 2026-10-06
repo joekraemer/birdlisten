@@ -119,6 +119,26 @@ def test_recent_species_first_ever(tmp_path: Path):
     assert out == {"Turdus migratorius": False, "Ixoreus naevius": True}
 
 
+def test_recent_species_hides_non_birds(tmp_path: Path):
+    """Dog and frog rows stay in SQLite but never reach the collage."""
+    now = dt.datetime(2026, 10, 2, 15, 0, tzinfo=UTC)
+    h = dt.timedelta(hours=1)
+    db = seed(tmp_path, [
+        (now - 3 * h, "back", "American Robin", "Turdus migratorius"),
+        (now - 2 * h, "back", "Dog", "Dog"),
+        (now - 1 * h, "front", "American Bullfrog", "Lithobates catesbeianus"),
+    ])
+    conn = frame.open_ro(db)
+    try:
+        out = frame.recent_species(conn, now, 24)
+        stored = conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0]
+    finally:
+        conn.close()
+    assert [s.scientific_name for s in out] == ["Turdus migratorius"]
+    assert out[0].count == 1
+    assert stored == 3
+
+
 def test_recent_species_min_confidence(tmp_path: Path):
     now = dt.datetime(2026, 10, 2, 15, 0, tzinfo=UTC)
     h = dt.timedelta(hours=1)

@@ -124,6 +124,8 @@ the container first, or read the latest `timing summary` line instead.
 Set `NTFY_TOPIC` to an unguessable string, install the ntfy app on your phone,
 subscribe to that topic. You get one push per species per hour: "Varied Thrush
 — 07:12 on back camera, 83% confidence". `NOTIFY_COOLDOWN_MIN` tunes the hour.
+BirdNET's non-bird labels (Dog, Engine, Human vocal, frogs, insects, mammals;
+see `taxa.py`) are recorded but never pushed.
 
 ## Data
 
@@ -295,7 +297,10 @@ last 24 hours") and species count, then one plate per species heard in the
 last N hours (default 24), most recent first, with its common name beneath.
 Cameras, times and first-ever sightings are left off the picture and stay in
 `/api/recent`. Only detections at or above `MIN_CONFIDENCE` count, so raising
-it takes older low-confidence rows off the page straight away. It is meant to sit in a Home Assistant Webpage card (below). The server
+it takes older low-confidence rows off the page straight away. BirdNET's
+non-bird labels (Dog, Engine, frogs, crickets; the list is `taxa.py`) stay in
+SQLite and in `--report`, but are left off the page and `/api/recent`, and
+their pop-up is a 404. It is meant to sit in a Home Assistant Webpage card (below). The server
 is a daemon thread beside the capture loop and reads the SQLite db through its
 own read-only connection; it never changes what the loop records or notifies.
 
@@ -484,7 +489,7 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_facts.py   # arm64 macOS
+  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_facts.py test_taxa.py   # arm64 macOS
 ```
 
 The stream-capture tests (`test_stream.py`) drive the real supervisors,
@@ -565,6 +570,7 @@ Other ideas:
 | `tools/build_audubon_map.py` | offline builder of `audubon.json`; not in the image |
 | `serve.py` | the collage HTTP server; `start_from_env()` is what `loop.py` calls |
 | `facts.py` | pop-up facts: Wikidata, Wikipedia and eBird fetching, single flight, cache under `FACTS_DIR` |
+| `taxa.py` | `is_bird()`: BirdNET's non-bird labels and genera, kept off the page and ntfy |
 | `static/` | `page.js` (tap targets, refresh swap, pop-up card) and `page.css` |
 | `tools/facts_coverage.py`, `tools/popup_shots.py`, `tools/golden_render.py` | manual checks (real-network fact coverage, browser checks and screenshots, collage golden hashes); not in the image |
 | `loop.py` | container entrypoint (fleet template), runs `main()` back to back (in stream mode `main()` returns only at shutdown or after a fatal error); starts the server when `SERVE_PORT` is set |
@@ -572,5 +578,5 @@ Other ideas:
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test and the segment muxer self-test |
-| `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_facts.py` | see Tests |
+| `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
