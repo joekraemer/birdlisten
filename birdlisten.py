@@ -48,6 +48,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 log = logging.getLogger("birdlisten")
 
@@ -84,6 +85,9 @@ class Camera:
         """rtsp://user:pass@host/... -> rtsp://user:***@host/... for logs."""
         return scrub(self.rtsp)
 
+    def __repr__(self) -> str:  # dataclass keeps this; Config's repr uses it
+        return f"Camera(name={self.name!r}, rtsp={self.redacted()!r})"
+
 
 @dataclass(frozen=True)
 class Config:
@@ -97,6 +101,20 @@ class Config:
     ntfy_topic: str | None
     ntfy_server: str
     notify_cooldown: dt.timedelta
+    capture_mode: str = "stream"
+    queue_size: int = 0
+    summary_minutes: int = 5
+    segment_dir: Path = Path("/tmp/birdlisten-segments")
+
+
+def main_stream_urls(cfg: Config) -> list[str]:
+    """Names of cameras whose URL path looks like a main stream, not a sub-stream."""
+    names = []
+    for c in cfg.cameras:
+        path = urlsplit(c.rtsp).path.lower()
+        if "main" in path and "sub" not in path:
+            names.append(c.name)
+    return names
 
 
 def parse_cameras(raw: str) -> tuple[Camera, ...]:
@@ -125,18 +143,54 @@ def load_config(env=os.environ) -> Config:
             raise ConfigError(f"missing required environment variable {k}")
         return v
 
+    def opt(k: str) -> str:
+        return env.get(k, "").strip()
+
     try:
+        cameras = parse_cameras(req("CAMERAS"))
+        lat, lon = float(req("LATITUDE")), float(req("LONGITUDE"))
+        data_dir = Path(env.get("DATA_DIR", "/data"))
+        clip_seconds = int(env.get("CLIP_SECONDS", "30"))
+        if clip_seconds < 3:
+            raise ConfigError("CLIP_SECONDS must be at least 3")
+
+        capture_mode = opt("CAPTURE_MODE").lower() or "stream"
+        if capture_mode not in ("stream", "roundrobin"):
+            raise ConfigError(f"CAPTURE_MODE must be stream or roundrobin, not {capture_mode!r}")
+
+        queue_size = int(opt("QUEUE_SIZE") or 2 * len(cameras))
+        if not 1 <= queue_size <= 1000:
+            raise ConfigError("QUEUE_SIZE must be 1..1000")
+
+        summary_minutes = int(opt("SUMMARY_MINUTES") or 5)
+        if not 1 <= summary_minutes <= 1440:
+            raise ConfigError("SUMMARY_MINUTES must be 1..1440")
+
+        raw_seg = opt("SEGMENT_DIR")
+        segment_dir = Path(raw_seg) if raw_seg else Config.segment_dir
+        if not segment_dir.is_absolute():
+            raise ConfigError("SEGMENT_DIR must be an absolute path")
+        if "%" in str(segment_dir):
+            raise ConfigError("SEGMENT_DIR must not contain '%'")
+        seg, data = segment_dir.resolve(), data_dir.resolve()
+        if seg == data or data in seg.parents:
+            raise ConfigError("SEGMENT_DIR must not be DATA_DIR or inside it")
+
         return Config(
-            cameras=parse_cameras(req("CAMERAS")),
-            lat=float(req("LATITUDE")),
-            lon=float(req("LONGITUDE")),
-            clip_seconds=int(env.get("CLIP_SECONDS", "30")),
+            cameras=cameras,
+            lat=lat,
+            lon=lon,
+            clip_seconds=clip_seconds,
             min_conf=float(env.get("MIN_CONFIDENCE", "0.5")),
-            data_dir=Path(env.get("DATA_DIR", "/data")),
+            data_dir=data_dir,
             keep_clips=env.get("KEEP_CLIPS", "0") == "1",
             ntfy_topic=env.get("NTFY_TOPIC", "").strip() or None,
             ntfy_server=env.get("NTFY_SERVER", "https://ntfy.sh").rstrip("/"),
             notify_cooldown=dt.timedelta(minutes=int(env.get("NOTIFY_COOLDOWN_MIN", "60"))),
+            capture_mode=capture_mode,
+            queue_size=queue_size,
+            summary_minutes=summary_minutes,
+            segment_dir=segment_dir,
         )
     except ValueError as exc:
         raise ConfigError(f"bad numeric setting: {exc}") from exc

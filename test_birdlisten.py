@@ -69,6 +69,63 @@ def test_load_config_defaults_and_required():
         bl.load_config({**env, "CLIP_SECONDS": "thirty"})
 
 
+_ENV = {"CAMERAS": "a=rtsp://x,b=rtsp://y,c=rtsp://z", "LATITUDE": "0", "LONGITUDE": "0"}
+
+
+def test_load_config_stream_defaults():
+    cfg = bl.load_config(_ENV)
+    assert cfg.capture_mode == "stream"
+    assert cfg.queue_size == 6  # 2 x 3 cameras
+    assert cfg.summary_minutes == 5
+    assert cfg.segment_dir == Path("/tmp/birdlisten-segments")
+
+
+def test_load_config_capture_mode_normalised():
+    assert bl.load_config({**_ENV, "CAPTURE_MODE": " RoundRobin "}).capture_mode == "roundrobin"
+    assert bl.load_config({**_ENV, "CAPTURE_MODE": ""}).capture_mode == "stream"
+
+
+@pytest.mark.parametrize("key, value, var", [
+    ("CAPTURE_MODE", "parallel", "CAPTURE_MODE"),
+    ("QUEUE_SIZE", "0", "QUEUE_SIZE"),
+    ("QUEUE_SIZE", "1001", "QUEUE_SIZE"),
+    ("SUMMARY_MINUTES", "0", "SUMMARY_MINUTES"),
+    ("SUMMARY_MINUTES", "1441", "SUMMARY_MINUTES"),
+    ("SEGMENT_DIR", "relative/seg", "SEGMENT_DIR"),
+    ("SEGMENT_DIR", "/tmp/seg%d", "SEGMENT_DIR"),
+    ("CLIP_SECONDS", "2", "CLIP_SECONDS"),
+])
+def test_load_config_rejects_stream_settings(key, value, var):
+    with pytest.raises(bl.ConfigError, match=var):
+        bl.load_config({**_ENV, key: value})
+
+
+def test_load_config_segment_dir_vs_data_dir(tmp_path: Path):
+    data = tmp_path / "data"
+    env = {**_ENV, "DATA_DIR": str(data)}
+    with pytest.raises(bl.ConfigError, match="SEGMENT_DIR"):
+        bl.load_config({**env, "SEGMENT_DIR": str(data)})
+    with pytest.raises(bl.ConfigError, match="SEGMENT_DIR"):
+        bl.load_config({**env, "SEGMENT_DIR": str(data / "seg")})
+    # A sibling sharing the string prefix is not inside DATA_DIR.
+    sibling = tmp_path / "data-seg"
+    assert bl.load_config({**env, "SEGMENT_DIR": str(sibling)}).segment_dir == sibling
+
+
+def test_repr_hides_password():
+    env = {**_ENV, "CAMERAS": "garage=rtsp://admin:s3cret@192.168.1.5:554/h264Preview_01_sub"}
+    cfg = bl.load_config(env)
+    for text in (repr(cfg.cameras[0]), repr(cfg)):
+        assert "s3cret" not in text and "rtsp://admin:***@192.168.1.5" in text
+    assert repr(cfg.cameras[0]) == "Camera(name='garage', rtsp='rtsp://admin:***@192.168.1.5:554/h264Preview_01_sub')"
+
+
+def test_main_stream_urls():
+    cfg = bl.load_config({**_ENV, "CAMERAS": "a=rtsp://h/h264Preview_01_main,b=rtsp://h/h264Preview_01_sub,"
+                                             "c=rtsp://h/Preview_01_MAIN"})
+    assert bl.main_stream_urls(cfg) == ["a", "c"]
+
+
 # ----------------------------------------------------------------- dedupe
 def test_best_per_species_keeps_most_confident():
     d = bl.Detection
@@ -243,3 +300,36 @@ def test_listen_once_all_cameras_fail(tmp_path: Path, monkeypatch):
     conn = bl.open_db(cfg.data_dir)
     monkeypatch.setattr(bl, "capture", lambda *a: (_ for _ in ()).throw(RuntimeError("down")))
     assert bl.listen_once(cfg, conn) == 0
+
+
+# ----------------------------------------------------------------- shared helpers
+def test_fmt_timing_skips_none_and_puts_error_last():
+    line = bl._fmt_timing("camera=garage", [
+        ("error", "ffmpeg failed: rtsp://admin:s3cret@10.0.0.2/y refused", "{}"),
+        ("capture_s", 1.234, "{:.2f}"),
+        ("analyze_s", None, "{:.2f}"),
+        ("detections", 3, "{}"),
+    ])
+    assert line == "timing camera=garage capture_s=1.23 detections=3 error=ffmpeg_failed:_rtsp://admin:***@10.0.0.2/y_refused"
+    assert bl._fmt_timing("summary", [("error", None, "{}"), ("ok", 2, "{}")]) == "timing summary ok=2"
+
+
+def test_store_clip_returns_notify_time(tmp_path: Path, monkeypatch):
+    import time
+
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
+    conn = bl.open_db(cfg.data_dir)
+    monkeypatch.setattr(bl, "notify", lambda *a: time.sleep(0.05))
+    best = {"Bushtit": bl.Detection("Bushtit", "P. minimus", 0.9, 3, 6)}
+    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
+    notify_s = bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=12.4, dry_run=False)
+    assert notify_s >= 0.05
+    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 1
+
+
+def test_store_clip_float_seconds_in_nothing_above(tmp_path: Path, caplog):
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
+    caplog.set_level("INFO", logger="birdlisten")
+    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
+    assert bl.store_clip(cfg, None, cfg.cameras[0], when, tmp_path / "x.wav", {}, clip_s=12.4, dry_run=False) == 0.0
+    assert "c: 12s, nothing above 0.50" in caplog.messages
