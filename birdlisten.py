@@ -51,6 +51,14 @@ from pathlib import Path
 
 log = logging.getLogger("birdlisten")
 
+# This module object, also when it runs as __main__ (see _alias_module).
+_THIS = sys.modules[__name__]
+
+
+def _alias_module() -> None:
+    """Make `import birdlisten` return this module even when it runs as __main__."""
+    sys.modules.setdefault("birdlisten", _THIS)
+
 
 class ConfigError(RuntimeError):
     pass
@@ -329,7 +337,54 @@ def _timing_line(cam: str, clip_s: float, **fields) -> str:
     return "timing " + " ".join(parts)
 
 
+def _fmt_timing(head: str, pairs) -> str:
+    """'timing <head> k=v ...' from (key, value, fmt) pairs. None values are
+    skipped; an 'error' pair always goes last as one scrubbed token."""
+    parts = [head]
+    error = None
+    for key, value, fmt in pairs:
+        if value is None:
+            continue
+        if key == "error":
+            error = value
+            continue
+        parts.append(f"{key}={fmt.format(value)}")
+    if error is not None:
+        parts.append("error=" + re.sub(r"\s+", "_", scrub(str(error)).strip())[:80])
+    return "timing " + " ".join(parts)
+
+
 # ----------------------------------------------------------------- one pass
+def store_clip(cfg: Config, conn: sqlite3.Connection, cam: Camera, when: dt.datetime, wav: Path,
+               best: dict[str, Detection], *, clip_s: float, dry_run: bool) -> float:
+    """Log, keep, record and notify one analyzed clip. Shared by both capture
+    modes. Returns the wall seconds spent inside notify()."""
+    if not best:
+        log.info("%s: %ss, nothing above %.2f", cam.name,
+                 clip_s if isinstance(clip_s, int) else f"{clip_s:.0f}", cfg.min_conf)
+        return 0.0
+
+    clip_path = None
+    if cfg.keep_clips and not dry_run:
+        dest = cfg.data_dir / "clips" / when.strftime("%Y-%m-%d")
+        dest.mkdir(parents=True, exist_ok=True)
+        clip_path = str(dest / f"{when.strftime('%H%M%S')}_{cam.name}.wav")
+        shutil.copy(wav, clip_path)
+
+    notify_s = 0.0
+    for name, d in sorted(best.items(), key=lambda kv: -kv[1].confidence):
+        log.info("%s: %s (%s) %.0f%% at +%.0fs", cam.name, name, d.scientific_name, d.confidence * 100, d.start)
+        if dry_run:
+            continue
+        record(conn, when, cam, d, clip_path)
+        if should_notify(conn, name, when, cfg.notify_cooldown):
+            local = when.astimezone().strftime("%H:%M")
+            t0 = time.perf_counter()
+            notify(cfg, f"{name}", f"{local} on {cam.name} camera, {d.confidence:.0%} confidence")
+            notify_s += time.perf_counter() - t0
+    return notify_s
+
+
 def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) -> int:
     """Capture + analyze every camera once. Returns the number of cameras that
     produced a usable clip (0 => the pass failed)."""
@@ -365,25 +420,7 @@ def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) ->
 
             best = best_per_species(dets)
             log.info("%s", _timing_line(cam.name, cfg.clip_seconds, detections=len(best), rss_mb=_max_rss_mb(), **t))
-            if not best:
-                log.info("%s: %ss, nothing above %.2f", cam.name, cfg.clip_seconds, cfg.min_conf)
-                continue
-
-            clip_path = None
-            if cfg.keep_clips and not dry_run:
-                dest = cfg.data_dir / "clips" / when.strftime("%Y-%m-%d")
-                dest.mkdir(parents=True, exist_ok=True)
-                clip_path = str(dest / f"{when.strftime('%H%M%S')}_{cam.name}.wav")
-                shutil.copy(wav, clip_path)
-
-            for name, d in sorted(best.items(), key=lambda kv: -kv[1].confidence):
-                log.info("%s: %s (%s) %.0f%% at +%.0fs", cam.name, name, d.scientific_name, d.confidence * 100, d.start)
-                if dry_run:
-                    continue
-                record(conn, when, cam, d, clip_path)
-                if should_notify(conn, name, when, cfg.notify_cooldown):
-                    local = when.astimezone().strftime("%H:%M")
-                    notify(cfg, f"{name}", f"{local} on {cam.name} camera, {d.confidence:.0%} confidence")
+            store_clip(cfg, conn, cam, when, wav, best, clip_s=cfg.clip_seconds, dry_run=dry_run)
     log.info("timing pass cameras=%d ok=%d wall_s=%.2f analyze_total_s=%.2f rss_mb=%.0f",
              len(cfg.cameras), ok, time.perf_counter() - pass_t0, analyze_total, _max_rss_mb())
     return ok
