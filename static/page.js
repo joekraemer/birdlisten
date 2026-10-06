@@ -155,16 +155,28 @@
       : h12(h) + ' ' + ampm(h) + '\u2013' + h12(n) + ' ' + ampm(n);
   }
 
-  // Detections per local hour: 24 thin bars, field-guide style.
-  function chart(byHour, busiest) {
-    const max = Math.max.apply(null, byHour);
-    const s = svg('svg', {viewBox: '0 0 240 64', class: 'chart', role: 'img',
-                          'aria-label': 'Most detections ' + hourSpan(busiest)});
-    byHour.forEach(function (v, i) {
-      if (!v) return;
-      const h = Math.max(1, Math.round(44 * v / max));
-      s.appendChild(svg('rect', {x: 10 * i + 2, y: 48 - h, width: 6, height: h, fill: '#7c705e'}));
-    });
+  // Detections per local hour: 24 thin bars, field-guide style. With a
+  // typical day (#13), its bars are drawn wide and light and the window's
+  // narrow and dark on top. Each is scaled to its own peak, so the light bars
+  // show the shape of a usual day and the dark ones when it was heard.
+  function chart(byHour, busiest, hours, typical) {
+    let label = byHour.some(Boolean) ? 'Most detections ' + hourSpan(busiest) : 'Not heard in ' + windowPhrase(hours);
+    if (typical) label += '; usually busiest ' + hourSpan(typical.indexOf(Math.max.apply(null, typical)));
+    const s = svg('svg', {viewBox: '0 0 240 64', class: 'chart', role: 'img', 'aria-label': label});
+    const bars = function (vals, x, w, fill, cls) {
+      const max = Math.max.apply(null, vals);
+      vals.forEach(function (v, i) {
+        if (!v) return;
+        const h = Math.max(1, Math.round(44 * v / max));
+        s.appendChild(svg('rect', {x: 10 * i + x, y: 48 - h, width: w, height: h, fill: fill, class: cls}));
+      });
+    };
+    if (typical) {
+      bars(typical, 1, 8, TYPICAL_FILL, 'typ');
+      bars(byHour, 3, 4, HEARD_FILL, 'now');
+    } else {
+      bars(byHour, 2, 6, HEARD_FILL, 'now');
+    }
     s.appendChild(svg('rect', {x: 0, y: 48, width: 240, height: 1, fill: '#baaa8e'}));
     [[0, '12a'], [6, '6a'], [12, '12p'], [18, '6p']].forEach(function (t) {
       s.appendChild(svg('rect', {x: 10 * t[0] + 4.5, y: 49, width: 1, height: 3, fill: '#baaa8e'}));
@@ -172,12 +184,29 @@
     });
     return s;
   }
+  const HEARD_FILL = '#7c705e';
+  const TYPICAL_FILL = '#d8cab0';
+
+  function validTypical(h) {
+    const t = h.typical_by_hour;
+    return Array.isArray(t) && t.length === 24 && t.every(function (v) { return typeof v === 'number' && v >= 0; })
+      && t.some(Boolean) ? t : null;
+  }
 
   function fillHeard(data) {
     clear(heardEl);
     const h = data.heard || {};
+    const typical = validTypical(h);
+    const caption = typical
+      ? 'Dark: ' + windowPhrase(data.hours) + '. Light: when it is usually heard, over the last ' +
+        h.typical_days + ' days. Local time.'
+      : 'Detections by hour of day, local time';
     if (!h.count) {
       heardEl.appendChild(el('p', 'quiet', 'Not heard in ' + windowPhrase(data.hours)));
+      if (typical) {
+        heardEl.appendChild(chart(h.by_hour || new Array(24).fill(0), 0, data.hours, typical));
+        heardEl.appendChild(el('p', 'credit', caption));
+      }
       return;
     }
     heardEl.appendChild(el('p', null, h.count + (h.count === 1 ? ' detection' : ' detections') +
@@ -187,8 +216,8 @@
     if (h.cameras && h.cameras.length) {
       heardEl.appendChild(el('p', null, 'Cameras: ' + h.cameras.join(', ')));
     }
-    heardEl.appendChild(chart(h.by_hour, h.busiest_hour));
-    heardEl.appendChild(el('p', 'credit', 'Detections by hour of day, local time'));
+    heardEl.appendChild(chart(h.by_hour, h.busiest_hour, data.hours, typical));
+    heardEl.appendChild(el('p', 'credit', caption));
   }
 
   function credit(prefix, parts) {

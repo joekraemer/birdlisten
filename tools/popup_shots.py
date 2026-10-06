@@ -110,6 +110,11 @@ def seed_db(data_dir: Path, now: dt.datetime, tz) -> list[tuple[str, str]]:
             cam = XSS_CAM if sci == XSS[0] and rng.random() < 0.5 else rng.choice(cams)
             bl.record(conn, t, bl.Camera(cam, "x"), bl.Detection(com, sci, round(rng.uniform(0.9, 0.99), 3), 0, 3), None)
         shown.append((sci, com))
+        # #13: two weeks of history, so the card has a typical day to draw
+        for d in range(1, 15):
+            for t in spread(rng, now - dt.timedelta(days=d), max(1, n // 2 + rng.randrange(-1, 2)), tz):
+                bl.record(conn, t, bl.Camera(rng.choice(cams), "x"),
+                          bl.Detection(com, sci, round(rng.uniform(0.9, 0.99), 3), 0, 3), None)
     bl.record(conn, now - dt.timedelta(minutes=50), bl.Camera("garage", "x"), bl.Detection("Dog", "Dog", 0.93, 0, 3), None)
     bl.record(conn, now - dt.timedelta(minutes=30), bl.Camera("garage", "x"), bl.Detection("Dog", "Dog", 0.95, 0, 3), None)
     for m in (40, 20):
@@ -529,6 +534,21 @@ def run_checks(pages: Pages, srv, base: str, shown) -> None:
     check("AC14/15", abs(r["bottom"] - 844) <= 1 and abs(r["left"]) <= 1 and abs(r["width"] - 390) <= 1
           and r["height"] <= 0.85 * 844 + 1, f"390x844 sheet {r['width']:.0f}x{r['height']:.0f}, bottom={r['bottom']:.0f}")
     page.context.close()
+    # #13: typical-day bars (wide, light) under the window's bars (narrow, dark)
+    page = pages.open("/#species=Psaltriparus%20minimus", 1280, 900)
+    wait_loaded(page)
+    c = page.evaluate("""() => { const q = s => Array.from(document.querySelectorAll('#card .chart ' + s));
+        const typ = q('rect.typ'), now = q('rect.now');
+        const cap = document.querySelector('#card .heard .credit').textContent;
+        return {typ: typ.length, now: now.length, typ_w: typ.map(r => +r.getAttribute('width')),
+                now_w: now.map(r => +r.getAttribute('width')), cap: cap,
+                label: document.querySelector('#card .chart').getAttribute('aria-label')}; }""")
+    check("#13", c["typ"] > 0 and c["now"] > 0 and set(c["typ_w"]) == {8} and set(c["now_w"]) == {4}
+          and "usually heard" in c["cap"] and "usually busiest" in c["label"],
+          f"typical bars={c['typ']} (w {sorted(set(c['typ_w']))}), heard bars={c['now']} (w {sorted(set(c['now_w']))}); "
+          f"caption '{c['cap']}'")
+    page.context.close()
+
     # #8: the bottom sheet on a short phone viewport (85vh = 340 px). The header
     # stays on screen and the body scrolls under it.
     page = pages.open("/#species=Psaltriparus%20minimus", 390, 400)

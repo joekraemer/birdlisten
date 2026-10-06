@@ -283,10 +283,42 @@ def display_time(t: dt.datetime, now_local: dt.datetime) -> str:
     return f"{MONTHS[t.month - 1]} {t.day}, {clock}"
 
 
+TYPICAL_DAYS = 28        # "typically heard" looks back this far
+TYPICAL_MIN_DAYS = 3     # with less history than this, there is no typical day to show
+
+
+def typical_by_hour(conn, name: str, now: dt.datetime, tz: dt.tzinfo,
+                    min_confidence: float) -> tuple[list[float], int] | None:
+    """(average detections per day in each local hour, days averaged over).
+
+    The days are the last TYPICAL_DAYS, or since the first row in the db if
+    the system is younger; fewer than TYPICAL_MIN_DAYS gives None. A species
+    with no rows in that span also gives None."""
+    first = conn.execute("SELECT MIN(heard_at) FROM detections").fetchone()
+    if not first or first[0] is None:
+        return None
+    begun = dt.datetime.fromisoformat(first[0])
+    if begun.tzinfo is None:
+        begun = begun.replace(tzinfo=dt.timezone.utc)          # old naive rows are UTC
+    start = max(now - dt.timedelta(days=TYPICAL_DAYS), begun)
+    days = (now - start).total_seconds() / 86400
+    if days < TYPICAL_MIN_DAYS:
+        return None
+    rows = conn.execute("SELECT heard_at FROM detections WHERE scientific_name = ? AND heard_at >= ?"
+                        " AND confidence >= ?", (name, start.isoformat(timespec="seconds"), min_confidence))
+    counts = [0] * 24
+    for (heard_at,) in rows:
+        counts[local_time(heard_at, tz).hour] += 1
+    if not any(counts):
+        return None
+    return [round(c / days, 2) for c in counts], round(days)
+
+
 def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> tuple[dict, str]:
     """(heard, common_name): what we heard in the window, by local hour."""
     rows: list = []
     fallback_common = None
+    typical = None
     if cfg.db_path.exists():
         since = (now - dt.timedelta(hours=hours)).isoformat(timespec="seconds")
         conn = frame.open_ro(cfg.db_path)
@@ -299,8 +331,10 @@ def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> 
                 r = conn.execute("SELECT common_name FROM detections WHERE scientific_name = ?"
                                  " ORDER BY heard_at DESC LIMIT 1", (name,)).fetchone()
                 fallback_common = r[0] if r else None
+            typical = typical_by_hour(conn, name, now, cfg.tz, cfg.min_confidence)
         finally:
             conn.close()
+    extra = {"typical_by_hour": typical[0], "typical_days": typical[1]} if typical else {}
     if rows:
         common = rows[0][3]
     elif fallback_common:
@@ -309,7 +343,7 @@ def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> 
         e = cfg.art.audubon.entry(name) if cfg.art.audubon is not None else None
         common = (e or {}).get("title") or name
     if not rows:
-        return {"count": 0, "by_hour": [0] * 24}, common
+        return {"count": 0, "by_hour": [0] * 24, **extra}, common
     tz = cfg.tz
     now_local = now.astimezone(tz)
     confs = [r[2] for r in rows]
@@ -326,7 +360,7 @@ def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> 
         "median_conf": round(statistics.median(confs), 3),
         "first_heard": rows[-1][0], "last_heard": rows[0][0],
         "first_local": display_time(first, now_local), "last_local": display_time(last, now_local),
-        "cameras": cameras, "by_hour": by_hour, "busiest_hour": by_hour.index(max(by_hour)),
+        "cameras": cameras, "by_hour": by_hour, "busiest_hour": by_hour.index(max(by_hour)), **extra,
     }, common
 
 

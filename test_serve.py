@@ -682,7 +682,8 @@ def test_species_stats(tmp_path: Path):
     assert heard["count"] == 5 and heard["first_local"] == "Oct 1, 3:00 AM"
     assert heard["median_conf"] == 0.9                          # odd count
     heard, common = serve.species_stats(cfg, "Psaltriparus minimus", 1, now + dt.timedelta(days=3))
-    assert heard == {"count": 0, "by_hour": [0] * 24} and common == "Bushtit"
+    assert heard["count"] == 0 and heard["by_hour"] == [0] * 24 and common == "Bushtit"
+    assert heard["typical_days"] == 5            # #13: five days of history by then
 
 
 def test_species_stats_dst_and_naive_rows(tmp_path: Path, monkeypatch):
@@ -937,3 +938,58 @@ def test_new_settings_documented():
         assert var in env and f"`{var}`" in readme, var
     line = [ln for ln in env.splitlines() if "EBIRD_API_KEY=" in ln]
     assert line and all(ln.split("EBIRD_API_KEY=", 1)[1] == "" for ln in line)
+
+
+# ----------------------------------------------------------------- #13 typical day
+def _typ_cfg(tmp_path: Path):
+    from zoneinfo import ZoneInfo
+    return serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                             art=frame.Artwork(tmp_path / "a"), tz=ZoneInfo("America/Los_Angeles"),
+                             min_confidence=0.5)
+
+
+def test_typical_day_averages_per_local_hour(tmp_path: Path):
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)                   # 12:00 PDT
+    day = dt.timedelta(days=1)
+    rows = []
+    for d in range(1, 41):                                              # 40 days of robins at 7:15 AM PDT
+        rows.append(((now - d * day).replace(hour=14, minute=15).isoformat(timespec="seconds"),
+                     "back", "American Robin", "Turdus migratorius", 0.9))
+    for d in (2, 5):                                                    # and twice at 6:30 PM
+        rows.append(((now - d * day).replace(hour=1, minute=30).isoformat(timespec="seconds"),
+                     "back", "American Robin", "Turdus migratorius", 0.9))
+    rows.append(((now - 3 * day).replace(hour=14).isoformat(timespec="seconds"),
+                 "back", "American Robin", "Turdus migratorius", 0.3))   # below MIN_CONFIDENCE
+    rows.append(((now - 1 * day).replace(hour=20).isoformat(timespec="seconds"),
+                 "back", "Bushtit", "Psaltriparus minimus", 0.9))        # other species
+    insert(tmp_path, rows)
+    heard, _ = serve.species_stats(_typ_cfg(tmp_path), "Turdus migratorius", 24, now)
+    t = heard["typical_by_hour"]
+    assert heard["typical_days"] == 28 and len(t) == 24
+    # 28 days back is 12:00 PDT on Sep 5, so that day's 7:15 is out: 27 of the 40 count
+    assert t[7] == round(27 / 28, 2)
+    assert t[18] == round(2 / 28, 2) and sum(1 for v in t if v) == 2
+    assert heard["count"] == 0       # yesterday's 7:15 is 28.75 h ago, outside the 24 h window
+
+
+def test_typical_day_needs_history(tmp_path: Path):
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)
+    insert(tmp_path, [("2026-10-01T14:00:00+00:00", "back", "American Robin", "Turdus migratorius", 0.9),
+                      ("2026-10-03T14:00:00+00:00", "back", "American Robin", "Turdus migratorius", 0.9)])
+    cfg = _typ_cfg(tmp_path)
+    heard, _ = serve.species_stats(cfg, "Turdus migratorius", 24, now)  # 2.2 days of history
+    assert "typical_by_hour" not in heard and "typical_days" not in heard
+    later = now + dt.timedelta(days=2)
+    heard, _ = serve.species_stats(cfg, "Turdus migratorius", 24, later)  # 4.2 days; nothing in the window
+    assert heard["count"] == 0 and heard["typical_days"] == 4
+    assert heard["typical_by_hour"][7] == round(2 / ((later - dt.datetime(2026, 10, 1, 14, tzinfo=UTC)).total_seconds() / 86400), 2)
+    heard, _ = serve.species_stats(cfg, "Psaltriparus minimus", 24, later)  # never heard: no typical day
+    assert "typical_by_hour" not in heard
+
+
+def test_typical_day_with_naive_first_row(tmp_path: Path):
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)
+    insert(tmp_path, [("2026-09-20T14:00:00", "back", "American Robin", "Turdus migratorius", 0.9),    # naive = UTC
+                      ("2026-10-02T14:00:00+00:00", "back", "American Robin", "Turdus migratorius", 0.9)])
+    heard, _ = serve.species_stats(_typ_cfg(tmp_path), "Turdus migratorius", 24, now)
+    assert heard["typical_days"] == 13 and sum(heard["typical_by_hour"]) > 0

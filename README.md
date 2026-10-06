@@ -310,7 +310,7 @@ own read-only connection; it never changes what the loop records or notifies.
 | `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
 | `GET /collage.png?v=<token>` | one cached render by its 16-hex content token (the last 8 are kept), `Cache-Control: public, max-age=31536000, immutable`; 404 once evicted |
 | `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
-| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
+| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
 | `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, cameras, first_ever, has_plate}]}`. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
 | `GET /plate/<stem>.png` | a cached cut-out or vignette as a 480 px PNG, from disk only |
 | `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
@@ -358,7 +358,13 @@ the page: the plate, common and scientific name, then **About the bird** (a
 Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird reports, and
 links to eBird, All About Birds and Wikipedia) and **What we heard**
 (detections in the window, best and typical confidence, first and last heard,
-cameras, and a small chart of detections per hour of day). Names that are not
+cameras, and a small chart of detections per hour of day). Once there are 3
+days of history, wide light bars behind the chart show when the species is
+usually heard: its detections per local hour over the last 28 days (or since
+the first detection, if sooner), averaged per day. The window's own bars are
+drawn narrow and dark on top. Each set is scaled to its own peak, so the
+light bars show the shape of a usual day, like Google Maps' "Popular times";
+a species not heard in the window still gets the light bars. Names that are not
 a binomial skip About the bird. Esc, the close
 button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
 60 s refresh swaps the image and its tap targets together and never touches an
