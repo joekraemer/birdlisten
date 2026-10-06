@@ -9,8 +9,8 @@ and ntfy.
 
 This module holds the building blocks: tuning constants, the ffmpeg command,
 the queue, the process registry, the summary statistics, /proc sums, the
-process-wide run guard, signal and excepthook helpers, and segment file
-helpers. Everything is stdlib only.
+process-wide run guard, signal and excepthook helpers, segment file helpers,
+and the per-camera supervisor thread. Everything is stdlib only.
 """
 
 from __future__ import annotations
@@ -448,3 +448,279 @@ def prepare_segment_dir(seg_dir: Path, peak_bytes: int) -> None:
     if free < peak_bytes:
         log.warning("segment dir %s has %.0f MB free, peak use is about %.0f MB",
                     seg_dir, free / 1e6, peak_bytes / 1e6)
+
+
+# ----------------------------------------------------------------- supervisor
+def _read_stderr(proc, lines: collections.deque) -> None:
+    """Keep the last scrubbed stderr lines of one ffmpeg; ends at EOF."""
+    for line in proc.stderr:
+        lines.append(bl.scrub(line.rstrip()))
+
+
+class CameraSupervisor(threading.Thread):
+    """Keeps one ffmpeg segmenter running for one camera and hands each
+    finished segment to the queue. A segment is finished once a successor
+    exists or ffmpeg has exited. Restarts with jittered exponential backoff."""
+
+    def __init__(self, index: int, cam: bl.Camera, *, seg_dir: Path, clip_seconds: int,
+                 queue: ClipQueue, stats: Stats, registry: ProcRegistry,
+                 stop: threading.Event, signalled, once: bool, spawn, tuning: StreamTuning,
+                 clock, now_utc, rng, input_args: list[str] | None = None):
+        super().__init__(name=f"cam-{cam.name}", daemon=True)
+        self.index = index
+        self.cam = cam
+        self.seg_dir = Path(seg_dir)
+        self.dirname = camera_dirname(index, cam.name)
+        self.cam_dir = self.seg_dir / self.dirname
+        self.queued_dir = self.seg_dir / "queued"
+        self.clip_seconds = clip_seconds
+        self.up = False                               # read by the main thread for cameras_up
+        self.fails = 0                                # failures since the last healthy run
+        self.backoffs: collections.deque[float] = collections.deque(maxlen=32)  # recent delays
+        self._queue = queue
+        self._stats = stats
+        self._registry = registry
+        self._stop_event = stop                       # not _stop: Thread uses that name
+        self._signalled = signalled
+        self._once = once
+        self._spawn_fn = spawn                        # None -> popen_spawn, looked up at call time
+        self._tuning = tuning
+        self._clock = clock
+        self._now_utc = now_utc
+        self._rng = rng
+        self._input_args = input_args
+        self._run_no = 0
+        self._proc = None
+        self._seen: dict[str, int] = {}
+        self._seq = 0
+        self._recent: collections.deque[str] = collections.deque(maxlen=8)
+        self._streak_key: str | None = None           # reason key of the last ERROR; None = no streak
+        self._streak_since: dt.datetime | None = None
+        self._last_warn = 0.0
+
+    # ------------------------------------------------------------- thread body
+    def run(self) -> None:
+        if self._stop_event.wait(self.index * self._tuning.stagger_s):
+            return
+        while True:
+            try:
+                delay = self._spawn_cycle()
+            except Exception:
+                log.error("%s: supervisor crashed: %s", self.cam.name, bl.scrub(traceback.format_exc()))
+                self._reap_after_crash()
+                if self._stop_event.is_set() or self._signalled() or self._once:
+                    return
+                self.fails += 1
+                self._stats.add(restarts=1)
+                delay = self._backoff()
+            if delay is None or self._stop_event.wait(delay):
+                return
+
+    def _spawn_cycle(self) -> float | None:
+        """One ffmpeg run. Returns the backoff before the next one, or None to end."""
+        t = self._tuning
+        name = self.cam.name
+        self._run_no += 1
+        run = self._run_no
+        self._seen, self._seq = {}, 0
+        self._recent = collections.deque(maxlen=8)
+        self._proc = None
+        self.cam_dir.mkdir(parents=True, exist_ok=True)
+        self._clear_dir()
+        args = rtsp_input(self.cam) if self._input_args is None else self._input_args
+        cmd = segment_cmd(args, self.clip_seconds, segment_pattern(self.seg_dir, self.index, name, run))
+        spawn = self._spawn_fn or popen_spawn
+        try:
+            proc = spawn(cmd, spawn_env())
+        except OSError as exc:
+            if self._stop_event.is_set() or self._signalled():
+                return None
+            return self._fail(bl.scrub(str(exc)) or type(exc).__name__, 0.0, 0, stalled=False)
+        self._proc = proc
+        if not self._registry.add(name, proc):        # shutdown has begun
+            proc.kill(); proc.wait()
+            self._proc = None
+            return None
+        lines: collections.deque[str] = collections.deque(maxlen=20)
+        reader = threading.Thread(target=_read_stderr, args=(proc, lines),
+                                  name=f"cam-{name}-stderr", daemon=True)
+        _track(reader)
+        reader.start()
+        spawn_mono = self._clock()
+        last_progress = spawn_mono
+        prev = None
+        handed = 0
+        stall = None
+        ended = None                                  # "stop" | "once" | "deadline" | None (exit/stall)
+        deadline = spawn_mono + 2 * self.clip_seconds + t.stall_s
+        while True:
+            rc = proc.poll()
+            if rc is not None:
+                self._registry.remove(name, proc)     # right after the reaping poll()
+                break
+            if self._stop_event.is_set():
+                rc = self._terminate(proc); ended = "stop"
+                break
+            n, newest = self._poll_once(run, alive=True)
+            handed += n
+            size = None
+            if newest is not None:
+                try:
+                    size = (self.cam_dir / newest).stat().st_size
+                except OSError:
+                    pass
+            now = self._clock()
+            if (newest, size) != prev:
+                prev = (newest, size); last_progress = now
+            self.up = bool(size)
+            if self.fails and handed and now - spawn_mono >= t.healthy_run_s:
+                log.info("%s: recovered after %d attempts", name, self.fails)
+                self.fails = 0; self._streak_key = None
+            if self._once and handed:
+                rc = self._terminate(proc); ended = "once"
+                break
+            if self._once and now >= deadline:
+                rc = self._terminate(proc); ended = "deadline"
+                break
+            if now - last_progress >= t.stall_s:
+                stall = f"stalled: no audio for {t.stall_s:g}s"
+                rc = self._terminate(proc)
+                break
+            self._stop_event.wait(t.poll_s)
+        up_s = self._clock() - spawn_mono
+        self.up = False
+        self._proc = None
+        reader.join(timeout=1.0)
+        if ended is None and not self._stop_event.is_set():
+            handed += self._poll_once(run, alive=False)[0]   # the final segment(s)
+        self._clear_dir()
+        if self._stop_event.is_set() or self._signalled() or ended in ("stop", "once"):
+            return None
+        if self._once and handed:
+            return None
+        if ended == "deadline":
+            reason = f"no complete segment within {deadline - spawn_mono:g}s"
+        else:
+            reason = stall or next((l for l in reversed(lines) if l), None) or f"exit {rc}"
+        return self._fail(reason, up_s, handed, stalled=stall is not None)
+
+    # ------------------------------------------------------------- segments
+    def _poll_once(self, run: int, alive: bool) -> tuple[int, str | None]:
+        """Hand off every complete segment of this run. Returns (handed, newest)."""
+        names = []
+        for n in os.listdir(self.cam_dir):
+            m = SEG_RE.match(n)
+            if m and int(m.group(1)) == run:
+                names.append(n)
+        for n in sorted(names):                      # sorted only so a same-poll tie is stable
+            if n not in self._seen:
+                self._seq += 1; self._seen[n] = self._seq
+        order = sorted(names, key=lambda n: (self._seen[n], n))
+        newest = order[-1] if order else None
+        complete = order[:-1] if alive else order
+        handed = 0
+        for n in complete:
+            handed += self._hand_off(n)
+            self._seen.pop(n, None)                  # gone from the camera dir either way
+        return handed, (newest if alive else None)
+
+    def _hand_off(self, name: str) -> int:
+        cam = self.cam.name
+        src = self.cam_dir / name
+        if name in self._recent:                     # strftime same-second name reuse
+            safe_unlink(src)
+            log.info("%s: duplicate segment name %s, dropped", cam, name)
+            self._stats.add(failed=1)
+            return 0
+        status, duration, why = validate_segment(src, self._tuning.min_segment_s)
+        if status == "bad":
+            log.warning("%s: bad segment %s (%s), deleted", cam, name, why)
+            safe_unlink(src)
+            self._stats.add(failed=1)
+            return 0
+        if status == "short":
+            log.info("%s: short segment %s (%.1fs), deleted", cam, name, duration)
+            safe_unlink(src)
+            self._stats.add(short=1)
+            return 0
+        start = parse_start_utc(name)
+        dst = self.queued_dir / f"{self.dirname}_{name}"
+        try:
+            os.rename(src, dst)
+        except OSError as exc:
+            log.warning("%s: could not queue %s: %s", cam, name, bl.scrub(str(exc)))
+            safe_unlink(src)
+            self._stats.add(failed=1)
+            return 0
+        self._recent.append(name)
+        self._queue.put(Clip(camera=cam, path=dst, start_utc=start, duration_s=duration,
+                             ready_utc=self._now_utc(), ready_mono=self._clock()))
+        return 1
+
+    def _clear_dir(self) -> None:
+        """Delete this camera's segment files (any run); leave anything else."""
+        for n in os.listdir(self.cam_dir):
+            if SEG_RE.match(n):
+                safe_unlink(self.cam_dir / n)
+
+    # ------------------------------------------------------------- process
+    def _terminate(self, proc):
+        """terminate, wait term_grace_s, then kill + wait. Returns the exit code."""
+        proc.terminate()
+        try:
+            rc = proc.wait(timeout=self._tuning.term_grace_s)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            rc = proc.wait()
+        self._registry.remove(self.cam.name, proc)   # right after the reaping wait()
+        return rc
+
+    def _reap_after_crash(self) -> None:
+        proc, self._proc = self._proc, None
+        if proc is None:
+            return
+        try:
+            if proc.poll() is None:
+                proc.kill(); proc.wait()
+        except Exception:                            # already logged the crash; keep the thread alive
+            pass
+        self._registry.remove(self.cam.name, proc)
+
+    # ------------------------------------------------------------- failures
+    def _backoff(self) -> float:
+        t = self._tuning
+        d = min(t.backoff_cap_s, t.backoff_base_s * 2 ** (self.fails - 1)) * self._rng.uniform(0.8, 1.2)
+        self.backoffs.append(d)
+        return d
+
+    def _fail(self, reason: str, up_s: float, segments: int, *, stalled: bool) -> float | None:
+        """Count, log and time one failed run. Returns the backoff, or None in once mode."""
+        name = self.cam.name
+        self.fails += 1
+        refused = bool(REFUSED_RE.search(reason))
+        self._stats.add(restarts=1, refused=int(refused))
+        d = None if self._once else self._backoff()
+        log.info("%s", bl._fmt_timing(f"camera={name}", [
+            ("up_s", up_s, "{:.1f}"),
+            ("segments", segments, "{}"),
+            ("backoff_s", d, "{:.1f}"),
+            ("refused", 1 if refused else None, "{}"),
+            ("error", reason if stalled else f"ffmpeg exited: {reason}", "{}"),
+        ]))
+        if d is None:
+            log.error("%s: ffmpeg exited after %.1fs, %d segments: %s", name, up_s, segments, reason)
+            return None
+        key = re.sub(r"\d+", "#", reason)
+        now = self._clock()
+        if self._streak_key is None or key != self._streak_key:
+            if self._streak_key is None:
+                self._streak_since = self._now_utc()
+            self._streak_key = key
+            self._last_warn = now
+            log.error("%s: ffmpeg exited after %.1fs, %d segments: %s; retry in %.1fs",
+                      name, up_s, segments, reason, d)
+        elif now - self._last_warn >= self._tuning.still_failing_log_s:
+            self._last_warn = now
+            log.warning("%s: still failing (%d attempts since %s): %s; retry in %.1fs",
+                        name, self.fails, self._streak_since.strftime("%H:%M:%SZ"), reason, d)
+        return d
