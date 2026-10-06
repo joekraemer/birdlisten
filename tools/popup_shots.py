@@ -254,6 +254,10 @@ def card_title(page) -> str:
     return page.evaluate("() => document.getElementById('card-title').textContent")
 
 
+def about_loading(page) -> int:
+    return page.locator("#card .about .loading").count()
+
+
 def wait_loaded(page):
     page.wait_for_function("() => !document.querySelector('#card .heard .loading')", timeout=10000)
 
@@ -560,16 +564,58 @@ def run_checks(pages: Pages, srv, base: str, shown) -> None:
 
     # AC17: pending causes exactly one follow-up
     page = pages.open("/", 1280, 900)
-    sci = layout_of(page)["targets"][0]["scientific_name"]
+    sci = ALL_FACTS[0]     # has a blurb, so #6 below can check it is kept
     real = get_json(base + "/api/species/" + sci.replace(" ", "%20"))
     real["pending"] = ["wikipedia"]
     body = json.dumps(real)
+    want_blurb = 1
+    assert real["facts"].get("wikipedia"), f"{sci} needs a Wikipedia blurb for the #6 checks"
     page.route(lambda u: "/api/species/" in u, lambda route: route.fulfill(status=200, body=body,
                                                                          content_type="application/json"))
     page.locator(f'#targets .t[data-sci="{sci}"]').click()
+    wait_loaded(page)
+    before = about_loading(page)
     page.wait_for_timeout(9500)
     n = sum(1 for u in page.reqs if "/api/species/" in u)
     check("AC17", n == 2, f"requests to /api/species in 9.5 s: {n}")
+    # #6: both responses pending; the follow-up is the last pass, so no loading line after it
+    after, blurb = about_loading(page), page.locator("#card .about .blurb").count()
+    check("#6", before == 1 and after == 0 and blurb == want_blurb,
+          f"both pending: loading line before={before} after={after}, blurb kept={blurb}")
+    page.context.close()
+
+    # #6: pending, then the follow-up fails: keep what arrived, drop the loading line
+    page = pages.open("/", 1280, 900)
+    calls = []
+
+    def first_ok_then_abort(route):
+        calls.append(1)
+        if len(calls) == 1:
+            route.fulfill(status=200, body=body, content_type="application/json")
+        else:
+            route.abort()
+    page.route(lambda u: "/api/species/" in u, first_ok_then_abort)
+    page.locator(f'#targets .t[data-sci="{sci}"]').click()
+    wait_loaded(page)
+    page.wait_for_timeout(5500)
+    after, blurb = about_loading(page), page.locator("#card .about .blurb").count()
+    heard = page.evaluate("() => document.querySelector('#card .heard').textContent")
+    check("#6", len(calls) == 2 and after == 0 and blurb == want_blurb and "load details" not in heard,
+          f"follow-up aborted: requests={len(calls)} loading line={after} blurb kept={blurb}")
+    page.context.close()
+
+    # #6: pending with nothing yet, twice: the follow-up says there are no notes
+    page = pages.open("/", 1280, 900)
+    empty = dict(real, facts={}, links={}, pending=["wikidata", "wikipedia"])
+    ebody = json.dumps(empty)
+    page.route(lambda u: "/api/species/" in u, lambda route: route.fulfill(status=200, body=ebody,
+                                                                          content_type="application/json"))
+    page.locator(f'#targets .t[data-sci="{sci}"]').click()
+    wait_loaded(page)
+    page.wait_for_timeout(5500)
+    text = page.evaluate("() => document.querySelector('#card .about').textContent")
+    check("#6", about_loading(page) == 0 and "No notes for this bird yet." in text,
+          f"nothing arrived: loading line={about_loading(page)} quiet line shown={'No notes' in text}")
     page.context.close()
 
     # deeplink

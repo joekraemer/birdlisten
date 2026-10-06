@@ -369,7 +369,9 @@ Wikidata (taxon name P225 to the English Wikipedia article, sizes, eBird taxon
 ID), the Wikipedia summary of that article, and with `EBIRD_API_KEY` the eBird
 taxonomy (species code) and recent reports within 25 km of
 `LATITUDE`/`LONGITUDE`. A card waits at most 2.5 s for them; anything still
-running shows on a follow-up a few seconds later. Results are cached per
+running shows on one follow-up request 4 s later. That follow-up is the last:
+whatever has arrived by then is shown and the "Gathering notes…" line goes
+away, and anything slower appears next time the card opens. Results are cached per
 source and species under `FACTS_DIR` (`/data/facts`): 30 days, a miss 24 h,
 an error 1 h, nearby reports 6 h. Without a key no eBird request is made and
 the eBird link comes from Wikidata. Times and hours are local to `TZ`

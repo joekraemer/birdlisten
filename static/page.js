@@ -97,6 +97,7 @@
   let reqId = 0;
   let openSci = null;
   let followTimer = null;
+  let lastData = null;                      // the newest /api/species response for the open card
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -200,7 +201,9 @@
     return p;
   }
 
-  function fillAbout(data) {
+  // final: the last pass for this card (the follow-up). Nothing else is
+  // fetched after it, so it must not promise more notes (#6).
+  function fillAbout(data, final) {
     if (!data.binomial) { aboutSec.hidden = true; return; }
     aboutSec.hidden = false;
     const keepScroll = bodyEl.scrollTop;
@@ -258,7 +261,7 @@
       if (links.firstChild) links.appendChild(document.createTextNode(' \u00b7 '));
       links.appendChild(a);
     });
-    if (data.pending && data.pending.length) {
+    if (!final && data.pending && data.pending.length) {
       aboutEl.appendChild(el('p', 'loading', any ? 'Gathering more notes\u2026' : 'Gathering notes\u2026'));
     } else if (!any) {
       aboutEl.appendChild(el('p', 'quiet', 'No notes for this bird yet.'));
@@ -286,15 +289,18 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
       data = await r.json();
     } catch (e) {
-      if (my === reqId && !aboutOnly) failed();
+      if (my !== reqId) return;
+      if (!aboutOnly) failed();
+      else if (lastData) fillAbout(lastData, true);   // follow-up failed: keep what we had, no spinner
       return;
     }
     if (my !== reqId) return;               // the card was closed or replaced
-    if (aboutOnly) { fillAbout(data); return; }
+    lastData = data;
+    if (aboutOnly) { fillAbout(data, true); return; }
     titleEl.textContent = data.common_name;
     setPlate(data.plate_url);
     fillHeard(data);
-    fillAbout(data);
+    fillAbout(data, false);
     if (data.pending && data.pending.length) {
       followTimer = setTimeout(function () { load(sci, my, true); }, 4000);
     }
@@ -303,6 +309,7 @@
   function openCard(sci, target) {
     reqId += 1;
     clearTimeout(followTimer);
+    lastData = null;
     openSci = sci;
     titleEl.textContent = target ? target.common_name : sci;
     sciEl.textContent = sci;
