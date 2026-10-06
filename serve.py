@@ -402,7 +402,7 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
     `refresh_ms` are validated ints and the token is hex, so only the JSON
     block needs escaping. `audubon` names the second artwork source."""
     credit = ("Plates from Fugleramme (CC BY-SA 4.0) and Audubon's <i>Birds of America</i>"
-              if audubon else "Plates from Fugleramme, CC BY-SA 4.0") + " · notes from Wikipedia, Wikidata and eBird"
+              if audubon else "Plates from Fugleramme, CC BY-SA 4.0") + " · notes from Wikipedia, Wikidata, eBird and AVONET"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -437,7 +437,8 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
 """
 
 
-def attribution_html(art: frame.Artwork, facts_dir: Path | None = None) -> str:
+def attribution_html(art: frame.Artwork, facts_dir: Path | None = None,
+                     sizes: facts.SizeTable | None = None) -> str:
     """Always 200: the static credit does not depend on the fetched file."""
     art.ensure_meta()
     text = art.attribution_text()
@@ -448,7 +449,7 @@ def attribution_html(art: frame.Artwork, facts_dir: Path | None = None) -> str:
         tail = "Full per-plate sources are in the project's ATTRIBUTION.md, reproduced below."
         body = f"<pre>{html.escape(text)}</pre>"
     audubon = audubon_html(art.audubon) if art.audubon is not None else ""
-    notes = notes_html(facts_dir)
+    notes = notes_html(facts_dir) + (sizes_html(sizes) if sizes is not None else "")
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>artwork attribution</title>
@@ -513,6 +514,19 @@ def notes_html(facts_dir: Path | None) -> str:
 <h2>Libre Baskerville</h2>
 <p>Type is Libre Baskerville by Impallari Type, under the SIL Open Font License 1.1
 (<a href="/fonts/OFL.txt">licence text</a>). Source: <a href="{font}">{font}</a>.</p>
+"""
+
+
+def sizes_html(t: facts.SizeTable) -> str:
+    """The size table's credit on /attribution: one source for every row."""
+    esc = lambda v: html.escape(str(v), quote=True)  # noqa: E731
+    cite = f" {esc(t.citation)}" if t.citation else ""
+    return f"""<h2>Body mass</h2>
+<p>When Wikidata has no adult mass for a species, the card shows the species average from
+<a href="{esc(t.url)}">{esc(t.name)}</a>.{cite} Licensed
+<a href="{esc(t.license_url)}">{esc(t.license)}</a>; {len(t.masses)} species, measured values only
+(no genus averages or modelled masses). Card sizes otherwise come from
+<a href="https://www.wikidata.org/">Wikidata</a> (CC0).</p>
 """
 
 
@@ -610,7 +624,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps(recent_json(cfg, hours, now), ensure_ascii=False).encode()
                 self._send(200, "application/json; charset=utf-8", body)
             elif path == "/attribution":
-                page = attribution_html(cfg.art, cfg.facts.dir)
+                page = attribution_html(cfg.art, cfg.facts.dir, cfg.facts.sizes)
                 self._send(200, "text/html; charset=utf-8", page.encode())
             elif path.startswith(SPECIES_PREFIX):
                 name = parse_species_segment(path)

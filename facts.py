@@ -9,6 +9,8 @@ fetching. frame.py never imports it, so a collage render cannot reach it.
 Sources:
   Wikidata  taxon name (P225) -> enwiki article title, sizes (P2067 mass,
             P2043 length, P2050 wingspan), eBird taxon ID (P3444). CC0.
+  sizes.json  a mass per species from AVONET (CC BY 4.0), shipped with the
+            image and used when Wikidata has no mass; tools/build_sizes.py.
   Wikipedia REST summary of that article. CC BY-SA 4.0, credited per article.
   eBird     taxonomy (scientific/common name -> species code) and recent
             nearby observations, only when EBIRD_API_KEY is set. The key is
@@ -27,7 +29,9 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 from urllib.parse import quote, urlencode, urlparse
 
 import frame
@@ -57,6 +61,9 @@ EBIRD_NEARBY = "https://api.ebird.org/v2/data/obs/geo/recent/"
 EBIRD_SPECIES = "https://ebird.org/species/"
 AAB_GUIDE = "https://www.allaboutbirds.org/guide/"
 CC_BY_SA = "https://creativecommons.org/licenses/by-sa/4.0/"
+CC0 = "https://creativecommons.org/publicdomain/zero/1.0/"
+SIZES_MAP = Path(__file__).resolve().parent / "sizes.json"
+TABLE_MASS_LO, TABLE_MASS_HI = 1.0, 200000.0   # g
 
 BINOMIAL_RE = re.compile(r"[A-Z][a-z]+ [a-z]+(-[a-z]+)?( [a-z]+(-[a-z]+)?)?")
 CODE_RE = re.compile(r"[a-z0-9]{3,12}")
@@ -103,12 +110,57 @@ class Secret:
 
 
 @dataclass(frozen=True)
+class SizeTable:
+    """sizes.json: species -> mass in grams, plus the one source they all
+    come from. Built offline by tools/build_sizes.py."""
+    masses: Mapping[str, float] = field(repr=False)
+    name: str
+    url: str
+    license: str
+    license_url: str
+    citation: str = ""
+
+    @classmethod
+    def load(cls, path: Path | None = None) -> SizeTable | None:
+        """None (and an ERROR) when the table is missing or malformed: cards
+        then show Wikidata sizes only. Invalid rows are skipped."""
+        path = SIZES_MAP if path is None else Path(path)
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            src, species = doc["source"], doc["species"]
+            meta = {k: src[k] for k in ("name", "url", "license", "license_url")}
+            if not all(isinstance(v, str) and v for v in meta.values()) or not isinstance(species, dict):
+                raise ValueError("bad source block")
+            if not (meta["url"].startswith("https://") and meta["license_url"].startswith("https://")):
+                raise ValueError("source links must be https")
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            log.error("size table %s unusable: %s; Wikidata sizes only", path, exc)
+            return None
+        masses = {}
+        for sci, row in species.items():
+            m = row.get("mass_g") if isinstance(row, dict) else None
+            if (isinstance(sci, str) and BINOMIAL_RE.fullmatch(sci) and isinstance(m, (int, float))
+                    and not isinstance(m, bool) and TABLE_MASS_LO <= m <= TABLE_MASS_HI):
+                masses[sci] = float(m)
+        return cls(MappingProxyType(masses), citation=str(src.get("citation") or ""), **meta)
+
+    def credit(self) -> dict:
+        return {"name": self.name, "url": self.url, "license": self.license, "license_url": self.license_url}
+
+
+@lru_cache(maxsize=1)
+def default_sizes() -> SizeTable | None:
+    return SizeTable.load()
+
+
+@dataclass(frozen=True)
 class FactsConfig:
     dir: Path
     fetch: bool = True                                   # FACTS_FETCH=0: cache only
     ebird_key: Secret | None = field(default=None, repr=False)
     lat: float | None = None
     lon: float | None = None
+    sizes: SizeTable | None = field(default_factory=default_sizes, repr=False, compare=False)
 
     @property
     def nearby_on(self) -> bool:
@@ -633,11 +685,32 @@ class Facts:
                     continue
                 if self._running(jobs[src], s) is not None and not _usable(recs[src]):
                     pending.append(src)
-        return FactsResult(build_facts(recs, cfg, now, tz), pending)
+        return FactsResult(build_facts(recs, cfg, now, tz, sci), pending)
+
+
+def build_size(sci: str | None, wdd: dict | None, table: SizeTable | None) -> dict | None:
+    """Wikidata's adult sizes, field by field; the table fills a missing mass.
+    `sources` credits each source with the fields it supplied."""
+    size: dict = {"mass": None, "length": None, "wingspan": None}
+    sources = []
+    if wdd and QID_RE.fullmatch(str(wdd.get("qid", ""))):
+        sizes = wdd.get("sizes") or {}
+        size.update(mass=format_mass(sizes.get("mass")), length=format_length(sizes.get("length")),
+                    wingspan=format_length(sizes.get("wingspan")))
+        got = [k for k, v in size.items() if v]
+        if got:
+            sources.append({"name": "Wikidata", "url": WIKIDATA_PAGE + wdd["qid"], "license": "CC0",
+                            "license_url": CC0, "fields": got})
+    if size["mass"] is None and table is not None and sci:
+        m = table.masses.get(sci)
+        if m is not None:
+            size["mass"] = format_mass([m, m])
+            sources.append({**table.credit(), "fields": ["mass"]})
+    return {**size, "sources": sources} if sources else None
 
 
 def build_facts(recs: Mapping[str, dict | None], cfg: FactsConfig, now: dt.datetime,
-                tz: dt.tzinfo) -> dict:
+                tz: dt.tzinfo, sci: str | None = None) -> dict:
     """The response's `facts` object, field by field from cached data only."""
     out: dict = {}
     wp, wd, eb, nb = (recs.get("wikipedia"), recs.get("wikidata"), recs.get("ebird"), recs.get("nearby"))
@@ -646,12 +719,9 @@ def build_facts(recs: Mapping[str, dict | None], cfg: FactsConfig, now: dt.datet
         out["wikipedia"] = {"title": d["title"], "extract": d["extract"], "trimmed": bool(d["trimmed"]),
                             "url": d["url"], "license": "CC BY-SA 4.0", "license_url": CC_BY_SA}
     wdd = wd["data"] if _usable(wd) else None
-    if wdd:
-        sizes = wdd.get("sizes") or {}
-        size = {"mass": format_mass(sizes.get("mass")), "length": format_length(sizes.get("length")),
-                "wingspan": format_length(sizes.get("wingspan"))}
-        if any(size.values()) and QID_RE.fullmatch(str(wdd.get("qid", ""))):
-            out["size"] = {**size, "url": WIKIDATA_PAGE + wdd["qid"], "license": "CC0"}
+    size = build_size(sci, wdd, cfg.sizes)
+    if size:
+        out["size"] = size
     code = None
     if cfg.ebird_key is not None and _usable(eb):
         code = eb["data"].get("code")

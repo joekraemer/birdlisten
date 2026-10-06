@@ -225,7 +225,14 @@
         dl.appendChild(el('dd', null, row[1]));
       });
       aboutEl.appendChild(dl);
-      aboutEl.appendChild(credit('Size: ', [[sz.url, 'Wikidata'], ' (CC0)']));
+      // One credit per source; with two, say which fields each supplied.
+      const parts = [];
+      (sz.sources || []).forEach(function (s, i) {
+        if (i) parts.push('; ');
+        parts.push([s.url, s.name], ' (', [s.license_url, s.license], ')');
+        if (sz.sources.length > 1 && s.fields) parts.push(' for ' + s.fields.join(', '));
+      });
+      aboutEl.appendChild(credit('Size: ', parts));
       any = true;
     }
     const nb = f.nearby;

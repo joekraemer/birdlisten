@@ -31,13 +31,14 @@ RUN /app/.venv/bin/python -c "import PIL.features as f; assert f.check('webp') a
 # The pop-up's local times need the zone database from tzdata above.
 RUN /app/.venv/bin/python -c "import zoneinfo; zoneinfo.ZoneInfo('America/Los_Angeles')"
 # Then the code, including fonts/ (the collage's serif, also served to the
-# pop-up), audubon.json (the Audubon plate map), facts.py, taxa.py (the
+# pop-up), audubon.json (the Audubon plate map), facts.py, sizes.json (the
+# fallback mass table), taxa.py (the
 # non-bird label list) and static/ (the
 # page's script and style); .dockerignore keeps them in. Fail here rather than
 # ship an image that falls back to the sans, placeholder cards or a dead page.
 COPY . .
 RUN test -f fonts/LibreBaskerville.ttf && test -f fonts/LibreBaskerville-Italic.ttf && test -f fonts/OFL.txt \
- && test -f audubon.json && test -f static/page.js && test -f static/page.css && test -f facts.py && test -f taxa.py
+ && test -f audubon.json && test -f static/page.js && test -f static/page.css && test -f facts.py && test -f taxa.py && test -f sizes.json
 # /data holds the SQLite db, optional clips, and the artwork cache; compose
 # mounts a volume there.
 RUN useradd --create-home --uid 10001 app && mkdir /data && chown -R app:app /app /data

@@ -357,6 +357,18 @@ def test_attribution_lists_both_sources(aud_server):
     assert text.index("Plate 362") < text.index("Plate 369")
 
 
+def test_attribution_credits_size_table(server):
+    """#5: the size table's source and licence are on /attribution."""
+    _, base = server
+    text = get(base + "/attribution")[2].decode()
+    assert "<h2>Body mass</h2>" in text
+    assert '<a href="https://doi.org/10.1111/ele.13898">AVONET</a>' in text
+    assert '<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>' in text
+    assert "Tobias, J. A. et al. (2022)" in text
+    t = serve.attribution_html(frame.Artwork(Path("/nonexistent")), None, None)
+    assert "Body mass" not in t                       # no table, no section
+
+
 def test_attribution_without_audubon_has_no_section(server):
     _, base = server
     _, _, body = get(base + "/attribution")
@@ -367,7 +379,7 @@ def test_footer_names_audubon_when_on(server, aud_server):
     _, off = server
     _, on = aud_server
     off_text, on_text = get(off + "/")[2].decode(), get(on + "/")[2].decode()
-    notes = " · notes from Wikipedia, Wikidata and eBird</a>"
+    notes = " · notes from Wikipedia, Wikidata, eBird and AVONET</a>"
     assert '<a href="/attribution">Plates from Fugleramme, CC BY-SA 4.0' + notes in off_text
     assert ('<a href="/attribution">Plates from Fugleramme (CC BY-SA 4.0) and Audubon\'s '
             '<i>Birds of America</i>' + notes) in on_text
@@ -745,7 +757,9 @@ def test_species_external_failure_is_not_5xx(server, tmp_path: Path, monkeypatch
     seed(tmp_path)
     monkeypatch.setattr(facts, "http_get", FactsUpstream({"https://": urllib.error.URLError("down")}))
     data = json.loads(get(base + "/api/species/Turdus%20migratorius")[2])
-    assert data["facts"] == {} and data["heard"]["count"] == 2
+    # Upstreams down: only the shipped size table (#5) still answers.
+    assert set(data["facts"]) == {"size"} and data["heard"]["count"] == 2
+    assert [src["name"] for src in data["facts"]["size"]["sources"]] == ["AVONET"]
 
 
 # ----------------------------------------------------------------- /plate and /fonts

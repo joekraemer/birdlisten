@@ -374,8 +374,13 @@ source and species under `FACTS_DIR` (`/data/facts`): 30 days, a miss 24 h,
 an error 1 h, nearby reports 6 h. Without a key no eBird request is made and
 the eBird link comes from Wikidata. Times and hours are local to `TZ`
 (default `America/Los_Angeles`; an unknown zone logs a warning and falls back,
-it never disables the server). Wikidata covers sizes for only about 60% of
-species, so many cards have no size line.
+it never disables the server). Wikidata has sizes for only about 60% of
+species and body length for almost none, so the card falls back to
+`sizes.json`, a mass per species from AVONET's eBird-taxonomy sheet. It holds
+6,044 of BirdNET's 6,421 birds; the rest only have estimated masses in AVONET
+(genus averages, modelled or inferred values), which are left out. Every
+species in `tools/facts_coverage.py`'s list gets a mass line.
+`tools/build_sizes.py` rebuilds the table offline.
 
 Type is Libre Baskerville (regular and italic) from `fonts/`, SIL Open Font
 License 1.1 (`fonts/OFL.txt`; source commit in `fonts/SOURCE.txt`). Without
@@ -407,7 +412,11 @@ Wikimedia's User-Agent policy asks; each species' thumbnail is fetched once and 
 Pop-up notes are excerpts from [Wikipedia](https://en.wikipedia.org/) articles,
 licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); each
 card links its article and `/attribution` lists every article quoted so far.
-Sizes are from [Wikidata](https://www.wikidata.org/) (CC0). Species links and
+Sizes are from [Wikidata](https://www.wikidata.org/) (CC0); when Wikidata has
+no adult mass, the species average from
+[AVONET](https://doi.org/10.1111/ele.13898) (Tobias et al. 2022,
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) fills it in, and
+the card and `/attribution` credit it. Species links and
 nearby reports are data from [eBird.org](https://ebird.org) (Cornell Lab of
 Ornithology), credited where shown as the eBird API terms ask. Wikimedia
 requests send the same User-Agent. The page's type, Libre Baskerville, is
@@ -490,7 +499,7 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_facts.py test_taxa.py   # arm64 macOS
+  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_facts.py test_taxa.py   # arm64 macOS
 ```
 
 The stream-capture tests (`test_stream.py`) drive the real supervisors,
@@ -569,6 +578,8 @@ Other ideas:
 | `frame.py` | collage: recent-species query, Fugleramme and Audubon plate caches, vignette processing, packer, Pillow renderer, render cache |
 | `audubon.json` | BirdNET scientific name → Havell plate on Commons (file, page, credit); generated, committed |
 | `tools/build_audubon_map.py` | offline builder of `audubon.json`; not in the image |
+| `sizes.json` | BirdNET scientific name → AVONET mean body mass (g) and its reference; generated, committed |
+| `tools/build_sizes.py` | offline builder of `sizes.json` from AVONET and BirdNET's label file; not in the image |
 | `serve.py` | the collage HTTP server; `start_from_env()` is what `loop.py` calls |
 | `facts.py` | pop-up facts: Wikidata, Wikipedia and eBird fetching, single flight, cache under `FACTS_DIR` |
 | `taxa.py` | `is_bird()`: BirdNET's non-bird labels and genera, kept off the page and ntfy |
@@ -579,5 +590,5 @@ Other ideas:
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test and the segment muxer self-test |
-| `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_facts.py`, `test_taxa.py` | see Tests |
+| `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |

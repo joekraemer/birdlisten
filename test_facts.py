@@ -125,6 +125,7 @@ def taxonomy_body(n=5200, extra=()):
 def make(tmp_path, monkeypatch, routes, **cfg) -> tuple[facts.Facts, Upstream]:
     up = Upstream(routes)
     monkeypatch.setattr(facts, "http_get", up)
+    cfg.setdefault("sizes", None)        # the shipped table is tested on its own below
     return facts.Facts(facts.FactsConfig(tmp_path / "facts", **cfg)), up
 
 
@@ -196,8 +197,9 @@ def test_wiki_job_resolves_bushtit(tmp_path, monkeypatch):
     assert w == {"title": "American bushtit", "extract": BUSHTIT_TEXT, "trimmed": False,
                  "url": "https://en.wikipedia.org/wiki/American_bushtit",
                  "license": "CC BY-SA 4.0", "license_url": facts.CC_BY_SA}
-    assert r.facts["size"] == {"mass": "0.2 oz (5.3 g)", "length": None, "wingspan": None,
-                               "url": "https://www.wikidata.org/wiki/Q2746307", "license": "CC0"}
+    assert r.facts["size"] == {"mass": "0.2 oz (5.3 g)", "length": None, "wingspan": None, "sources": [
+        {"name": "Wikidata", "url": "https://www.wikidata.org/wiki/Q2746307", "license": "CC0",
+         "license_url": facts.CC0, "fields": ["mass"]}]}
     assert r.facts["ebird"] == {"code": "bushti", "url": "https://ebird.org/species/bushti"}   # P3444, no key
     assert "nearby" not in r.facts
     for url, headers in up.calls:
@@ -609,3 +611,83 @@ def test_render_never_calls_facts(tmp_path, monkeypatch):
                 for a in getattr(n, "names", [])} | {getattr(n, "module", None) for n in ast.walk(tree)
                                                       if isinstance(n, ast.ImportFrom)}
     assert "facts" not in imported and "serve" not in imported
+
+
+# ----------------------------------------------------------------- #5 size table
+def _coverage_species() -> list[str]:
+    """The species tools/facts_coverage.py measures (the issue's acceptance list)."""
+    import re
+    src = (Path(facts.__file__).parent / "tools" / "facts_coverage.py").read_text()
+    return re.findall(r'\("([A-Z][a-z]+ [a-z]+)", "', src.split("NAME_RE")[0])
+
+
+def test_shipped_size_table_loads_and_is_credited():
+    t = facts.SizeTable.load()
+    assert t is not None and len(t.masses) > 6000
+    assert t.name == "AVONET" and t.license == "CC BY 4.0"
+    assert t.url == "https://doi.org/10.1111/ele.13898" and t.license_url.startswith("https://creativecommons.org/")
+    assert t.masses["Psaltriparus minimus"] == 5.3 and t.masses["Corvus brachyrhynchos"] == 448.8
+    # #5 acceptance: >= 90% of the coverage list get a mass line from the table alone.
+    sp = _coverage_species()
+    assert len(sp) >= 25
+    have = [s for s in sp if s in t.masses]
+    assert len(have) / len(sp) >= 0.9, sorted(set(sp) - set(have))
+
+
+def test_shipped_size_table_has_birds_only():
+    import taxa
+    t = facts.SizeTable.load()
+    assert all(taxa.is_bird(s) for s in t.masses)
+
+
+def _table(tmp_path, species, **source):
+    src = {"name": "T", "url": "https://example.org/t", "license": "CC BY 4.0",
+           "license_url": "https://creativecommons.org/licenses/by/4.0/", **source}
+    p = tmp_path / "sizes.json"
+    p.write_text(json.dumps({"source": src, "species": species}))
+    return p
+
+
+def test_size_table_rejects_bad_files_and_rows(tmp_path, caplog):
+    assert facts.SizeTable.load(tmp_path / "missing.json") is None
+    (tmp_path / "junk.json").write_text("not json")
+    assert facts.SizeTable.load(tmp_path / "junk.json") is None
+    assert facts.SizeTable.load(_table(tmp_path, {}, url="http://example.org/t")) is None
+    assert facts.SizeTable.load(_table(tmp_path, {}, license="")) is None
+    assert "Wikidata sizes only" in caplog.text
+    t = facts.SizeTable.load(_table(tmp_path, {
+        "Turdus migratorius": {"mass_g": 77.3}, "Bad name!": {"mass_g": 5}, "Genus zero": {"mass_g": 0},
+        "Genus huge": {"mass_g": 1e9}, "Genus text": {"mass_g": "5"}, "Genus bool": {"mass_g": True},
+        "Genus row": 5}))
+    assert dict(t.masses) == {"Turdus migratorius": 77.3}
+
+
+def test_build_size_prefers_wikidata_field_by_field(tmp_path):
+    t = facts.SizeTable.load(_table(tmp_path, {"Turdus migratorius": {"mass_g": 77.3}}))
+    wd = lambda **s: {"qid": "Q1", "sizes": {"mass": None, "length": None, "wingspan": None, **s}}  # noqa: E731
+    sci = "Turdus migratorius"
+    # Wikidata has a mass: the table is not used.
+    s = facts.build_size(sci, wd(mass=[80.0, 80.0]), t)
+    assert s["mass"] == "2.8 oz (80 g)" and [x["name"] for x in s["sources"]] == ["Wikidata"]
+    # Wikidata has only a wingspan: the table adds the mass and both are credited.
+    s = facts.build_size(sci, wd(wingspan=[31.0, 40.0]), t)
+    assert s["mass"] == "2.7 oz (77 g)" and s["wingspan"] == "12\u201316 in (31\u201340 cm)"
+    assert [(x["name"], x["fields"]) for x in s["sources"]] == [("Wikidata", ["wingspan"]), ("T", ["mass"])]
+    # No Wikidata record, or one with an invalid QID: the table alone.
+    for w in (None, {"qid": "bad", "sizes": {"mass": [1.0, 1.0]}}):
+        s = facts.build_size(sci, w, t)
+        assert s["mass"] == "2.7 oz (77 g)" and s["length"] is None
+        assert s["sources"] == [{"name": "T", "url": "https://example.org/t", "license": "CC BY 4.0",
+                                 "license_url": "https://creativecommons.org/licenses/by/4.0/", "fields": ["mass"]}]
+    # Neither: no size at all; no table configured: Wikidata only.
+    assert facts.build_size("Genus species", None, t) is None
+    assert facts.build_size(sci, None, None) is None
+
+
+def test_lookup_uses_table_offline(tmp_path, monkeypatch):
+    t = facts.SizeTable.load(_table(tmp_path, {"Psaltriparus minimus": {"mass_g": 5.3}}))
+    f, up = make(tmp_path, monkeypatch, {}, fetch=False, sizes=t)
+    r = f.lookup("Psaltriparus minimus", "Bushtit", NOW)
+    assert up.calls == [] and r.pending == []
+    assert r.facts == {"size": {"mass": "0.2 oz (5.3 g)", "length": None, "wingspan": None,
+                                "sources": [{**t.credit(), "fields": ["mass"]}]}}
