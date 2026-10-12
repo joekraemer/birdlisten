@@ -154,8 +154,10 @@ def test_api_recent_shape(server, tmp_path: Path):
     assert gen.tzinfo is not None and gen.microsecond == 0
     assert [s["scientific_name"] for s in data["species"]] == ["Ixoreus naevius", "Turdus migratorius"]
     robin = data["species"][1]
-    assert set(robin) == {"scientific_name", "common_name", "last_heard", "count", "cameras", "first_ever", "has_plate"}
+    assert set(robin) == {"scientific_name", "common_name", "last_heard", "count", "visits", "cameras",
+                          "first_ever", "has_plate"}
     assert robin["common_name"] == "American Robin" and robin["count"] == 2
+    assert robin["visits"] == 2                       # 30 min apart: two visits
     assert robin["cameras"] == ["front", "back"] and robin["first_ever"] is True
     assert robin["has_plate"] is False
     dt.datetime.fromisoformat(robin["last_heard"])
@@ -394,7 +396,7 @@ def test_api_recent_has_plate_with_only_a_vignette(aud_server, tmp_path: Path):
     data = json.loads(get(base + "/api/recent")[2])
     flags = {s["scientific_name"]: s["has_plate"] for s in data["species"]}
     assert flags == {"Ixoreus naevius": True, "Turdus migratorius": False}
-    assert set(data["species"][0]) == {"scientific_name", "common_name", "last_heard", "count",
+    assert set(data["species"][0]) == {"scientific_name", "common_name", "last_heard", "count", "visits",
                                        "cameras", "first_ever", "has_plate"}
 
 
@@ -645,7 +647,7 @@ def test_species_audubon_known_and_fallback_off(aud_server, tmp_path: Path, monk
     monkeypatch.setattr(facts, "http_get", FactsUpstream())
     # No db yet: an Audubon-table species is known (deep links), with count 0.
     data = json.loads(get(base + "/api/species/Aphelocoma%20californica")[2])
-    assert data["heard"] == {"count": 0, "by_hour": [0] * 24}
+    assert data["heard"] == {"count": 0, "visits": 0, "heard_s": 0, "by_hour": [0] * 24}
     assert data["common_name"] == "Jays <script>"                      # table title as last resort
     # AUDUBON_FALLBACK=0: art.audubon is None; unknown names are 404, db species 200.
     seed(tmp_path)
@@ -993,3 +995,88 @@ def test_typical_day_with_naive_first_row(tmp_path: Path):
                       ("2026-10-02T14:00:00+00:00", "back", "American Robin", "Turdus migratorius", 0.9)])
     heard, _ = serve.species_stats(_typ_cfg(tmp_path), "Turdus migratorius", 24, now)
     assert heard["typical_days"] == 13 and sum(heard["typical_by_hour"]) > 0
+
+
+# ----------------------------------------------------------------- #17 visits
+ROBIN = ("American Robin", "Turdus migratorius")
+
+
+def _chorus(start: dt.datetime, minutes: int, cams=("back", "front"), step_s: int = 30):
+    """One row per camera per clip, as the capture loop writes them."""
+    n = minutes * 60 // step_s
+    return [((start + dt.timedelta(seconds=i * step_s)).isoformat(timespec="seconds"), cam, *ROBIN, 0.9)
+            for i in range(n) for cam in cams]
+
+
+def test_species_stats_counts_visits(tmp_path: Path):
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)                     # 12:00 PDT
+    rows = _chorus(dt.datetime(2026, 10, 3, 14, 50, tzinfo=UTC), 15)        # 7:50-8:05 AM, two cameras
+    rows.append(("2026-10-03T16:30:00+00:00", "side", *ROBIN, 0.8))         # back at 9:30 AM
+    insert(tmp_path, rows)
+    heard, _ = serve.species_stats(_typ_cfg(tmp_path), "Turdus migratorius", 24, now)
+    assert heard["count"] == 61 and heard["visits"] == 2
+    assert heard["heard_s"] == 15 * 60 + 30                                # 15 min, plus the 30 s return
+    # The first visit touched 7 and 8 AM; each counts it once, not once per row.
+    assert heard["by_hour"][7] == 1 and heard["by_hour"][8] == 1 and heard["by_hour"][9] == 1
+    assert sum(heard["by_hour"]) == 3 and heard["busiest_hour"] == 7
+    assert heard["cameras"] == ["side", "front", "back"]                   # newest row first, as before
+
+
+def test_species_stats_visit_gap_setting(tmp_path: Path):
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)
+    insert(tmp_path, [("2026-10-03T15:00:00+00:00", "back", *ROBIN, 0.9),
+                      ("2026-10-03T15:15:00+00:00", "front", *ROBIN, 0.9)])  # 15 min apart
+    cfg = _typ_cfg(tmp_path)
+    assert serve.species_stats(cfg, "Turdus migratorius", 24, now)[0]["visits"] == 2
+    wide = serve.ServeConfig(**{**cfg.__dict__, "visit_gap": dt.timedelta(minutes=20)})
+    heard, _ = serve.species_stats(wide, "Turdus migratorius", 24, now)
+    assert heard["visits"] == 1 and heard["heard_s"] == 15 * 60 + 30 and heard["by_hour"][8] == 1
+
+
+def test_visit_over_fall_back_counts_both_one_ams(tmp_path: Path):
+    # Nov 1 2026: 08:30 UTC is 1:30 AM PDT, 09:00 UTC is 1:00 AM PST. One visit, rows every 5 min.
+    insert(tmp_path, _chorus(dt.datetime(2026, 11, 1, 8, 30, tzinfo=UTC), 60, cams=("a",), step_s=300))
+    heard, _ = serve.species_stats(_typ_cfg(tmp_path), "Turdus migratorius", 24,
+                                   dt.datetime(2026, 11, 1, 20, 0, tzinfo=UTC))
+    assert heard["visits"] == 1 and heard["by_hour"][1] == 2 and sum(heard["by_hour"]) == 2
+
+
+def test_visit_hours_steps_through_long_visits():
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("America/Los_Angeles")
+    a = dt.datetime(2026, 10, 3, 14, 59, tzinfo=UTC)                       # 7:59 AM PDT
+    hours = serve.visit_hours(a, a + dt.timedelta(hours=2, minutes=2), tz)  # to 10:01 AM
+    assert sorted(h for _, h, _ in hours) == [7, 8, 9, 10]
+    assert len(serve.visit_hours(a, a, tz)) == 1
+    over_days = serve.visit_hours(a, a + dt.timedelta(days=1), tz)          # 7 AM on two dates
+    assert sorted(h for _, h, _ in over_days).count(7) == 2
+
+
+def test_typical_day_counts_visits_not_rows(tmp_path: Path):
+    now = dt.datetime(2026, 10, 3, 19, 0, tzinfo=UTC)                     # 12:00 PDT
+    rows = []
+    for d in range(1, 41):                                                  # a 10-min chorus at 7:15 AM daily
+        rows += _chorus((now - dt.timedelta(days=d)).replace(hour=14, minute=15), 10)
+    insert(tmp_path, rows)
+    heard, _ = serve.species_stats(_typ_cfg(tmp_path), "Turdus migratorius", 24, now)
+    t = heard["typical_by_hour"]
+    assert t[7] == round(27 / 28, 2) and sum(1 for v in t if v) == 1       # one visit a day, not 40 rows
+
+
+def test_visit_settings_config_and_docs():
+    cfg = serve.load_serve_config({"SERVE_PORT": "8085"})
+    assert cfg.visit_gap == dt.timedelta(minutes=10) and cfg.clip == dt.timedelta(seconds=30)
+    cfg = serve.load_serve_config({"SERVE_PORT": "8085", "VISIT_GAP_MINUTES": " 20 ", "CLIP_SECONDS": "10"})
+    assert cfg.visit_gap == dt.timedelta(minutes=20) and cfg.clip == dt.timedelta(seconds=10)
+    for env in ({"VISIT_GAP_MINUTES": "0"}, {"VISIT_GAP_MINUTES": "241"}, {"VISIT_GAP_MINUTES": "x"},
+                {"CLIP_SECONDS": "2"}, {"CLIP_SECONDS": "x"}):
+        with pytest.raises(bl.ConfigError):
+            serve.load_serve_config({"SERVE_PORT": "8085", **env})
+    root = Path(serve.__file__).parent
+    assert "VISIT_GAP_MINUTES" in (root / ".env.example").read_text()
+    assert "`VISIT_GAP_MINUTES`" in (root / "README.md").read_text()
+
+
+def test_popup_shows_visits_and_minutes():
+    js = (Path(serve.__file__).parent / "static" / "page.js").read_text()
+    assert "visitsPhrase(h)" in js and "' detections'" not in js and "Most visits" in js

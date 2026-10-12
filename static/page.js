@@ -155,12 +155,12 @@
       : h12(h) + ' ' + ampm(h) + '\u2013' + h12(n) + ' ' + ampm(n);
   }
 
-  // Detections per local hour: 24 thin bars, field-guide style. With a
+  // Visits per local hour (#17; a visit counts in every hour it touched): 24 thin bars, field-guide style. With a
   // typical day (#13), its bars are drawn wide and light and the window's
   // narrow and dark on top. Each is scaled to its own peak, so the light bars
   // show the shape of a usual day and the dark ones when it was heard.
   function chart(byHour, busiest, hours, typical) {
-    let label = byHour.some(Boolean) ? 'Most detections ' + hourSpan(busiest) : 'Not heard in ' + windowPhrase(hours);
+    let label = byHour.some(Boolean) ? 'Most visits ' + hourSpan(busiest) : 'Not heard in ' + windowPhrase(hours);
     if (typical) label += '; usually busiest ' + hourSpan(typical.indexOf(Math.max.apply(null, typical)));
     const s = svg('svg', {viewBox: '0 0 240 64', class: 'chart', role: 'img', 'aria-label': label});
     const bars = function (vals, x, w, fill, cls) {
@@ -193,6 +193,16 @@
       && t.some(Boolean) ? t : null;
   }
 
+  // '4 visits, about 35 min'. One bird singing all morning is one visit, so
+  // the minutes keep how long it was around.
+  function visitsPhrase(h) {
+    const n = typeof h.visits === 'number' && h.visits > 0 ? h.visits : 1;
+    const s = typeof h.heard_s === 'number' ? h.heard_s : 0;
+    const m = Math.round(s / 60);
+    const span = s < 60 ? 'under a minute' : m < 120 ? 'about ' + m + ' min' : 'about ' + Math.round(m / 60) + ' h';
+    return n + (n === 1 ? ' visit, ' : ' visits, ') + span;
+  }
+
   function fillHeard(data) {
     clear(heardEl);
     const h = data.heard || {};
@@ -200,7 +210,7 @@
     const caption = typical
       ? 'Dark: ' + windowPhrase(data.hours) + '. Light: when it is usually heard, over the last ' +
         h.typical_days + ' days. Local time.'
-      : 'Detections by hour of day, local time';
+      : 'Visits by hour of day, local time';
     if (!h.count) {
       heardEl.appendChild(el('p', 'quiet', 'Not heard in ' + windowPhrase(data.hours)));
       if (typical) {
@@ -209,7 +219,7 @@
       }
       return;
     }
-    heardEl.appendChild(el('p', null, h.count + (h.count === 1 ? ' detection' : ' detections') +
+    heardEl.appendChild(el('p', null, visitsPhrase(h) +
       ' \u00b7 best ' + pct(h.max_conf) + ', typical ' + pct(h.median_conf)));
     heardEl.appendChild(el('p', null, h.count === 1 ? 'Heard ' + h.last_local
       : 'First ' + h.first_local + ' \u00b7 last ' + h.last_local));

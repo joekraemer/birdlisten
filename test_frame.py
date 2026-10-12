@@ -103,6 +103,44 @@ def test_recent_species_window_count_cameras_order(tmp_path: Path):
     assert out[1].count == 1 and out[1].cameras == ("back",)
 
 
+# ----------------------------------------------------------------- #17 visits
+def test_visits_gap_boundary_order_and_duplicates():
+    m = dt.timedelta(minutes=1)
+    clip = dt.timedelta(seconds=30)
+    times = [T0 + 20 * m, T0, T0 + 10 * m, T0, T0 + 31 * m]   # unsorted; T0 twice (two cameras)
+    # 0 -> 10 is exactly the gap: same visit. 10 -> 20 also. 20 -> 31 is 11 min: new visit.
+    assert frame.visits(times) == [(T0, T0 + 20 * m + clip), (T0 + 31 * m, T0 + 31 * m + clip)]
+    assert frame.visits(times, gap=5 * m) == [(T0, T0 + clip), (T0 + 10 * m, T0 + 10 * m + clip),
+                                              (T0 + 20 * m, T0 + 20 * m + clip), (T0 + 31 * m, T0 + 31 * m + clip)]
+    assert frame.visits(times, gap=15 * m, clip=3 * m) == [(T0, T0 + 34 * m)]
+    assert frame.visits([]) == []
+
+
+def test_heard_time_naive_is_utc():
+    assert frame.heard_time("2026-10-02T14:00:00") == dt.datetime(2026, 10, 2, 14, tzinfo=UTC)
+    assert frame.heard_time("2026-10-02T14:00:00+00:00").utcoffset() == dt.timedelta(0)
+
+
+def test_recent_species_counts_visits_across_cameras(tmp_path: Path):
+    now = dt.datetime(2026, 10, 2, 15, 0, tzinfo=UTC)
+    s30 = dt.timedelta(seconds=30)
+    rows = []
+    for i in range(30):                                  # a robin singing 15 min, heard on two cameras
+        t = now - dt.timedelta(hours=3) + i * s30
+        rows += [(t, "back", "American Robin", "Turdus migratorius"),
+                 (t, "front", "American Robin", "Turdus migratorius")]
+    rows.append((now - dt.timedelta(hours=1), "back", "American Robin", "Turdus migratorius"))  # back later
+    db = seed(tmp_path, rows)
+    conn = frame.open_ro(db)
+    try:
+        robin, = frame.recent_species(conn, now, 24)
+        wide, = frame.recent_species(conn, now, 24, gap=dt.timedelta(hours=2))
+    finally:
+        conn.close()
+    assert robin.count == 61 and robin.visits == 2 and robin.cameras == ("back", "front")
+    assert wide.visits == 1
+
+
 def test_recent_species_first_ever(tmp_path: Path):
     now = dt.datetime(2026, 10, 2, 15, 0, tzinfo=UTC)
     h = dt.timedelta(hours=1)
