@@ -362,18 +362,7 @@ confidence, first and last heard, cameras, and a small chart of visits per
 hour of day). Once there are 3
 days of history, wide light bars behind the chart show when the species is
 usually heard: its visits per local hour over the last 28 days (or since
-the first detection, if sooner), averaged per day.
-
-**Visits.** Every camera stores one row per species per 30 s clip, so a robin
-singing for 15 minutes near two cameras is about 60 rows. The pop-up and the
-`visits` field of `/api/recent` count visits instead: a run of one species'
-rows, on any camera, with no more than `VISIT_GAP_MINUTES` (default 10)
-between one clip and the next. A visit's length runs from its first clip to
-the end of its last. In the chart a visit counts once in every local hour it
-touched. The rows themselves are unchanged and `count` still counts them;
-visits are worked out when reading, so a new gap or `MIN_CONFIDENCE` applies to
-old rows straight away. Two birds of one species heard at the same time on
-different cameras are one visit, since audio cannot tell them apart. The window's own bars are
+the first detection, if sooner), averaged per day. The window's own bars are
 drawn narrow and dark on top. Each set is scaled to its own peak, so the
 light bars show the shape of a usual day, like Google Maps' "Popular times";
 a species not heard in the window still gets the light bars. Names that are not
@@ -381,6 +370,20 @@ a binomial skip About the bird. Esc, the close
 button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
 60 s refresh swaps the image and its tap targets together and never touches an
 open card. `/#species=<scientific name>` opens a card directly.
+
+**Visits.** Every camera stores one row per species per clip (`CLIP_SECONDS`,
+30 s by default), so a robin singing for 15 minutes near two cameras is about
+60 rows. The pop-up and the `visits` field of `/api/recent` count visits
+instead: a run of one species' rows, on any camera, with no more than
+`VISIT_GAP_MINUTES` (default 10) of silence between the end of one clip and
+the start of the next. A visit's length runs from its first clip to the end of
+its last; a visit that began before the window counts from the window's start.
+In the chart a visit counts once in every local hour it touched (on a
+fall-back night, in both 1 AMs). The rows themselves are unchanged and `count`
+still counts them; visits are worked out when reading, so a new gap or
+`MIN_CONFIDENCE` applies to old rows straight away. Two birds of one species
+heard at the same time on different cameras are one visit, since audio cannot
+tell them apart.
 
 Facts are fetched lazily the first time a card opens, never during a render:
 Wikidata (taxon name P225 to the English Wikipedia article, sizes, eBird taxon

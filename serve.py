@@ -142,7 +142,7 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
         hours = int(env.get("COLLAGE_HOURS", "24"))
         min_conf = float(env.get("MIN_CONFIDENCE", "0.5"))
         gap_min = int(env.get("VISIT_GAP_MINUTES", "").strip() or "10")
-        clip_s = int(env.get("CLIP_SECONDS", "").strip() or "30")
+        clip_s = int(env.get("CLIP_SECONDS", "30"))    # parsed as the capture loop does
     except ValueError as exc:
         raise ConfigError(f"bad numeric setting: {exc}") from exc
     if not 1 <= port <= 65535:

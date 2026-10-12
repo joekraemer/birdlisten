@@ -108,12 +108,25 @@ def test_visits_gap_boundary_order_and_duplicates():
     m = dt.timedelta(minutes=1)
     clip = dt.timedelta(seconds=30)
     times = [T0 + 20 * m, T0, T0 + 10 * m, T0, T0 + 31 * m]   # unsorted; T0 twice (two cameras)
-    # 0 -> 10 is exactly the gap: same visit. 10 -> 20 also. 20 -> 31 is 11 min: new visit.
+    # The gap is silence after a clip ends: 0 -> 10 is 9.5 min, 10 -> 20 too: one visit.
+    # 20 -> 31 is 10.5 min: a new visit.
     assert frame.visits(times) == [(T0, T0 + 20 * m + clip), (T0 + 31 * m, T0 + 31 * m + clip)]
+    edge = [T0, T0 + 10 * m + clip, T0 + 20 * m + 2 * clip + dt.timedelta(seconds=1)]
+    assert len(frame.visits(edge)) == 2      # exactly 10 min of silence joins, one second more splits
     assert frame.visits(times, gap=5 * m) == [(T0, T0 + clip), (T0 + 10 * m, T0 + 10 * m + clip),
                                               (T0 + 20 * m, T0 + 20 * m + clip), (T0 + 31 * m, T0 + 31 * m + clip)]
     assert frame.visits(times, gap=15 * m, clip=3 * m) == [(T0, T0 + 34 * m)]
     assert frame.visits([]) == []
+
+
+def test_visits_clip_longer_than_gap():
+    # CLIP_SECONDS=120, VISIT_GAP_MINUTES=1: ten back-to-back clips are one visit, not ten.
+    m = dt.timedelta(minutes=1)
+    clip = 2 * m
+    times = [T0 + i * clip for i in range(10)]
+    assert frame.visits(times, gap=m, clip=clip) == [(T0, T0 + 20 * m)]
+    later = times + [T0 + 22 * m]            # 2 min of silence after the last clip
+    assert len(frame.visits(later, gap=m, clip=clip)) == 2
 
 
 def test_heard_time_naive_is_utc():

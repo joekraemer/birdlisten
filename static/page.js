@@ -196,10 +196,14 @@
   // '4 visits, about 35 min'. One bird singing all morning is one visit, so
   // the minutes keep how long it was around.
   function visitsPhrase(h) {
-    const n = typeof h.visits === 'number' && h.visits > 0 ? h.visits : 1;
+    if (typeof h.visits !== 'number' || h.visits < 1) {
+      return h.count + (h.count === 1 ? ' detection' : ' detections');   // a server without visits
+    }
+    const n = h.visits;
     const s = typeof h.heard_s === 'number' ? h.heard_s : 0;
     const m = Math.round(s / 60);
-    const span = s < 60 ? 'under a minute' : m < 120 ? 'about ' + m + ' min' : 'about ' + Math.round(m / 60) + ' h';
+    const span = s < 60 ? 'under a minute' : m < 120 ? 'about ' + m + ' min'
+      : m < 2880 ? 'about ' + Math.round(m / 60) + ' h' : 'about ' + Math.round(m / 1440) + ' days';
     return n + (n === 1 ? ' visit, ' : ' visits, ') + span;
   }
 
@@ -221,7 +225,7 @@
     }
     heardEl.appendChild(el('p', null, visitsPhrase(h) +
       ' \u00b7 best ' + pct(h.max_conf) + ', typical ' + pct(h.median_conf)));
-    heardEl.appendChild(el('p', null, h.count === 1 ? 'Heard ' + h.last_local
+    heardEl.appendChild(el('p', null, h.first_heard === h.last_heard ? 'Heard ' + h.last_local
       : 'First ' + h.first_local + ' \u00b7 last ' + h.last_local));
     if (h.cameras && h.cameras.length) {
       heardEl.appendChild(el('p', null, 'Cameras: ' + h.cameras.join(', ')));
