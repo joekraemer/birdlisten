@@ -225,7 +225,7 @@
     }
     heardEl.appendChild(el('p', null, visitsPhrase(h) +
       ' \u00b7 best ' + pct(h.max_conf) + ', typical ' + pct(h.median_conf)));
-    heardEl.appendChild(el('p', null, h.first_heard === h.last_heard ? 'Heard ' + h.last_local
+    heardEl.appendChild(el('p', null, h.first_local === h.last_local ? 'Heard ' + h.last_local
       : 'First ' + h.first_local + ' \u00b7 last ' + h.last_local));
     if (h.cameras && h.cameras.length) {
       heardEl.appendChild(el('p', null, 'Cameras: ' + h.cameras.join(', ')));

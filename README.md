@@ -356,20 +356,19 @@ it).
 Tap a bird (or Tab to it and press Enter) and a field-guide card opens over
 the page: the plate, common and scientific name, then **About the bird** (a
 Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird reports, and
-links to eBird, All About Birds and Wikipedia) and **What we heard**
-(visits in the window and roughly how long it was heard, best and typical
-confidence, first and last heard, cameras, and a small chart of visits per
-hour of day). Once there are 3
-days of history, wide light bars behind the chart show when the species is
-usually heard: its visits per local hour over the last 28 days (or since
-the first detection, if sooner), averaged per day. The window's own bars are
-drawn narrow and dark on top. Each set is scaled to its own peak, so the
-light bars show the shape of a usual day, like Google Maps' "Popular times";
-a species not heard in the window still gets the light bars. Names that are not
-a binomial skip About the bird. Esc, the close
-button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
-60 s refresh swaps the image and its tap targets together and never touches an
-open card. `/#species=<scientific name>` opens a card directly.
+links to eBird, All About Birds and Wikipedia) and **What we heard** (visits
+in the window and roughly how long it was heard, best and typical confidence,
+first and last heard, cameras, and a small chart of visits per hour of day).
+Once there are 3 days of history, wide light bars behind the chart show when
+the species is usually heard: its visits per local hour over the last 28 days
+(or since the first detection, if sooner), averaged per day. The window's own
+bars are drawn narrow and dark on top. Each set is scaled to its own peak, so
+the light bars show the shape of a usual day, like Google Maps' "Popular
+times"; a species not heard in the window still gets the light bars. Names
+that are not a binomial skip About the bird. Esc, the close button or a tap
+outside closes it; under 600 px wide it is a bottom sheet. The 60 s refresh
+swaps the image and its tap targets together and never touches an open card.
+`/#species=<scientific name>` opens a card directly.
 
 **Visits.** Every camera stores one row per species per clip (`CLIP_SECONDS`,
 30 s by default), so a robin singing for 15 minutes near two cameras is about

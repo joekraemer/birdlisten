@@ -88,8 +88,9 @@ class Species:
 # Visits (#17). Every camera stores one row per species per clip, so a bird
 # singing for 15 minutes near two cameras is ~60 rows. A visit is a run of one
 # species' rows, on any camera, with no more than the gap of silence between
-# the end of one row's clip and the start of the next. The rows are kept as they are; visits are worked out
-# when reading, so a different gap or MIN_CONFIDENCE applies to old rows too.
+# the end of one row's clip and the start of the next. The rows are kept as
+# they are; visits are worked out when reading, so a different gap or
+# MIN_CONFIDENCE applies to old rows too.
 DEFAULT_VISIT_GAP = dt.timedelta(minutes=10)
 DEFAULT_CLIP = dt.timedelta(seconds=30)
 
@@ -105,10 +106,9 @@ def visits(times, gap: dt.timedelta = DEFAULT_VISIT_GAP,
     """Group clip start times (any order, duplicates fine) into visits.
 
     A clip starting more than `gap` after the previous clip ended starts a new
-    visit, so back-to-back clips are one visit even when a clip is longer
-    than the gap. Each
-    visit is (first clip start, last clip start + clip), so a visit heard in
-    one clip lasts one clip."""
+    visit, so back-to-back clips are one visit even when a clip is longer than
+    the gap. Each visit is (first clip start, last clip start + clip), so a
+    visit heard in one clip lasts one clip."""
     spans: list[list[dt.datetime]] = []
     for t in sorted(times):
         if spans and t - (spans[-1][1] + clip) <= gap:
