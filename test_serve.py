@@ -546,6 +546,11 @@ def test_facts_config_defaults_and_validation(tmp_path: Path, caplog):
                                    "LONGITUDE": "-122.3"})
     assert cfg.facts.nearby_on and (cfg.facts.lat, cfg.facts.lon) == (47.6, -122.3)
     assert "SENTINELKEY123" not in repr(cfg) and "SENTINELKEY123" not in str(cfg.facts)
+    # Cornell Lab eBird tokens are 36-char UUIDs with hyphens
+    cfg = serve.load_serve_config({**base, "EBIRD_API_KEY": "443c1234-abcd-5678-ef01-23456789c055",
+                                   "LATITUDE": "47.6", "LONGITUDE": "-122.3"})
+    assert cfg.facts.ebird_key is not None and cfg.facts.ebird_key.reveal() == "443c1234-abcd-5678-ef01-23456789c055"
+    assert cfg.facts.nearby_on
     for lat in ("x", "91", "nan"):
         c = serve.load_serve_config({**base, "EBIRD_API_KEY": "k", "LATITUDE": lat, "LONGITUDE": "1"})
         assert not c.facts.nearby_on

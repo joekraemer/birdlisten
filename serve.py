@@ -85,7 +85,7 @@ CREDIT_HTML = (
 
 # ----------------------------------------------------------------- config
 DEFAULT_TZ = "America/Los_Angeles"
-_KEY_RE = re.compile(r"[A-Za-z0-9]{1,64}")
+_KEY_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def load_tz(env=os.environ) -> dt.tzinfo:
@@ -162,7 +162,7 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
         if _KEY_RE.fullmatch(raw_key):
             key = facts.Secret(raw_key)
         else:
-            log.warning("EBIRD_API_KEY is malformed (expected 1-64 letters and digits); eBird features off")
+            log.warning("EBIRD_API_KEY is malformed (expected 1-64 letters, digits, underscores, or hyphens); eBird features off")
     del raw_key
     lat, lon = _coord(env, "LATITUDE", 90), _coord(env, "LONGITUDE", 180)
     if key is not None and (lat is None or lon is None):
