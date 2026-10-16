@@ -7,11 +7,14 @@ capture loop never fetches artwork or renders anything.
 Cut-outs are from the Fugleramme project (CC BY-SA 4.0), fetched lazily one
 species at a time from raw.githubusercontent.com at a pinned commit and cached
 under ARTWORK_DIR. A species Fugleramme does not have gets a `<stem>.missing`
-marker (retried daily). If audubon.json maps it to a Havell plate of Audubon's
+marker (retried daily). Next come the committed cutouts/: birds cut out of
+their Audubon plate by tools/build_cutouts.py, pasted like Fugleramme's. Else,
+if audubon.json maps the species to a Havell plate of Audubon's
 *Birds of America* (public domain), a 960 px Wikimedia Commons thumbnail is
 fetched, cropped to its picture and recoloured into a vignette, cached under
-ARTWORK_DIR/audubon/v1/, and drawn in the placeholder's frame. With neither,
-a plain paper card stands in. Priority: cut-out, vignette, card.
+ARTWORK_DIR/audubon/v1/, and drawn in the placeholder's frame. With none of
+these, a plain paper card stands in. Priority: cut-out, Audubon cut-out,
+vignette, card.
 """
 
 from __future__ import annotations
@@ -255,11 +258,14 @@ class Artwork:
     dir: Path
     ref: str = DEFAULT_ARTWORK_REF
     audubon: Audubon | None = None      # fallback source; None = Fugleramme only
+    cutouts: Cutouts | None = None      # committed Audubon cut-outs; beat the vignette
 
     def art_kind(self, scientific_name: str) -> str | None:
-        """'fugleramme', 'audubon' or None, from disk only. Fugleramme wins."""
+        """'fugleramme', 'cutout', 'audubon' or None, from disk only, in that order."""
         if self.has_plate(scientific_name):
             return "fugleramme"
+        if self.cutouts is not None and self.cutouts.has_art(scientific_name):
+            return "cutout"
         if self.audubon is not None and self.audubon.has_art(scientific_name):
             return "audubon"
         return None
@@ -465,6 +471,61 @@ class Audubon:
             if e["plate"] not in seen and (self.dir / VIGNETTE_VERSION / f"{s}.webp").exists():
                 seen[e["plate"]] = {k: e.get(k) for k in ("plate", "title", "page", "credit", "credit_url")}
         return [seen[n] for n in sorted(seen)]
+
+
+# ----------------------------------------------------------------- cut-outs
+CUTOUT_DIR = Path(__file__).resolve().parent / "cutouts"
+
+
+@dataclass(frozen=True)
+class Cutouts:
+    """Birds cut out of their Audubon plate (or, for a few species, another
+    public-domain picture), committed under cutouts/ by
+    tools/build_cutouts.py. `table` is cutouts/index.json's species map keyed
+    by stem(). Read from disk only; nothing is fetched."""
+    dir: Path
+    table: Mapping[str, dict] = field(repr=False, compare=False)
+
+    @classmethod
+    def load(cls, dir: Path | None = None) -> Cutouts | None:
+        """Read dir/index.json (default CUTOUT_DIR). None (and an ERROR) when
+        it is missing or unreadable; invalid entries are skipped."""
+        dir = CUTOUT_DIR if dir is None else Path(dir)
+        try:
+            doc = json.loads((dir / "index.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            log.error("cut-out index in %s unreadable: %s; Audubon cut-outs off", dir, exc)
+            return None
+        species = doc.get("species") if isinstance(doc, dict) else None
+        if not isinstance(species, dict):
+            log.error("cut-out index in %s has no species map; Audubon cut-outs off", dir)
+            return None
+        table: dict[str, dict] = {}
+        for key, e in species.items():
+            s = stem(key) if isinstance(key, str) else ""
+            if not (s and isinstance(e, dict) and e.get("file") == f"{s}.webp"
+                    and isinstance(e.get("page"), str) and e["page"].startswith(COMMONS_PREFIX)):
+                log.warning("cut-out index: skipping invalid entry %r", key)
+                continue
+            table[s] = e
+        return cls(dir, MappingProxyType(table))
+
+    def path(self, sci: str) -> Path | None:
+        s = stem(sci)
+        return self.dir / f"{s}.webp" if s and s in self.table else None
+
+    def has_art(self, sci: str) -> bool:
+        p = self.path(sci)
+        return p is not None and p.exists()
+
+    def sources(self) -> list[dict]:
+        """Distinct source pictures, Audubon plates by number first, for /attribution."""
+        seen: dict[str, dict] = {}
+        for e in self.table.values():
+            seen.setdefault(e["page"], {k: e.get(k) for k in ("source", "plate", "title", "page",
+                                                               "credit", "credit_url")})
+        return sorted(seen.values(), key=lambda p: (p["source"] != "audubon", p.get("plate") or 0,
+                                                     p.get("title") or ""))
 
 
 # ----------------------------------------------------------------- vignette
@@ -1091,7 +1152,8 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
             continue
         if time.monotonic() < deadline:
             p = art.ensure_plate(name, now)
-            if p is None and aud is not None and time.monotonic() < deadline:
+            cut = art.cutouts is not None and art.cutouts.has_art(name)
+            if p is None and not cut and aud is not None and time.monotonic() < deadline:
                 aud.ensure(name, now)
         if art.art_kind(name) is None and (
                 not art.marker_path(name).exists()
@@ -1117,20 +1179,23 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         kind = art.art_kind(name) if stem(name) else None
         drawn = False
         drew: str | None = None
-        if kind == "fugleramme":
-            path = art.plate_path(name)
+        if kind in ("fugleramme", "cutout"):
+            path = art.plate_path(name) if kind == "fugleramme" else art.cutouts.path(name)
             try:
                 with Image.open(path) as im:
                     im = ImageOps.contain(im.convert("RGBA"), (pw, ph))
                 img.paste(im, (px + (pw - im.width) // 2, py + ph - im.height), im)
                 drawn = True
-                drew = "fugleramme"
+                drew = kind
             except Exception as exc:  # noqa: BLE001 -- corrupt cached file
-                log.warning("bad cached plate %s: %s; deleting", path, exc)
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
+                if kind == "cutout":   # committed, not a cache: never delete it
+                    log.warning("bad cut-out %s: %s", path, exc)
+                else:
+                    log.warning("bad cached plate %s: %s; deleting", path, exc)
+                    try:
+                        path.unlink()
+                    except OSError:
+                        pass
         if not drawn and aud is not None and aud.has_art(name):
             drawn = _vignette_card(img, draw, aud.vignette_path(name), px, py, pw, ph)
             drew = "audubon" if drawn else None

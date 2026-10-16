@@ -12,7 +12,7 @@ Environment (read once by load_serve_config):
   COLLAGE_HOURS   window in hours (default 24, 1..720)
   ARTWORK_REF     fugleramme commit/branch for plate URLs (default: a pinned sha)
   ARTWORK_DIR     plate cache (default $DATA_DIR/artwork)
-  AUDUBON_FALLBACK  1 (default) = Audubon plates for species Fugleramme lacks, 0 = off
+  AUDUBON_FALLBACK  1 (default) = Audubon cut-outs and plates for species Fugleramme lacks, 0 = off
   DISPLAY_MIN_CONFIDENCE  rows below this are left off the page, the pop-up and
                   /api/recent (default MIN_CONFIDENCE, which defaults to 0.5)
   DISPLAY_SINGLE_CONFIDENCE  one row at or above this puts a species on the
@@ -184,8 +184,9 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
         lat = lon = None
     # A table that fails to load logs an ERROR and leaves the fallback off.
     audubon = frame.Audubon.load(art_dir / "audubon") if fallback == "1" else None
+    cutouts = frame.Cutouts.load() if fallback == "1" else None
     return ServeConfig(port=port, hours=hours, db_path=data_dir / "birdlisten.sqlite",
-                       art=frame.Artwork(art_dir, ref, audubon), min_confidence=thresholds.display,
+                       art=frame.Artwork(art_dir, ref, audubon, cutouts), min_confidence=thresholds.display,
                        single_confidence=thresholds.single,
                        facts=facts.FactsConfig(facts_dir, fetch == "1", key, lat, lon),
                        tz=load_tz(env), visit_gap=dt.timedelta(minutes=gap_min),
@@ -424,10 +425,15 @@ def species_json(srv: "CollageServer", name: str, hours: int, now: dt.datetime) 
 
 
 def plate_file(art: frame.Artwork, s: str) -> Path | None:
-    """The cut-out, else the vignette, on disk only; `s` is regex-checked."""
+    """The cut-out, else the Audubon cut-out, else the vignette, on disk only;
+    `s` is regex-checked."""
     p = art.dir / "birds" / f"{s}.webp"
     if p.exists():
         return p
+    if art.cutouts is not None and s in art.cutouts.table:
+        c = art.cutouts.dir / f"{s}.webp"
+        if c.exists():
+            return c
     if art.audubon is not None:
         v = art.audubon.dir / frame.VIGNETTE_VERSION / f"{s}.webp"
         if v.exists():
@@ -519,6 +525,8 @@ def attribution_html(art: frame.Artwork, facts_dir: Path | None = None,
         tail = "Full per-plate sources are in the project's ATTRIBUTION.md, reproduced below."
         body = f"<pre>{html.escape(text)}</pre>"
     audubon = audubon_html(art.audubon) if art.audubon is not None else ""
+    if art.cutouts is not None:
+        audubon += cutouts_html(art.cutouts)
     notes = notes_html(facts_dir) + (sizes_html(sizes) if sizes is not None else "")
     return f"""<!doctype html>
 <html lang="en">
@@ -621,6 +629,29 @@ Commons</a>, credited there to the University of Pittsburgh. Public domain. The 
 cropped and recoloured.</p>
 <ul>
 {plates}
+</ul>
+"""
+
+
+def cutouts_html(cut: frame.Cutouts) -> str:
+    """The cut-out section of /attribution: every source picture in cutouts/index.json."""
+    esc = lambda v: html.escape(str(v), quote=True)  # noqa: E731
+    items = []
+    for p in cut.sources():
+        label = f"Plate {p['plate']}, {p['title'] or ''}" if p["source"] == "audubon" else (p["title"] or p["page"])
+        item = f'<a href="{esc(p["page"])}">{esc(label)}</a>'
+        if p.get("credit"):
+            credit = esc(p["credit"])
+            if p.get("credit_url"):
+                credit = f'<a href="{esc(p["credit_url"])}">{credit}</a>'
+            item += f", {credit}"
+        items.append(f"<li>{item}</li>")
+    return f"""<h2>Cut-outs</h2>
+<p>Birds drawn without a frame for species Fugleramme lacks were cut out of these public-domain
+pictures, mostly Audubon's Havell plates, with Grounding DINO, BioCLIP and SAM 2.1
+(<code>tools/build_cutouts.py</code>).</p>
+<ul>
+{chr(10).join(items) or "<li>(none)</li>"}
 </ul>
 """
 

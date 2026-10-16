@@ -344,6 +344,9 @@ def test_audubon_fallback_config(tmp_path: Path):
     assert len(on.art.audubon.table) >= 400
     assert serve.load_serve_config({**base, "AUDUBON_FALLBACK": "1"}).art.audubon is not None
     assert serve.load_serve_config({**base, "AUDUBON_FALLBACK": "0"}).art.audubon is None
+    # The committed cut-outs ride on the same switch.
+    assert on.art.cutouts is not None and on.art.cutouts.dir == frame.CUTOUT_DIR
+    assert serve.load_serve_config({**base, "AUDUBON_FALLBACK": "0"}).art.cutouts is None
     for bad in ("2", "yes", ""):
         with pytest.raises(bl.ConfigError, match="AUDUBON_FALLBACK must be 0 or 1"):
             serve.load_serve_config({**base, "AUDUBON_FALLBACK": bad})
@@ -387,6 +390,37 @@ def test_attribution_credits_size_table(server):
     assert "Tobias, J. A. et al. (2022)" in text
     t = serve.attribution_html(frame.Artwork(Path("/nonexistent")), None, None)
     assert "Body mass" not in t                       # no table, no section
+
+
+def _cutouts(tmp_path: Path) -> frame.Cutouts:
+    d = tmp_path / "cutouts"
+    d.mkdir()
+    Image.new("RGBA", (30, 40), (20, 40, 160, 255)).save(d / "cyanocitta-stelleri.webp", "WEBP")
+    Image.new("RGBA", (30, 40), (20, 40, 160, 255)).save(d / "larus-delawarensis.webp", "WEBP")
+    jays = "https://commons.wikimedia.org/wiki/File:" + JAYS.replace(" ", "_")
+    (d / "index.json").write_text(json.dumps({"species": {
+        "Cyanocitta stelleri": {"file": "cyanocitta-stelleri.webp", "source": "audubon", "plate": 362,
+                                "title": "Jays <script>", "page": jays, "credit": "Pitt & Co",
+                                "credit_url": "http://pitt.example/362?a=1&b=2"},
+        "Larus delawarensis": {"file": "larus-delawarensis.webp", "source": "other",
+                               "title": "Zoology of New York", "page": "https://commons.wikimedia.org/wiki/File:DK.jpg",
+                               "credit": "De Kay"}}}))
+    return frame.Cutouts.load(d)
+
+
+def test_cutouts_attribution_and_plate(tmp_path: Path):
+    art = frame.Artwork(tmp_path / "artwork", audubon=_audubon(tmp_path), cutouts=_cutouts(tmp_path))
+    text = serve.attribution_html(art)
+    assert "<h2>Cut-outs</h2>" in text and "<script>" not in text
+    assert "Plate 362, Jays &lt;script&gt;</a>, <a href=\"http://pitt.example/362?a=1&amp;b=2\">Pitt &amp; Co</a>" in text
+    assert '<a href="https://commons.wikimedia.org/wiki/File:DK.jpg">Zoology of New York</a>, De Kay' in text
+    assert text.index("Plate 362") < text.index("Zoology of New York")      # Audubon first
+    # /plate/ serves a cut-out ahead of the vignette, and never a stray file.
+    _cache_vignette(art.audubon, "Cyanocitta stelleri")
+    assert serve.plate_file(art, "cyanocitta-stelleri") == tmp_path / "cutouts" / "cyanocitta-stelleri.webp"
+    Image.new("RGBA", (5, 5)).save(tmp_path / "cutouts" / "stray.webp", "WEBP")
+    assert serve.plate_file(art, "stray") is None
+    assert "Cut-outs" not in serve.attribution_html(frame.Artwork(tmp_path / "artwork"))
 
 
 def test_attribution_without_audubon_has_no_section(server):
