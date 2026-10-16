@@ -30,7 +30,11 @@ Environment (all read at startup):
   CLIP_SECONDS    seconds per analyzed segment (default 30, min 3). In stream
                   mode it sets the analysis window and heard_at granularity;
                   in round-robin mode it is the audio per camera per pass.
-  MIN_CONFIDENCE  0..1, drop detections below this (default 0.5)
+  MIN_CONFIDENCE  0..1, default for the three below (default 0.5)
+  RECORD_MIN_CONFIDENCE  0..1, drop detections below this (default MIN_CONFIDENCE)
+  DISPLAY_MIN_CONFIDENCE, DISPLAY_SINGLE_CONFIDENCE  the collage's thresholds
+                  (see serve.py); DISPLAY_SINGLE_CONFIDENCE is also the bar
+                  for an ntfy push (default DISPLAY_MIN_CONFIDENCE)
   DATA_DIR        where the SQLite db (and optional clips) live (default /data)
   KEEP_CLIPS      1 = keep the WAV of any clip that had a detection (default 0)
   NTFY_TOPIC      optional. If set, POST a line per new species to ntfy.sh
@@ -90,6 +94,49 @@ class ConfigError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class Thresholds:
+    """Confidence cut-offs, shared by the capture loop and the collage server.
+
+    record:  BirdNET drops anything below this; nothing under it is stored.
+    display: rows below this are invisible to the page, pop-up and /api/recent.
+    single:  one row at or above this puts a species on the board by itself;
+             between `display` and `single` it takes REPEAT_DETECTIONS rows.
+             Also the bar for a push notification."""
+    record: float
+    display: float
+    single: float
+
+
+REPEAT_DETECTIONS = 2
+
+
+def load_thresholds(env=os.environ) -> Thresholds:
+    """RECORD_ and DISPLAY_MIN_CONFIDENCE fall back to MIN_CONFIDENCE (default
+    0.5), DISPLAY_SINGLE_CONFIDENCE to DISPLAY_MIN_CONFIDENCE, so an env file
+    with only MIN_CONFIDENCE behaves exactly as before."""
+    def get(name: str, default: float) -> float:
+        raw = env.get(name, "").strip()
+        if not raw:
+            return default
+        try:
+            value = float(raw)
+        except ValueError:
+            raise ConfigError(f"{name} must be a number 0..1, got {raw!r}") from None
+        if not 0 <= value <= 1:          # also rejects nan
+            raise ConfigError(f"{name} must be 0..1, got {raw!r}")
+        return value
+
+    base = get("MIN_CONFIDENCE", 0.5)
+    display = get("DISPLAY_MIN_CONFIDENCE", base)
+    t = Thresholds(record=get("RECORD_MIN_CONFIDENCE", base), display=display,
+                   single=get("DISPLAY_SINGLE_CONFIDENCE", display))
+    if t.single < t.display:
+        raise ConfigError(f"DISPLAY_SINGLE_CONFIDENCE ({t.single}) must be at least "
+                          f"DISPLAY_MIN_CONFIDENCE ({t.display})")
+    return t
+
+
 # rtsp://user:PASSWORD@host -> rtsp://user:***@host, wherever it appears in a
 # string. ffmpeg echoes the URL in several forms (percent-encoded, with a
 # query string, mid-sentence), so scrub by pattern rather than exact match.
@@ -130,6 +177,7 @@ class Config:
     queue_size: int = 0
     summary_minutes: int = 5
     segment_dir: Path = Path("/tmp/birdlisten-segments")
+    notify_conf: float = 0.0          # Thresholds.single; min_conf is Thresholds.record
 
 
 def main_stream_urls(cfg: Config) -> list[str]:
@@ -201,12 +249,14 @@ def load_config(env=os.environ) -> Config:
         if seg == data or data in seg.parents:
             raise ConfigError("SEGMENT_DIR must not be DATA_DIR or inside it")
 
+        thresholds = load_thresholds(env)
         return Config(
             cameras=cameras,
             lat=lat,
             lon=lon,
             clip_seconds=clip_seconds,
-            min_conf=float(env.get("MIN_CONFIDENCE", "0.5")),
+            min_conf=thresholds.record,
+            notify_conf=thresholds.single,
             data_dir=data_dir,
             keep_clips=env.get("KEEP_CLIPS", "0") == "1",
             ntfy_topic=env.get("NTFY_TOPIC", "").strip() or None,
@@ -459,7 +509,10 @@ def store_clip(cfg: Config, conn: sqlite3.Connection, cam: Camera, when: dt.date
         if dry_run:
             continue
         record(conn, when, cam, d, clip_path)
-        if taxa.is_bird(d.scientific_name) and should_notify(conn, name, when, cfg.notify_cooldown):
+        # Stored at RECORD_MIN_CONFIDENCE, but only pushed at the board's
+        # single-detection bar; should_notify() is last because it writes.
+        if (taxa.is_bird(d.scientific_name) and d.confidence >= cfg.notify_conf
+                and should_notify(conn, name, when, cfg.notify_cooldown)):
             local = when.astimezone().strftime("%H:%M")
             t0 = time.perf_counter()
             notify(cfg, f"{name}", f"{local} on {cam.name} camera, {d.confidence:.0%} confidence")
@@ -571,7 +624,8 @@ def check(cfg: Config) -> int:
         problems += _check_segment_dir(cfg)
     for name in main_stream_urls(cfg):
         print(f"hint: {name} uses a main-stream URL; use the sub-stream")
-    print(f"location: {cfg.lat}, {cfg.lon}; clip {cfg.clip_seconds}s; min_conf {cfg.min_conf}")
+    print(f"location: {cfg.lat}, {cfg.lon}; clip {cfg.clip_seconds}s; "
+          f"record >= {cfg.min_conf}, notify >= {cfg.notify_conf}")
     print(f"notify: {'ntfy ' + cfg.ntfy_server if cfg.ntfy_topic else 'off'}")
     return 1 if problems else 0
 

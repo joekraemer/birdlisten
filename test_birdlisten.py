@@ -333,6 +333,45 @@ def test_store_clip_records_but_does_not_push_non_birds(tmp_path: Path, monkeypa
     assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
 
 
+def test_load_thresholds_fall_back_to_min_confidence():
+    assert bl.load_thresholds({}) == bl.Thresholds(0.5, 0.5, 0.5)
+    assert bl.load_thresholds({"MIN_CONFIDENCE": "0.9"}) == bl.Thresholds(0.9, 0.9, 0.9)
+    assert bl.load_thresholds({"MIN_CONFIDENCE": "0.9", "RECORD_MIN_CONFIDENCE": "0.7"}) == bl.Thresholds(0.7, 0.9, 0.9)
+    assert bl.load_thresholds({"RECORD_MIN_CONFIDENCE": "0.7", "DISPLAY_MIN_CONFIDENCE": "0.9",
+                               "DISPLAY_SINGLE_CONFIDENCE": "0.95"}) == bl.Thresholds(0.7, 0.9, 0.95)
+    assert bl.load_thresholds({"MIN_CONFIDENCE": "0.6", "DISPLAY_MIN_CONFIDENCE": " "}).display == 0.6   # blank = unset
+
+
+@pytest.mark.parametrize("env, var", [
+    ({"MIN_CONFIDENCE": "x"}, "MIN_CONFIDENCE"),
+    ({"RECORD_MIN_CONFIDENCE": "1.5"}, "RECORD_MIN_CONFIDENCE"),
+    ({"DISPLAY_MIN_CONFIDENCE": "nan"}, "DISPLAY_MIN_CONFIDENCE"),
+    ({"DISPLAY_SINGLE_CONFIDENCE": "-0.1"}, "DISPLAY_SINGLE_CONFIDENCE"),
+    ({"DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.8"}, "DISPLAY_SINGLE_CONFIDENCE"),
+])
+def test_load_thresholds_rejects(env, var):
+    with pytest.raises(bl.ConfigError, match=var):
+        bl.load_thresholds(env)
+
+
+def test_store_clip_records_low_rows_but_pushes_only_at_single_threshold(tmp_path: Path, monkeypatch):
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path),
+                          "NTFY_TOPIC": "t", "RECORD_MIN_CONFIDENCE": "0.7", "DISPLAY_MIN_CONFIDENCE": "0.9",
+                          "DISPLAY_SINGLE_CONFIDENCE": "0.95"})
+    assert (cfg.min_conf, cfg.notify_conf) == (0.7, 0.95)
+    conn = bl.open_db(cfg.data_dir)
+    sent = []
+    monkeypatch.setattr(bl, "notify", lambda cfg_, title, body: sent.append(title))
+    best = {"Bushtit": bl.Detection("Bushtit", "Psaltriparus minimus", 0.94, 0, 3),
+            "Varied Thrush": bl.Detection("Varied Thrush", "Ixoreus naevius", 0.95, 3, 6)}
+    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
+    bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=12.4, dry_run=False)
+    assert sent == ["Varied Thrush"]
+    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
+    # the 0.94 Bushtit never took the cooldown, so a later 0.95 one still pushes
+    assert conn.execute("SELECT common_name FROM notified").fetchall() == [("Varied Thrush",)]
+
+
 def test_store_clip_returns_notify_time(tmp_path: Path, monkeypatch):
     import time
 

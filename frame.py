@@ -92,15 +92,21 @@ def open_ro(db_path: Path) -> sqlite3.Connection:
 
 
 def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
-                   min_confidence: float = 0.0) -> list[Species]:
+                   min_confidence: float = 0.0, single_confidence: float | None = None,
+                   repeat: int = 2) -> list[Species]:
     """Species heard in the last `hours`, most recent first. `now` must be
     UTC-aware so `since` has the same fixed width and +00:00 suffix as every
     heard_at written by record(), which makes TEXT comparison chronological.
     Rows below `min_confidence` are ignored everywhere, first_ever included,
-    so raising MIN_CONFIDENCE hides older low-confidence rows immediately."""
+    so raising DISPLAY_MIN_CONFIDENCE hides older low-confidence rows immediately.
+
+    A species is kept when one of its rows reaches `single_confidence`, or it
+    has at least `repeat` rows at `min_confidence`. None (the default) means
+    `min_confidence`, so any one qualifying row is enough."""
+    single = min_confidence if single_confidence is None else single_confidence
     since = (now - dt.timedelta(hours=hours)).isoformat(timespec="seconds")
     rows = conn.execute(
-        "SELECT scientific_name, common_name, camera, heard_at FROM detections"
+        "SELECT scientific_name, common_name, camera, heard_at, confidence FROM detections"
         " WHERE heard_at >= ? AND confidence >= ? ORDER BY heard_at DESC, id DESC",
         (since, min_confidence),
     ).fetchall()
@@ -112,8 +118,9 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
     common: dict[str, str] = {}
     last: dict[str, str] = {}
     count: dict[str, int] = {}
+    best: dict[str, float] = {}
     cameras: dict[str, list[str]] = {}
-    for sci, com, cam, heard in rows:
+    for sci, com, cam, heard, conf in rows:
         if not taxa.is_bird(sci):
             continue                   # kept in SQLite, never drawn (Dog, Engine, frogs)
         if sci not in count:
@@ -121,14 +128,17 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
             common[sci] = com          # most recent row wins
             last[sci] = heard
             count[sci] = 0
+            best[sci] = conf
             cameras[sci] = []
         count[sci] += 1
+        best[sci] = max(best[sci], conf)
         if cam not in cameras[sci]:
             cameras[sci].append(cam)   # most recent camera first
     return [
         Species(sci, common[sci], last[sci], count[sci], tuple(cameras[sci]),
                 not conn.execute(heard_before, (sci, since, min_confidence)).fetchone()[0])
         for sci in order
+        if best[sci] >= single or count[sci] >= repeat
     ]
 
 
