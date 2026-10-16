@@ -406,9 +406,12 @@ Once the collage has loaded, and again after each refresh that changes it,
 the page fetches `/api/species` for every bird on it, one request at a time,
 and keeps the answers in memory. A tap then draws the card at once from that
 copy and still asks the server again, redrawing only if the answer changed. A
-bird that was not prefetched loads as before.
+bird that was not prefetched loads as before. A hidden tab skips the prefetch
+and catches up when it is shown again. Because each prefetch is an ordinary `/api/species` request, it
+also starts the facts lookups below as soon as a bird reaches the board.
 
-Facts are fetched lazily the first time a card opens, never during a render:
+Facts are fetched lazily the first time a bird is on the board (the page
+prefetches it) or its card opens, never during a render:
 Wikidata (taxon name P225 to the English Wikipedia article, sizes, eBird taxon
 ID), the Wikipedia summary of that article, and with `EBIRD_API_KEY` the eBird
 taxonomy (species code) and recent reports within 25 km of
