@@ -402,6 +402,12 @@ button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
 60 s refresh swaps the image and its tap targets together and never touches an
 open card. `/#species=<scientific name>` opens a card directly.
 
+Once the collage has loaded, and again after each refresh that changes it,
+the page fetches `/api/species` for every bird on it, one request at a time,
+and keeps the answers in memory. A tap then draws the card at once from that
+copy and still asks the server again, redrawing only if the answer changed. A
+bird that was not prefetched loads as before.
+
 Facts are fetched lazily the first time a card opens, never during a render:
 Wikidata (taxon name P225 to the English Wikipedia article, sizes, eBird taxon
 ID), the Wikipedia summary of that article, and with `EBIRD_API_KEY` the eBird

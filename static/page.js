@@ -72,6 +72,7 @@
       c.replaceWith(im); c = im;
       drawTargets(layout); shown = layout;
       if (hadFocus) c.focus();
+      prefetchAll(layout);
     } catch (e) {
       // any failure: keep the old image and old targets; the next tick retries
     } finally {
@@ -310,28 +311,81 @@
     aboutSec.hidden = true;
   }
 
-  async function load(sci, my, aboutOnly) {
-    let data;
+  async function load(sci, my, aboutOnly, seen) {
+    let data, text;
     try {
-      const r = await fetch('/api/species/' + encodeURIComponent(sci) + '?hours=' + shown.hours,
-                            {cache: 'no-store'});
+      const r = await fetch(speciesUrl(sci, shown.hours), {cache: 'no-store'});
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      data = await r.json();
+      text = await r.text();
+      data = JSON.parse(text);
     } catch (e) {
       if (my !== reqId) return;
+      if (seen) return;                      // the prefetched copy stays on screen
       if (!aboutOnly) failed();
       else if (lastData) fillAbout(lastData, true);   // follow-up failed: keep what we had, no spinner
       return;
     }
+    remember(sci, shown.hours, text);
     if (my !== reqId) return;               // the card was closed or replaced
     lastData = data;
     if (aboutOnly) { fillAbout(data, true); return; }
+    if (text !== seen) render(data);        // unchanged since the prefetch: leave it alone
+    if (data.pending && data.pending.length) {
+      followTimer = setTimeout(function () { load(sci, my, true); }, 4000);
+    }
+  }
+
+  function render(data) {
     titleEl.textContent = data.common_name;
     setPlate(data.plate_url);
     fillHeard(data);
     fillAbout(data, false);
-    if (data.pending && data.pending.length) {
-      followTimer = setTimeout(function () { load(sci, my, true); }, 4000);
+  }
+
+  // ------------------------------------------------------------ prefetch
+  // Each bird's /api/species is fetched in the background whenever a new
+  // collage is shown, so a tap can draw the card at once. The tap still asks
+  // the server again and redraws only if the answer changed. Kept in memory
+  // only; a new collage starts a fresh set.
+  const PREFETCH_TIMEOUT_MS = 10000;
+  let prefetched = new Map();               // scientific name -> {hours, text}
+  let prefetchGen = 0;
+
+  function speciesUrl(sci, hours) {
+    return '/api/species/' + encodeURIComponent(sci) + '?hours=' + hours;
+  }
+
+  function remember(sci, hours, text) {
+    if (prefetched.has(sci)) prefetched.set(sci, {hours: hours, text: text});
+  }
+
+  function cachedText(sci, hours) {
+    const p = prefetched.get(sci);
+    return p && p.hours === hours && p.text ? p.text : null;
+  }
+
+  async function prefetchAll(layout) {
+    const gen = ++prefetchGen;
+    prefetched = new Map();
+    layout.targets.forEach(function (t) { prefetched.set(t.scientific_name, null); });
+    for (let i = 0; i < layout.targets.length; i++) {   // one at a time: gentle on the server
+      const sci = layout.targets[i].scientific_name;
+      const ac = new AbortController();
+      const timer = setTimeout(function () { ac.abort(); }, PREFETCH_TIMEOUT_MS);
+      try {
+        const r = await fetch(speciesUrl(sci, layout.hours), {cache: 'no-store', signal: ac.signal});
+        if (r.ok) {
+          const text = await r.text();
+          JSON.parse(text);                 // only keep answers the card can use
+          if (gen !== prefetchGen) return;  // a newer collage took over
+          if (!cachedText(sci, layout.hours)) prefetched.set(sci, {hours: layout.hours, text: text});
+        }
+      } catch (e) {
+        // skip this bird; a tap fetches it live
+      } finally {
+        clearTimeout(timer);
+      }
+      if (gen !== prefetchGen) return;
     }
   }
 
@@ -353,7 +407,13 @@
     document.documentElement.classList.add('modal');
     bodyEl.scrollTop = 0;
     closeBtn.focus();
-    load(sci, reqId, false);
+    const seen = cachedText(sci, shown.hours);
+    let ready = null;
+    if (seen) {
+      try { ready = JSON.parse(seen); } catch (e) { ready = null; }
+    }
+    if (ready) { lastData = ready; render(ready); }
+    load(sci, reqId, false, ready ? seen : undefined);
   }
 
   function closeCard() {
@@ -406,4 +466,7 @@
   setInterval(tick, Number(document.body.dataset.refreshMs) || 60000);
   window.addEventListener('hashchange', fromHash);
   fromHash();
+  // after the collage itself has loaded, so the prefetch never competes with it
+  if (document.readyState === 'complete') prefetchAll(shown);
+  else window.addEventListener('load', function () { prefetchAll(shown); });
 })();
