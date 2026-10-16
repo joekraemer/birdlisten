@@ -61,9 +61,10 @@ RULE = (186, 170, 142)       # ornaments and the placeholder card's rules
 CARD = (236, 226, 202)       # placeholder card, a shade darker than the page
 MIN_CELL = 80                # px; below this we stop shrinking and drop species
 MIN_FONT = 9                 # px; name_layout never goes smaller
-CELL_RATIO = 1.32            # cell height / width: a square plate plus two name lines
-MAX_CELL_FRAC = 0.4          # largest cell as a fraction of the short side (n = 1)
-GUTTER_MAX = 0.45            # spare width widens gutters up to this x cell
+CELL_RATIO = 1.27            # cell height / plate height: the plate plus two name lines
+MAX_CELL_FRAC = 0.4          # largest plate height as a fraction of the short side (n = 1)
+WIDE_MAX = 1.3               # spare width widens plates up to this x their height first,
+GUTTER_MAX = 0.2             # then gutters up to this x plate height
 FONT_DIR = Path(__file__).resolve().parent / "fonts"
 FONT_FILES = {False: "LibreBaskerville.ttf", True: "LibreBaskerville-Italic.ttf"}
 META_FILES = ("ATTRIBUTION.md", "manifest.json")
@@ -804,17 +805,19 @@ def _metrics(width: int, height: int) -> tuple[float, int, int, int]:
     """(unit, margin, gap, top): everything scales with the shorter side.
     `top` is the header band (title, subtitle, rule) above the grid."""
     unit = min(width, height) / 100
-    return unit, round(3.5 * unit), round(2 * unit), round(10 * unit)
+    return unit, round(2.5 * unit), round(1.2 * unit), round(10 * unit)
 
 
 def pack(n: int, width: int, height: int, top: int, margin: int, gap: int) -> tuple[list[Box], int]:
-    """Uniform 1:CELL_RATIO portrait cells in a grid. Picks the column count
-    that gives the largest cell (capped at MAX_CELL_FRAC of the short side),
-    shrinks to MIN_CELL, then drops the tail of the list (the oldest species,
-    since callers pass most-recent-first).
+    """Uniform portrait cells in a grid: a plate `cell` px tall with room for
+    two name lines below (CELL_RATIO). Picks the column count that gives the
+    tallest plate (capped at MAX_CELL_FRAC of the short side), shrinks to
+    MIN_CELL, then drops the tail of the list (the oldest species, since
+    callers pass most-recent-first).
 
-    Spare width widens the gutters (up to GUTTER_MAX x cell) instead of
-    piling up at the sides; spare height is split above and below the grid.
+    Spare width widens the boxes (up to WIDE_MAX x plate height), then the
+    gutters (up to GUTTER_MAX x plate height), and the rest is split at the
+    sides; spare height is split above and below the grid.
     Species are spread evenly over the rows (fuller rows first, row lengths
     differ by at most one) and every row is centred, so a short last row is
     one bird shorter rather than a ragged stub."""
@@ -844,18 +847,21 @@ def pack(n: int, width: int, height: int, top: int, margin: int, gap: int) -> tu
     base, extra = divmod(shown, rows)
     counts = [base + 1] * extra + [base] * (rows - extra)
     widest = counts[0]
+    # Spare width first widens every box (most plates are wider than tall, so
+    # they grow into it), then the gutters.
+    bw = max(cell, min((W - (widest - 1) * gap) // widest, round(WIDE_MAX * cell)))
     gx = gap
     if widest > 1:
-        spare = (W - widest * cell) // (widest - 1)
+        spare = (W - widest * bw) // (widest - 1)
         gx = max(gap, min(spare, round(GUTTER_MAX * cell)))
     bh = round(CELL_RATIO * cell)
     grid_h = rows * bh + (rows - 1) * gap
     y = top + margin + max(0, H - grid_h) * 2 // 5   # a little above centre reads as centred
     boxes: list[Box] = []
     for in_row in counts:
-        x0 = margin + (W - in_row * cell - (in_row - 1) * gx) // 2
+        x0 = margin + (W - in_row * bw - (in_row - 1) * gx) // 2
         for i in range(in_row):
-            boxes.append(Box(x0 + i * (cell + gx), y, cell, bh))
+            boxes.append(Box(x0 + i * (bw + gx), y, bw, bh))
         y += bh + gap
     return boxes, dropped
 
@@ -1100,19 +1106,20 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
     if deferred:
         log.info("fetch budget exhausted, %d plates deferred", deferred)
 
-    cell = boxes[0].w   # pack makes every cell the same size
-    inset = round(cell * 0.04)
+    bw = boxes[0].w                         # pack makes every box the same size
+    cell = round(boxes[0].h / CELL_RATIO)   # plate height; inverts pack's rounding exactly
+    inset = round(cell * 0.03)
     # Names may spill into 3/8 of the gutter on each side, leaving 1/4 of it
     # between neighbours, so fewer of them need a second line.
-    row_gap = min((b.x - a.x - cell for a, b in itertools.pairwise(boxes) if b.y == a.y), default=0)
-    label_w = cell + min(row_gap * 3 // 4, margin)   # and never past the page margin
+    row_gap = min((b.x - a.x - bw for a, b in itertools.pairwise(boxes) if b.y == a.y), default=0)
+    label_w = bw + min(row_gap * 3 // 4, margin)   # and never past the page margin
     font, names = name_layout(draw, [sp.common_name for sp in species[:len(boxes)]], label_w,
                               min(round(cell / 10), round(2.3 * unit)))   # never rivals the title
     ascent, descent = font.getmetrics()
     line_h = round((ascent + descent) * 1.1)
     arts: list[str | None] = []
     for sp, box, lines in zip(species, boxes, names):
-        px, py, pw, ph = box.x + inset, box.y + inset, cell - 2 * inset, cell - 2 * inset
+        px, py, pw, ph = box.x + inset, box.y + inset, bw - 2 * inset, cell - 2 * inset
         name = sp.scientific_name
         kind = art.art_kind(name) if stem(name) else None
         drawn = False
@@ -1139,9 +1146,9 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         arts.append(drew)
         # Names hang from the same line in every cell; a wrapped name adds a
         # second line below rather than shifting the first.
-        y = box.y + cell - inset + round(cell * 0.05) + ascent
+        y = box.y + cell - inset + round(cell * 0.04) + ascent
         for line in lines:
-            draw.text((box.x + cell // 2, y), line, font=font, fill=INK, anchor="ms")
+            draw.text((box.x + bw // 2, y), line, font=font, fill=INK, anchor="ms")
             y += line_h
 
     return Rendered(_png(img), len(boxes), dropped, False, deferred, tuple(boxes),

@@ -1103,4 +1103,5 @@ def test_visit_settings_config_and_docs():
 def test_popup_shows_visits_and_minutes():
     js = (Path(serve.__file__).parent / "static" / "page.js").read_text()
     assert "visitsPhrase(h)" in js and "Most visits" in js and "'Most detections" not in js
-    assert "h.first_local === h.last_local ? 'Heard '" in js     # same minute on two cameras: one time
+    # the first/last times, the camera list and the chart caption are gone from the card
+    assert "'First '" not in js and "'Cameras: '" not in js and "'Dark: '" not in js

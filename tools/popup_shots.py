@@ -539,14 +539,15 @@ def run_checks(pages: Pages, srv, base: str, shown) -> None:
     wait_loaded(page)
     c = page.evaluate("""() => { const q = s => Array.from(document.querySelectorAll('#card .chart ' + s));
         const typ = q('rect.typ'), now = q('rect.now');
-        const cap = document.querySelector('#card .heard .credit').textContent;
         return {typ: typ.length, now: now.length, typ_w: typ.map(r => +r.getAttribute('width')),
-                now_w: now.map(r => +r.getAttribute('width')), cap: cap,
+                now_w: now.map(r => +r.getAttribute('width')),
+                cap: !!document.querySelector('#card .heard .credit'),
+                credits: document.querySelector('#card .body > .credits').textContent,
                 label: document.querySelector('#card .chart').getAttribute('aria-label')}; }""")
     check("#13", c["typ"] > 0 and c["now"] > 0 and set(c["typ_w"]) == {8} and set(c["now_w"]) == {4}
-          and "usually heard" in c["cap"] and "usually busiest" in c["label"],
+          and not c["cap"] and "Wikipedia" in c["credits"] and "usually busiest" in c["label"],
           f"typical bars={c['typ']} (w {sorted(set(c['typ_w']))}), heard bars={c['now']} (w {sorted(set(c['now_w']))}); "
-          f"caption '{c['cap']}'")
+          f"caption under chart={c['cap']}, credits at bottom='{c['credits'][:40]}'")
     page.context.close()
 
     # #8: the bottom sheet on a short phone viewport (85vh = 340 px). The header
