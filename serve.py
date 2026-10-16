@@ -16,7 +16,7 @@ Environment (read once by load_serve_config):
   DISPLAY_MIN_CONFIDENCE  rows below this are left off the page, the pop-up and
                   /api/recent (default MIN_CONFIDENCE, which defaults to 0.5)
   DISPLAY_SINGLE_CONFIDENCE  one row at or above this puts a species on the
-                  board; below it a species needs REPEAT_DETECTIONS rows at
+                  board; below it a species needs two rows at
                   DISPLAY_MIN_CONFIDENCE (default DISPLAY_MIN_CONFIDENCE, so one
                   row is enough)
   FACTS_FETCH     1 (default) = fetch pop-up facts from Wikidata/Wikipedia/eBird, 0 = cache only
@@ -52,7 +52,7 @@ from PIL import Image, ImageOps
 import facts
 import frame
 import taxa
-from birdlisten import REPEAT_DETECTIONS, ConfigError, load_thresholds
+from birdlisten import ConfigError, load_thresholds
 
 log = logging.getLogger("serve")
 DEFAULT_W, DEFAULT_H = 1600, 1200
@@ -213,7 +213,7 @@ def load_species(cfg: ServeConfig, hours: int, now: dt.datetime) -> list[frame.S
     conn = frame.open_ro(cfg.db_path)
     try:
         return frame.recent_species(conn, now, hours, cfg.min_confidence,
-                                    cfg.single_confidence, REPEAT_DETECTIONS)
+                                    single_confidence=cfg.single_confidence)
     finally:
         conn.close()
 

@@ -354,6 +354,33 @@ def test_load_thresholds_rejects(env, var):
         bl.load_thresholds(env)
 
 
+def test_single_below_display_error_names_where_the_floor_came_from():
+    with pytest.raises(bl.ConfigError, match=r"floor \(0.9, from MIN_CONFIDENCE\)"):
+        bl.load_thresholds({"MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.8"})
+
+
+@pytest.mark.parametrize("extra, record, push", [
+    ({}, 0.5, 0.5),                                                   # nothing set
+    ({"MIN_CONFIDENCE": "0.9"}, 0.9, 0.9),                            # old env file: one threshold
+    ({"MIN_CONFIDENCE": "0.9", "RECORD_MIN_CONFIDENCE": "0.7"}, 0.7, 0.9),
+    ({"DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.95"}, 0.5, 0.95),
+])
+def test_load_config_record_and_push_thresholds(extra, record, push):
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", **extra})
+    assert (cfg.min_conf, cfg.notify_conf) == (record, push)
+
+
+def test_display_typo_does_not_stop_recording(caplog):
+    caplog.set_level("WARNING", logger="birdlisten")
+    env = {"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "RECORD_MIN_CONFIDENCE": "0.7"}
+    for bad in ({"DISPLAY_MIN_CONFIDENCE": "0.9x"}, {"DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.8"}):
+        cfg = bl.load_config({**env, **bad})
+        assert (cfg.min_conf, cfg.notify_conf) == (0.7, 0.7)
+    assert sum("pushes use the record threshold 0.7" in m for m in caplog.messages) == 2
+    with pytest.raises(bl.ConfigError, match="RECORD_MIN_CONFIDENCE"):
+        bl.load_config({**env, "RECORD_MIN_CONFIDENCE": "2"})   # the record threshold itself stays fatal
+
+
 def test_store_clip_records_low_rows_but_pushes_only_at_single_threshold(tmp_path: Path, monkeypatch):
     cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path),
                           "NTFY_TOPIC": "t", "RECORD_MIN_CONFIDENCE": "0.7", "DISPLAY_MIN_CONFIDENCE": "0.9",
@@ -395,7 +422,8 @@ def test_store_clip_float_seconds_in_nothing_above(tmp_path: Path, caplog):
 
 # ----------------------------------------------------------------- main() dispatch and check()
 _MAIN_KEYS = ("CAMERAS", "LATITUDE", "LONGITUDE", "DATA_DIR", "SEGMENT_DIR", "CAPTURE_MODE", "QUEUE_SIZE",
-              "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS", "NTFY_TOPIC", "MIN_CONFIDENCE")
+              "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS", "NTFY_TOPIC", "MIN_CONFIDENCE",
+              "RECORD_MIN_CONFIDENCE", "DISPLAY_MIN_CONFIDENCE", "DISPLAY_SINGLE_CONFIDENCE")
 
 
 @pytest.fixture

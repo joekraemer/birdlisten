@@ -69,6 +69,9 @@ FONT_FILES = {False: "LibreBaskerville.ttf", True: "LibreBaskerville-Italic.ttf"
 META_FILES = ("ATTRIBUTION.md", "manifest.json")
 
 
+REPEAT_DETECTIONS = 2        # rows a species needs below DISPLAY_SINGLE_CONFIDENCE
+
+
 def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)   # the one place "now" is made
 
@@ -92,8 +95,8 @@ def open_ro(db_path: Path) -> sqlite3.Connection:
 
 
 def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
-                   min_confidence: float = 0.0, single_confidence: float | None = None,
-                   repeat: int = 2) -> list[Species]:
+                   min_confidence: float = 0.0, *, single_confidence: float | None = None,
+                   repeat: int = REPEAT_DETECTIONS) -> list[Species]:
     """Species heard in the last `hours`, most recent first. `now` must be
     UTC-aware so `since` has the same fixed width and +00:00 suffix as every
     heard_at written by record(), which makes TEXT comparison chronological.
@@ -102,7 +105,9 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
 
     A species is kept when one of its rows reaches `single_confidence`, or it
     has at least `repeat` rows at `min_confidence`. None (the default) means
-    `min_confidence`, so any one qualifying row is enough."""
+    `min_confidence`, so any one qualifying row is enough. first_ever only
+    asks whether any row before the window reached `min_confidence`; it does
+    not apply this repeat rule to the earlier rows."""
     single = min_confidence if single_confidence is None else single_confidence
     since = (now - dt.timedelta(hours=hours)).isoformat(timespec="seconds")
     rows = conn.execute(

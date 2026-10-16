@@ -38,7 +38,8 @@ plate caches, vignette processing, HTTP routes, click targets), the pop-up
 (species stats, fact fetching and caching, input validation, the eBird key),
 and the `audubon.json` build rules. NOT yet
 verified: an actual Reolink RTSP stream, and real bird detections. Expect to
-tune the confidence thresholds (see Tuning) once you see what the yard sounds like to BirdNET.
+tune the confidence thresholds (see Tuning) once you see what the yard
+sounds like to BirdNET.
 
 ## Setup
 
@@ -154,17 +155,24 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
     turn is the default for `DISPLAY_SINGLE_`. Setting only `MIN_CONFIDENCE`
     behaves as before: one threshold for everything.
 
+  A blank value counts as unset; anything else outside 0..1 is a config
+  error. A bad `DISPLAY_*` value turns the collage server off and makes the
+  capture loop log a warning and push at the record threshold; recording
+  carries on. A bad `RECORD_MIN_CONFIDENCE` or `MIN_CONFIDENCE` stops the
+  container at startup.
+
   Example: `RECORD_MIN_CONFIDENCE=0.7`, `DISPLAY_MIN_CONFIDENCE=0.9`,
   `DISPLAY_SINGLE_CONFIDENCE=0.95`. Rows at 0.7 to 0.9 are kept for later
   tuning; the board shows a bird heard once at 0.95 or more, or twice at 0.9
   or more. BirdNET scores are not probabilities, so 0.9 does not mean 90%
   right; check `--report` and the pop-up's best/typical confidence before
   moving them.
-* For `RECORD_MIN_CONFIDENCE`, 0.5 is a reasonable start. BirdNET's location/date filter
-  already removes implausible species (for Seattle in September it considers
-  ~160 of the model's 6,500); the remaining false positives are usually
-  mechanical noise scored as a bird at 0.3–0.5. birdnetlib clamps the value to
-  0.01–0.99 and the comparison is strict (a detection at exactly 0.5 is dropped).
+* For `RECORD_MIN_CONFIDENCE`, 0.5 is a reasonable start. BirdNET's
+  location/date filter already removes implausible species (for Seattle in
+  September it considers ~160 of the model's 6,500); the remaining false
+  positives are usually mechanical noise scored as a bird at 0.3–0.5.
+  birdnetlib clamps the value to 0.01–0.99 and the comparison is strict (a
+  detection at exactly 0.5 is dropped).
 * `CLIP_SECONDS` 30 gives ten 3-second BirdNET windows per clip. In stream
   mode every camera listens continuously whatever the value; shorter clips
   give finer `heard_at` times and faster pushes, at a little more overhead
@@ -319,9 +327,9 @@ birds" page laid out like a field-guide plate: a centred title ("Heard in the
 last 24 hours") and species count, then one plate per species heard in the
 last N hours (default 24), most recent first, with its common name beneath.
 Cameras, times and first-ever sightings are left off the picture and stay in
-`/api/recent`. Only detections at or above `DISPLAY_MIN_CONFIDENCE` count, so raising
-it takes older low-confidence rows off the page straight away, and a species
-heard only once needs `DISPLAY_SINGLE_CONFIDENCE` (see Tuning). BirdNET's
+`/api/recent`. Only detections at or above `DISPLAY_MIN_CONFIDENCE` count, so
+raising it takes older low-confidence rows off the page straight away, and a
+species heard only once needs `DISPLAY_SINGLE_CONFIDENCE` (see Tuning). BirdNET's
 non-bird labels (Dog, Engine, frogs, crickets; the list is `taxa.py`) stay in
 SQLite and in `--report`, but are left off the page and `/api/recent`, and
 their pop-up is a 404. It is meant to sit in a Home Assistant Webpage card (below). The server
@@ -506,6 +514,7 @@ sensor:
 |---|---|---|
 | `SERVE_PORT` | unset | port for the collage server. Unset or empty = no server, no network traffic, nothing changes. |
 | `COLLAGE_HOURS` | `24` | window for `/`, `/collage.png` and `/api/recent`, 1..720 |
+| `MIN_CONFIDENCE` | `0.5` | default for `DISPLAY_MIN_CONFIDENCE` (and the capture loop's `RECORD_MIN_CONFIDENCE`), 0..1 |
 | `DISPLAY_MIN_CONFIDENCE` | `MIN_CONFIDENCE` (`0.5`) | rows below it are left off the page, the pop-up and `/api/recent`, 0..1 |
 | `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Also the ntfy push bar. Must be at least `DISPLAY_MIN_CONFIDENCE` |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |

@@ -101,40 +101,46 @@ class Thresholds:
     record:  BirdNET drops anything below this; nothing under it is stored.
     display: rows below this are invisible to the page, pop-up and /api/recent.
     single:  one row at or above this puts a species on the board by itself;
-             between `display` and `single` it takes REPEAT_DETECTIONS rows.
-             Also the bar for a push notification."""
+             between `display` and `single` it takes frame.REPEAT_DETECTIONS
+             (two) rows. Also the bar for a push notification."""
     record: float
     display: float
     single: float
 
-
-REPEAT_DETECTIONS = 2
 
 
 def load_thresholds(env=os.environ) -> Thresholds:
     """RECORD_ and DISPLAY_MIN_CONFIDENCE fall back to MIN_CONFIDENCE (default
     0.5), DISPLAY_SINGLE_CONFIDENCE to DISPLAY_MIN_CONFIDENCE, so an env file
     with only MIN_CONFIDENCE behaves exactly as before."""
-    def get(name: str, default: float) -> float:
-        raw = env.get(name, "").strip()
-        if not raw:
-            return default
-        try:
-            value = float(raw)
-        except ValueError:
-            raise ConfigError(f"{name} must be a number 0..1, got {raw!r}") from None
-        if not 0 <= value <= 1:          # also rejects nan
-            raise ConfigError(f"{name} must be 0..1, got {raw!r}")
-        return value
-
-    base = get("MIN_CONFIDENCE", 0.5)
-    display = get("DISPLAY_MIN_CONFIDENCE", base)
-    t = Thresholds(record=get("RECORD_MIN_CONFIDENCE", base), display=display,
-                   single=get("DISPLAY_SINGLE_CONFIDENCE", display))
+    base = _confidence(env, "MIN_CONFIDENCE", 0.5)
+    display_from = "DISPLAY_MIN_CONFIDENCE" if env.get("DISPLAY_MIN_CONFIDENCE", "").strip() else "MIN_CONFIDENCE"
+    display = _confidence(env, "DISPLAY_MIN_CONFIDENCE", base)
+    t = Thresholds(record=record_threshold(env), display=display,
+                   single=_confidence(env, "DISPLAY_SINGLE_CONFIDENCE", display))
     if t.single < t.display:
         raise ConfigError(f"DISPLAY_SINGLE_CONFIDENCE ({t.single}) must be at least "
-                          f"DISPLAY_MIN_CONFIDENCE ({t.display})")
+                          f"the display floor ({t.display}, from {display_from})")
     return t
+
+
+def _confidence(env, name: str, default: float) -> float:
+    """Blank or unset = `default`; anything else must parse as 0..1."""
+    raw = env.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be a number 0..1, got {raw!r}") from None
+    if not 0 <= value <= 1:          # also rejects nan
+        raise ConfigError(f"{name} must be 0..1, got {raw!r}")
+    return value
+
+
+def record_threshold(env=os.environ) -> float:
+    """RECORD_MIN_CONFIDENCE, falling back to MIN_CONFIDENCE (default 0.5)."""
+    return _confidence(env, "RECORD_MIN_CONFIDENCE", _confidence(env, "MIN_CONFIDENCE", 0.5))
 
 
 # rtsp://user:PASSWORD@host -> rtsp://user:***@host, wherever it appears in a
@@ -249,14 +255,22 @@ def load_config(env=os.environ) -> Config:
         if seg == data or data in seg.parents:
             raise ConfigError("SEGMENT_DIR must not be DATA_DIR or inside it")
 
-        thresholds = load_thresholds(env)
+        # The capture loop only needs the display settings for the push bar,
+        # so a typo there must not stop recording: warn and push at the
+        # record threshold instead. A bad RECORD_/MIN_CONFIDENCE is still fatal.
+        record_conf = record_threshold(env)
+        try:
+            notify_conf = load_thresholds(env).single
+        except ConfigError as exc:
+            log.warning("%s; pushes use the record threshold %s until it is fixed", exc, record_conf)
+            notify_conf = record_conf
         return Config(
             cameras=cameras,
             lat=lat,
             lon=lon,
             clip_seconds=clip_seconds,
-            min_conf=thresholds.record,
-            notify_conf=thresholds.single,
+            min_conf=record_conf,
+            notify_conf=notify_conf,
             data_dir=data_dir,
             keep_clips=env.get("KEEP_CLIPS", "0") == "1",
             ntfy_topic=env.get("NTFY_TOPIC", "").strip() or None,
@@ -626,6 +640,12 @@ def check(cfg: Config) -> int:
         print(f"hint: {name} uses a main-stream URL; use the sub-stream")
     print(f"location: {cfg.lat}, {cfg.lon}; clip {cfg.clip_seconds}s; "
           f"record >= {cfg.min_conf}, notify >= {cfg.notify_conf}")
+    try:
+        t = load_thresholds()
+        print(f"display: board needs one row >= {t.single} or two >= {t.display}")
+    except ConfigError as exc:
+        print(f"display: {exc}")
+        problems += 1
     print(f"notify: {'ntfy ' + cfg.ntfy_server if cfg.ntfy_topic else 'off'}")
     return 1 if problems else 0
 

@@ -176,7 +176,7 @@ def test_recent_species_needs_one_strong_or_two_qualifying_rows(tmp_path: Path):
     ])
     conn = frame.open_ro(db)
     try:
-        out = frame.recent_species(conn, now, 24, 0.9, 0.95)
+        out = frame.recent_species(conn, now, 24, 0.9, single_confidence=0.95)
         lenient = frame.recent_species(conn, now, 24, 0.9)      # single defaults to min: one row is enough
     finally:
         conn.close()
