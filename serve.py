@@ -19,6 +19,9 @@ Environment (read once by load_serve_config):
                   board; below it a species needs two rows at
                   DISPLAY_MIN_CONFIDENCE (default DISPLAY_MIN_CONFIDENCE, so one
                   row is enough)
+  VISIT_GAP_MINUTES  a species heard again within this many minutes, on any
+                  camera, is the same visit (default 10, 1..240)
+  CLIP_SECONDS    the capture loop's clip length, for visit lengths (default 30)
   FACTS_FETCH     1 (default) = fetch pop-up facts from Wikidata/Wikipedia/eBird, 0 = cache only
   FACTS_DIR       facts cache (default $DATA_DIR/facts)
   EBIRD_API_KEY   secret; unset = no eBird requests (the eBird link comes from Wikidata)
@@ -130,6 +133,8 @@ class ServeConfig:
     single_confidence: float | None = None      # DISPLAY_SINGLE_CONFIDENCE; None = min_confidence
     facts: facts.FactsConfig = field(default_factory=lambda: facts.FactsConfig(Path("/nonexistent"), fetch=False))
     tz: dt.tzinfo = field(default_factory=lambda: _DEFAULT_ZONE)
+    visit_gap: dt.timedelta = frame.DEFAULT_VISIT_GAP
+    clip: dt.timedelta = frame.DEFAULT_CLIP
 
 
 def load_serve_config(env=os.environ) -> ServeConfig | None:
@@ -140,6 +145,8 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     try:
         port = int(raw_port)
         hours = int(env.get("COLLAGE_HOURS", "24"))
+        gap_min = int(env.get("VISIT_GAP_MINUTES", "").strip() or "10")
+        clip_s = int(env.get("CLIP_SECONDS", "30"))    # parsed as the capture loop does
     except ValueError as exc:
         raise ConfigError(f"bad numeric setting: {exc}") from exc
     if not 1 <= port <= 65535:
@@ -147,6 +154,10 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     if not 1 <= hours <= MAX_HOURS:
         raise ConfigError(f"COLLAGE_HOURS must be 1..{MAX_HOURS}, got {hours}")
     thresholds = load_thresholds(env)
+    if not 1 <= gap_min <= 240:
+        raise ConfigError(f"VISIT_GAP_MINUTES must be 1..240, got {gap_min}")
+    if clip_s < 3:
+        raise ConfigError("CLIP_SECONDS must be at least 3")
     ref = env.get("ARTWORK_REF", frame.DEFAULT_ARTWORK_REF).strip()
     if not ref or not _REF_RE.fullmatch(ref):
         raise ConfigError(f"ARTWORK_REF must be a git ref or sha ([A-Za-z0-9._/-]), got {ref!r}")
@@ -177,7 +188,8 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
                        art=frame.Artwork(art_dir, ref, audubon), min_confidence=thresholds.display,
                        single_confidence=thresholds.single,
                        facts=facts.FactsConfig(facts_dir, fetch == "1", key, lat, lon),
-                       tz=load_tz(env))
+                       tz=load_tz(env), visit_gap=dt.timedelta(minutes=gap_min),
+                       clip=dt.timedelta(seconds=clip_s))
 
 
 _DEFAULT_ZONE = load_tz({})
@@ -213,7 +225,7 @@ def load_species(cfg: ServeConfig, hours: int, now: dt.datetime) -> list[frame.S
     conn = frame.open_ro(cfg.db_path)
     try:
         return frame.recent_species(conn, now, hours, cfg.min_confidence,
-                                    single_confidence=cfg.single_confidence)
+                                    single_confidence=cfg.single_confidence, gap=cfg.visit_gap)
     finally:
         conn.close()
 
@@ -229,6 +241,7 @@ def recent_json(cfg: ServeConfig, hours: int, now: dt.datetime | None = None) ->
                 "common_name": s.common_name,
                 "last_heard": s.last_heard,
                 "count": s.count,
+                "visits": s.visits,
                 "cameras": list(s.cameras),
                 "first_ever": s.first_ever,
                 # Fugleramme cut-out or Audubon plate on disk; never fetches
@@ -272,10 +285,35 @@ def species_known(cfg: ServeConfig, name: str) -> bool:
 
 
 def local_time(heard_at: str, tz: dt.tzinfo) -> dt.datetime:
-    t = dt.datetime.fromisoformat(heard_at)
-    if t.tzinfo is None:              # never written today (record() writes +00:00); guard anyway
-        t = t.replace(tzinfo=dt.timezone.utc)
-    return t.astimezone(tz)
+    # naive rows are never written today (record() writes +00:00); guarded anyway
+    return frame.heard_time(heard_at).astimezone(tz)
+
+
+_STEP = dt.timedelta(minutes=15)   # every zone's offset is a multiple of 15 min
+
+
+def visit_hours(start: dt.datetime, last: dt.datetime, tz: dt.tzinfo) -> set:
+    """The local clock hours a visit touched, from its first clip start to its
+    last. Keyed (date, hour, UTC offset), so the repeated 1 AM on a fall-back
+    night is two hours and a visit over several days counts on each day."""
+    keys = set()
+    t = start
+    while True:
+        lt = t.astimezone(tz)
+        keys.add((lt.date(), lt.hour, lt.utcoffset()))
+        if t >= last:
+            return keys
+        t = min(t + _STEP, last)
+
+
+def visits_by_hour(times: list[dt.datetime], cfg: "ServeConfig") -> tuple[list[int], int, int]:
+    """(visits touching each local hour, visits, seconds heard in all)."""
+    spans = frame.visits(times, cfg.visit_gap, cfg.clip)
+    by_hour = [0] * 24
+    for a, b in spans:
+        for _, hour, _ in visit_hours(a, b - cfg.clip, cfg.tz):
+            by_hour[hour] += 1
+    return by_hour, len(spans), round(sum((b - a).total_seconds() for a, b in spans))
 
 
 def display_time(t: dt.datetime, now_local: dt.datetime) -> str:
@@ -292,9 +330,8 @@ TYPICAL_DAYS = 28        # "typically heard" looks back this far
 TYPICAL_MIN_DAYS = 3     # with less history than this, there is no typical day to show
 
 
-def typical_by_hour(conn, name: str, now: dt.datetime, tz: dt.tzinfo,
-                    min_confidence: float) -> tuple[list[float], int] | None:
-    """(average detections per day in each local hour, days averaged over).
+def typical_by_hour(conn, name: str, now: dt.datetime, cfg: "ServeConfig") -> tuple[list[float], int] | None:
+    """(average visits per day touching each local hour, days averaged over).
 
     The days are the last TYPICAL_DAYS, or since the first row in the db if
     the system is younger; fewer than TYPICAL_MIN_DAYS gives None. A species
@@ -302,18 +339,14 @@ def typical_by_hour(conn, name: str, now: dt.datetime, tz: dt.tzinfo,
     first = conn.execute("SELECT MIN(heard_at) FROM detections").fetchone()
     if not first or first[0] is None:
         return None
-    begun = dt.datetime.fromisoformat(first[0])
-    if begun.tzinfo is None:
-        begun = begun.replace(tzinfo=dt.timezone.utc)          # old naive rows are UTC
+    begun = frame.heard_time(first[0])
     start = max(now - dt.timedelta(days=TYPICAL_DAYS), begun)
     days = (now - start).total_seconds() / 86400
     if days < TYPICAL_MIN_DAYS:
         return None
     rows = conn.execute("SELECT heard_at FROM detections WHERE scientific_name = ? AND heard_at >= ?"
-                        " AND confidence >= ?", (name, start.isoformat(timespec="seconds"), min_confidence))
-    counts = [0] * 24
-    for (heard_at,) in rows:
-        counts[local_time(heard_at, tz).hour] += 1
+                        " AND confidence >= ?", (name, start.isoformat(timespec="seconds"), cfg.min_confidence))
+    counts, _, _ = visits_by_hour([frame.heard_time(h) for (h,) in rows], cfg)
     if not any(counts):
         return None
     return [round(c / days, 2) for c in counts], round(days)
@@ -336,7 +369,7 @@ def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> 
                 r = conn.execute("SELECT common_name FROM detections WHERE scientific_name = ?"
                                  " ORDER BY heard_at DESC LIMIT 1", (name,)).fetchone()
                 fallback_common = r[0] if r else None
-            typical = typical_by_hour(conn, name, now, cfg.tz, cfg.min_confidence)
+            typical = typical_by_hour(conn, name, now, cfg)
         finally:
             conn.close()
     extra = {"typical_by_hour": typical[0], "typical_days": typical[1]} if typical else {}
@@ -348,20 +381,18 @@ def species_stats(cfg: ServeConfig, name: str, hours: int, now: dt.datetime) -> 
         e = cfg.art.audubon.entry(name) if cfg.art.audubon is not None else None
         common = (e or {}).get("title") or name
     if not rows:
-        return {"count": 0, "by_hour": [0] * 24, **extra}, common
+        return {"count": 0, "visits": 0, "heard_s": 0, "by_hour": [0] * 24, **extra}, common
     tz = cfg.tz
     now_local = now.astimezone(tz)
     confs = [r[2] for r in rows]
-    by_hour = [0] * 24
-    for r in rows:
-        by_hour[local_time(r[0], tz).hour] += 1
+    by_hour, n_visits, heard_s = visits_by_hour([frame.heard_time(r[0]) for r in rows], cfg)
     cameras: list[str] = []
     for r in rows:
         if r[1] not in cameras:
             cameras.append(r[1])
     first, last = local_time(rows[-1][0], tz), local_time(rows[0][0], tz)
     return {
-        "count": len(rows), "max_conf": round(max(confs), 3),
+        "count": len(rows), "visits": n_visits, "heard_s": heard_s, "max_conf": round(max(confs), 3),
         "median_conf": round(statistics.median(confs), 3),
         "first_heard": rows[-1][0], "last_heard": rows[0][0],
         "first_local": display_time(first, now_local), "last_local": display_time(last, now_local),

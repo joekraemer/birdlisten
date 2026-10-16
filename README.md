@@ -342,8 +342,8 @@ own read-only connection; it never changes what the loop records or notifies.
 | `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
 | `GET /collage.png?v=<token>` | one cached render by its 16-hex content token (the last 8 are kept), `Cache-Control: public, max-age=31536000, immutable`; 404 once evicted |
 | `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
-| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
-| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, cameras, first_ever, has_plate}]}`. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
+| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
+| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
 | `GET /plate/<stem>.png` | a cached cut-out or vignette as a 480 px PNG, from disk only |
 | `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
 | `GET /static/page.js`, `/static/page.css` | the page's script and style (HTML responses carry a strict same-origin CSP) |
@@ -388,19 +388,33 @@ it).
 Tap a bird (or Tab to it and press Enter) and a field-guide card opens over
 the page: the plate, common and scientific name, then **About the bird** (a
 Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird reports, and
-links to eBird, All About Birds and Wikipedia) and **What we heard**
-(detections in the window, best and typical confidence, first and last heard,
-cameras, and a small chart of detections per hour of day). Once there are 3
-days of history, wide light bars behind the chart show when the species is
-usually heard: its detections per local hour over the last 28 days (or since
-the first detection, if sooner), averaged per day. The window's own bars are
-drawn narrow and dark on top. Each set is scaled to its own peak, so the
-light bars show the shape of a usual day, like Google Maps' "Popular times";
-a species not heard in the window still gets the light bars. Names that are not
-a binomial skip About the bird. Esc, the close
-button or a tap outside closes it; under 600 px wide it is a bottom sheet. The
-60 s refresh swaps the image and its tap targets together and never touches an
-open card. `/#species=<scientific name>` opens a card directly.
+links to eBird, All About Birds and Wikipedia) and **What we heard** (visits
+in the window and roughly how long it was heard, best and typical confidence,
+first and last heard, cameras, and a small chart of visits per hour of day).
+Once there are 3 days of history, wide light bars behind the chart show when
+the species is usually heard: its visits per local hour over the last 28 days
+(or since the first detection, if sooner), averaged per day. The window's own
+bars are drawn narrow and dark on top. Each set is scaled to its own peak, so
+the light bars show the shape of a usual day, like Google Maps' "Popular
+times"; a species not heard in the window still gets the light bars. Names
+that are not a binomial skip About the bird. Esc, the close button or a tap
+outside closes it; under 600 px wide it is a bottom sheet. The 60 s refresh
+swaps the image and its tap targets together and never touches an open card.
+`/#species=<scientific name>` opens a card directly.
+
+**Visits.** Every camera stores one row per species per clip (`CLIP_SECONDS`,
+30 s by default), so a robin singing for 15 minutes near two cameras is about
+60 rows. The pop-up and the `visits` field of `/api/recent` count visits
+instead: a run of one species' rows, on any camera, with no more than
+`VISIT_GAP_MINUTES` (default 10) of silence between the end of one clip and
+the start of the next. A visit's length runs from its first clip to the end of
+its last; a visit that began before the window counts from the window's start.
+In the chart a visit counts once in every local hour it touched (on a
+fall-back night, in both 1 AMs). The rows themselves are unchanged and `count`
+still counts them; visits are worked out when reading, so a new gap or
+`DISPLAY_MIN_CONFIDENCE` applies to old rows straight away. Two birds of one species
+heard at the same time on different cameras are one visit, since audio cannot
+tell them apart.
 
 Facts are fetched lazily the first time a card opens, never during a render:
 Wikidata (taxon name P225 to the English Wikipedia article, sizes, eBird taxon
@@ -517,6 +531,8 @@ sensor:
 | `MIN_CONFIDENCE` | `0.5` | default for `DISPLAY_MIN_CONFIDENCE` (and the capture loop's `RECORD_MIN_CONFIDENCE`), 0..1 |
 | `DISPLAY_MIN_CONFIDENCE` | `MIN_CONFIDENCE` (`0.5`) | rows below it are left off the page, the pop-up and `/api/recent`, 0..1 |
 | `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Also the ntfy push bar. Must be at least `DISPLAY_MIN_CONFIDENCE` |
+| `VISIT_GAP_MINUTES` | `10` | a species heard again within this many minutes, on any camera, is the same visit, 1..240 |
+| `CLIP_SECONDS` | `30` | the capture loop's setting, read here for visit lengths |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
 | `ARTWORK_DIR` | `$DATA_DIR/artwork` | plate cache, a few hundred KB per species |
 | `AUDUBON_FALLBACK` | `1` | `1` = Audubon plates for species Fugleramme lacks, `0` = Fugleramme only (pages are then exactly as before) |

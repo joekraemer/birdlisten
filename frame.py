@@ -82,9 +82,43 @@ class Species:
     scientific_name: str
     common_name: str
     last_heard: str          # ISO-8601 UTC as stored, e.g. 2026-10-02T14:12:00+00:00
-    count: int
+    count: int               # rows (one per species, camera and clip)
     cameras: tuple[str, ...]
     first_ever: bool
+    visits: int = 0          # the same rows grouped by visits()
+
+
+# Visits (#17). Every camera stores one row per species per clip, so a bird
+# singing for 15 minutes near two cameras is ~60 rows. A visit is a run of one
+# species' rows, on any camera, with no more than the gap of silence between
+# the end of one row's clip and the start of the next. The rows are kept as
+# they are; visits are worked out when reading, so a different gap or
+# DISPLAY_MIN_CONFIDENCE applies to old rows too.
+DEFAULT_VISIT_GAP = dt.timedelta(minutes=10)
+DEFAULT_CLIP = dt.timedelta(seconds=30)
+
+
+def heard_time(heard_at: str) -> dt.datetime:
+    """A stored heard_at as an aware datetime. Old naive rows are UTC."""
+    t = dt.datetime.fromisoformat(heard_at)
+    return t if t.tzinfo is not None else t.replace(tzinfo=dt.timezone.utc)
+
+
+def visits(times, gap: dt.timedelta = DEFAULT_VISIT_GAP,
+           clip: dt.timedelta = DEFAULT_CLIP) -> list[tuple[dt.datetime, dt.datetime]]:
+    """Group clip start times (any order, duplicates fine) into visits.
+
+    A clip starting more than `gap` after the previous clip ended starts a new
+    visit, so back-to-back clips are one visit even when a clip is longer than
+    the gap. Each visit is (first clip start, last clip start + clip), so a
+    visit heard in one clip lasts one clip."""
+    spans: list[list[dt.datetime]] = []
+    for t in sorted(times):
+        if spans and t - (spans[-1][1] + clip) <= gap:
+            spans[-1][1] = t
+        else:
+            spans.append([t, t])
+    return [(a, b + clip) for a, b in spans]
 
 
 def open_ro(db_path: Path) -> sqlite3.Connection:
@@ -96,7 +130,8 @@ def open_ro(db_path: Path) -> sqlite3.Connection:
 
 def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
                    min_confidence: float = 0.0, *, single_confidence: float | None = None,
-                   repeat: int = REPEAT_DETECTIONS) -> list[Species]:
+                   repeat: int = REPEAT_DETECTIONS,
+                   gap: dt.timedelta = DEFAULT_VISIT_GAP) -> list[Species]:
     """Species heard in the last `hours`, most recent first. `now` must be
     UTC-aware so `since` has the same fixed width and +00:00 suffix as every
     heard_at written by record(), which makes TEXT comparison chronological.
@@ -125,6 +160,7 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
     count: dict[str, int] = {}
     best: dict[str, float] = {}
     cameras: dict[str, list[str]] = {}
+    times: dict[str, list[dt.datetime]] = {}
     for sci, com, cam, heard, conf in rows:
         if not taxa.is_bird(sci):
             continue                   # kept in SQLite, never drawn (Dog, Engine, frogs)
@@ -135,13 +171,16 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
             count[sci] = 0
             best[sci] = conf
             cameras[sci] = []
+            times[sci] = []
         count[sci] += 1
+        times[sci].append(heard_time(heard))
         best[sci] = max(best[sci], conf)
         if cam not in cameras[sci]:
             cameras[sci].append(cam)   # most recent camera first
     return [
         Species(sci, common[sci], last[sci], count[sci], tuple(cameras[sci]),
-                not conn.execute(heard_before, (sci, since, min_confidence)).fetchone()[0])
+                not conn.execute(heard_before, (sci, since, min_confidence)).fetchone()[0],
+                len(visits(times[sci], gap)))
         for sci in order
         if best[sci] >= single or count[sci] >= repeat
     ]
