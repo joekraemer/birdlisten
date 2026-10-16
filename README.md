@@ -343,18 +343,23 @@ own read-only connection; it never changes what the loop records or notifies.
 | `GET /collage.png?v=<token>` | one cached render by its 16-hex content token (the last 8 are kept), `Cache-Control: public, max-age=31536000, immutable`; 404 once evicted |
 | `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
 | `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
-| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
-| `GET /plate/<stem>.png` | a cached cut-out or vignette as a 480 px PNG, from disk only |
+| `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out, Audubon cut-out or Audubon plate is on disk. `?hours=` |
+| `GET /plate/<stem>.png` | a Fugleramme or Audubon cut-out, or a cached vignette, as a 480 px PNG, from disk only |
 | `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
 | `GET /static/page.js`, `/static/page.css` | the page's script and style (HTML responses carry a strict same-origin CSP) |
-| `GET /attribution` | credits: Fugleramme plus its `ATTRIBUTION.md`, the Audubon plates fetched so far, the Wikipedia articles quoted so far, Wikidata, eBird, and Libre Baskerville |
+| `GET /attribution` | credits: Fugleramme plus its `ATTRIBUTION.md`, the Audubon plates fetched so far, every cut-out's source picture, the Wikipedia articles quoted so far, Wikidata, eBird, and Libre Baskerville |
 | `GET /favicon.ico` | 204 |
 
-Artwork comes from two sources, tried in this order for each species:
+Artwork comes from three sources, tried in this order for each species:
 
 1. **Fugleramme cut-out.** The bird on a transparent background, pasted
    straight onto the page.
-2. **Audubon vignette.** If Fugleramme has no plate under the BirdNET name,
+2. **Audubon cut-out.** For 230-odd species Fugleramme lacks, `cutouts/`
+   holds the bird cut out of its Audubon plate (one bird, no plants or
+   neighbours), committed to the repo and pasted like a Fugleramme cut-out.
+   Built offline by `tools/build_cutouts.py`; see "Rebuilding cutouts/".
+3. **Audubon vignette.** If Fugleramme has no plate under the BirdNET name and
+   there is no cut-out,
    `audubon.json` maps the name to one Havell plate of Audubon's *The Birds of
    America* (413 BirdNET species on 381 plates). The server fetches a 960 px
    Wikimedia Commons thumbnail of it, never the full-size scan, crops it to
@@ -362,7 +367,7 @@ Artwork comes from two sources, tried in this order for each species:
    recolours the paper to the placeholder card's tone, and draws it inside the
    card's double-rule frame. On a plate with several birds the whole plate is
    shown.
-3. **Placeholder card.** A plain paper card of the same size when neither
+4. **Placeholder card.** A plain paper card of the same size when no
    source has the species.
 
 Art is fetched lazily, one species at a time on first need, into
@@ -475,6 +480,11 @@ Commons page and credit. Thumbnails are requested from
 User-Agent `birdlisten/1.0 (https://github.com/joekraemer/birdlisten)`, as
 Wikimedia's User-Agent policy asks; each species' thumbnail is fetched once and cached.
 
+The committed cut-outs in `cutouts/` are cut from those same public-domain
+scans, except the Ring-billed Gull, cut from plate 130 of James E. De Kay's
+*Zoology of New York, Part II: Birds* (1844, lithograph by J. W. Hill,
+public domain, on Commons). `/attribution` lists every source picture.
+
 Pop-up notes are excerpts from [Wikipedia](https://en.wikipedia.org/) articles,
 licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); each
 card links its article and `/attribution` lists every article quoted so far.
@@ -509,6 +519,33 @@ especially the "CHOSEN Commons-only pairs", which only one source supports
 and should be checked by eye against the plate. If the vignette processing
 in `frame.py` changes, bump `VIGNETTE_VERSION` so cached vignettes are
 rebuilt.
+
+#### Rebuilding cutouts/
+
+`cutouts/` (one WebP per species plus `index.json`, its source and credit) is
+committed and generated by hand with `tools/build_cutouts.py`. It needs
+PyTorch and about 4 GB of models, so it runs on a laptop, never in the image:
+
+```
+uv run tools/build_cutouts.py --work ~/.cache/birdlisten-cutouts --review
+```
+
+For every `audubon.json` species with no Fugleramme plate at `ARTWORK_REF`'s
+default commit, it takes the same 960 px Commons thumbnail and crop the
+vignette uses, finds every bird with Grounding DINO, cuts each out with
+SAM 2.1, and labels each cut-out with BioCLIP and BioCLIP 2 against only the
+species on that plate. A species gets the largest bird both models agree on
+(or the largest bird when it is the plate's only species); otherwise it keeps
+its vignette and the report lists it. `tools/cutout_overrides.json` fixes the
+rest by hand: the bird's box, extra SAM points, a different public-domain
+picture (the Ring-billed Gull is from De Kay's *Zoology of New York*, 1844,
+because Audubon's plate overlaps two gulls), or `skip`. `--review` writes a
+page of every plate with numbered boxes next to its cut-out; check it before
+committing. About 9-30 s per plate on a laptop CPU; detections are cached in
+`--work`. A plain run builds only species missing from `cutouts/index.json`
+(normally none, so it exits in seconds); `--species NAME ...` rebuilds named
+ones after an override edit, and `--full` rebuilds all ~240 (an hour or more,
+only after a model or crop change). The Docker build never runs it.
 
 ### Home Assistant
 
@@ -547,7 +584,7 @@ sensor:
 | `CLIP_SECONDS` | `30` | the capture loop's setting, read here for visit lengths |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
 | `ARTWORK_DIR` | `$DATA_DIR/artwork` | plate cache, a few hundred KB per species |
-| `AUDUBON_FALLBACK` | `1` | `1` = Audubon plates for species Fugleramme lacks, `0` = Fugleramme only (pages are then exactly as before) |
+| `AUDUBON_FALLBACK` | `1` | `1` = Audubon cut-outs and plates for species Fugleramme lacks, `0` = Fugleramme only (pages are then exactly as before) |
 | `FACTS_FETCH` | `1` | `1` = fetch pop-up facts from Wikidata, Wikipedia and eBird; `0` = serve only what is already cached, no outbound requests |
 | `FACTS_DIR` | `$DATA_DIR/facts` | pop-up facts cache, a few KB per species plus a ~600 KB eBird taxonomy |
 | `EBIRD_API_KEY` | unset | secret. Unset = no eBird requests (the eBird link then comes from Wikidata, and there are no nearby reports). Sent only as the `X-eBirdApiToken` header to api.ebird.org, never logged or shown. On the fleet it lives in `~/.config/fleet/birdlisten.env`, never in git. A malformed key logs a warning and turns eBird off |
@@ -569,7 +606,7 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_facts.py test_taxa.py   # arm64 macOS
+  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_build_cutouts.py test_facts.py test_taxa.py   # arm64 macOS
 ```
 
 The stream-capture tests (`test_stream.py`) drive the real supervisors,

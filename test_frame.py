@@ -1087,6 +1087,99 @@ def test_priority_fugleramme_then_audubon_then_card(tmp_path: Path, monkeypatch)
     assert art.art_kind("Turdus migratorius") is None and drawn == ["card"] and out.deferred == 0
 
 
+# ----------------------------------------------------------------- audubon cut-outs (#19)
+def write_cutouts(tmp_path: Path, species: dict[str, dict | None]) -> Path:
+    """cutouts/index.json plus a small RGBA WebP per species (None: no file)."""
+    d = tmp_path / "cutouts"
+    d.mkdir(exist_ok=True)
+    table = {}
+    for sci, e in species.items():
+        s = frame.stem(sci)
+        table[sci] = e if e is not None else {
+            "file": f"{s}.webp", "source": "audubon", "plate": 362, "title": "Jays",
+            "page": "https://commons.wikimedia.org/wiki/File:" + JAYS.replace(" ", "_")}
+        Image.new("RGBA", (30, 40), (20, 40, 160, 255)).save(d / f"{s}.webp", "WEBP", lossless=True)
+    (d / "index.json").write_text(json.dumps({"generated": "2026-10-16", "species": table}))
+    return d
+
+
+def test_cutouts_load_and_validation(tmp_path: Path, caplog):
+    d = write_cutouts(tmp_path, {"Cyanocitta stelleri": None,
+                                 "Bad file": {"file": "other.webp", "source": "other", "page": "https://commons.wikimedia.org/x"},
+                                 "Bad page": {"file": "bad-page.webp", "page": "https://example.com/x"},
+                                 "No plate": {"file": "no-plate.webp", "source": "audubon",
+                                              "page": "https://commons.wikimedia.org/x"},
+                                 "Bad source": {"file": "bad-source.webp", "source": "web",
+                                                "page": "https://commons.wikimedia.org/x"},
+                                 "Bad credit": {"file": "bad-credit.webp", "source": "other",
+                                                "page": "https://commons.wikimedia.org/x",
+                                                "credit_url": "javascript:alert(1)"}})
+    c = frame.Cutouts.load(d)
+    assert set(c.table) == {"cyanocitta-stelleri"} and "skipping invalid entry" in caplog.text
+    assert c.has_art("Cyanocitta stelleri") and c.path("Cyanocitta stelleri") == d / "cyanocitta-stelleri.webp"
+    assert not c.has_art("Bad file") and c.path("Turdus migratorius") is None and not c.has_art("")
+    (d / "cyanocitta-stelleri.webp").unlink()
+    assert not c.has_art("Cyanocitta stelleri")            # listed but missing on disk
+    assert frame.Cutouts.load(tmp_path / "nope") is None and "Audubon cut-outs off" in caplog.text
+    (d / "index.json").write_text("[]")
+    assert frame.Cutouts.load(d) is None
+
+
+def test_priority_fugleramme_then_cutout_then_vignette(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(frame, "fetch_url", _fixture_fetch(calls))
+    aud = audubon(tmp_path)
+    cut = frame.Cutouts.load(write_cutouts(tmp_path, {"Cyanocitta stelleri": None, "Meleagris gallopavo": None}))
+    art = frame.Artwork(tmp_path / "artwork", audubon=aud, cutouts=cut)
+    drawn = []
+    monkeypatch.setattr(frame, "_vignette_card", lambda *a: (drawn.append("vignette"), True)[1])
+
+    # A Fugleramme plate still wins over a cut-out.
+    p = art.plate_path("Meleagris gallopavo")
+    p.parent.mkdir(parents=True)
+    p.write_bytes(tiny_webp())
+    assert art.art_kind("Meleagris gallopavo") == "fugleramme"
+
+    # A cut-out beats the vignette, and the Audubon scan is never fetched.
+    out = frame.render([sp("Cyanocitta stelleri", "Steller's Jay")], art, 800, 600, 24, now=T0)
+    assert art.art_kind("Cyanocitta stelleri") == "cutout" and out.arts == ("cutout",) and drawn == []
+    assert not any("Special:FilePath" in u for u in calls) and out.deferred == 0
+    assert not aud.vignette_path("Cyanocitta stelleri").exists()
+    px = Image.open(io.BytesIO(out.png)).convert("RGB")
+    assert (20, 40, 160) in {px.getpixel((x, y)) for x in range(0, 800, 4) for y in range(0, 600, 4)}
+
+    # Without the cut-out table the same species falls back to the vignette.
+    plain = frame.Artwork(tmp_path / "artwork2", audubon=aud)
+    frame.render([sp("Cyanocitta stelleri", "Steller's Jay")], plain, 800, 600, 24, now=T0)
+    assert plain.art_kind("Cyanocitta stelleri") == "audubon" and drawn == ["vignette"]
+
+
+def test_corrupt_cutout_is_kept_and_falls_back(tmp_path: Path):
+    d = write_cutouts(tmp_path, {"Cyanocitta stelleri": None})
+    (d / "cyanocitta-stelleri.webp").write_bytes(b"junk")
+    art = frame.Artwork(tmp_path / "artwork", cutouts=frame.Cutouts.load(d))
+    out = frame.render([sp("Cyanocitta stelleri", "Steller's Jay")], art, 800, 600, 24, now=T0)
+    assert out.shown == 1 and out.arts == (None,) and (d / "cyanocitta-stelleri.webp").exists()
+
+
+def test_repo_cutouts_are_consistent():
+    """The committed cutouts/: every entry valid, its file on disk and an
+    image, and every species in audubon.json; no stray files."""
+    c = frame.Cutouts.load()
+    assert c is not None and len(c.table) > 200
+    raw = json.loads((frame.CUTOUT_DIR / "index.json").read_text())["species"]
+    assert len(raw) == len(c.table)                       # nothing skipped as invalid
+    aud = json.loads(frame.AUDUBON_MAP.read_text())["species"]
+    assert set(raw) <= set(aud)
+    for sci, e in raw.items():
+        with Image.open(frame.CUTOUT_DIR / e["file"]) as im:
+            assert im.mode == "RGBA" and max(im.size) <= 800
+        if e["source"] == "audubon":
+            assert e["plate"] == aud[sci]["plate"] and e["page"] == aud[sci]["page"]
+    files = {p.name for p in frame.CUTOUT_DIR.glob("*.webp")}
+    assert files == {e["file"] for e in raw.values()}
+
+
 def test_corrupt_vignette_falls_back_to_card(tmp_path: Path):
     aud = audubon(tmp_path)
     art = frame.Artwork(tmp_path / "artwork", audubon=aud)
