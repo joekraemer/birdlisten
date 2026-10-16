@@ -81,6 +81,9 @@ def test_load_serve_config(tmp_path: Path):
     cfg = serve.load_serve_config({"SERVE_PORT": "8085", "ARTWORK_DIR": "/x/y", "ARTWORK_REF": "main", "COLLAGE_HOURS": "6"})
     assert cfg.art.dir == Path("/x/y") and cfg.art.ref == "main" and cfg.hours == 6
     assert serve.load_serve_config({"SERVE_PORT": "8085", "MIN_CONFIDENCE": "0.9"}).min_confidence == 0.9
+    cfg = serve.load_serve_config({"SERVE_PORT": "8085", "MIN_CONFIDENCE": "0.5", "RECORD_MIN_CONFIDENCE": "0.7",
+                                   "DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.95"})
+    assert (cfg.min_confidence, cfg.single_confidence) == (0.9, 0.95)
     for env in ({"SERVE_PORT": "abc"}, {"SERVE_PORT": "0"}, {"SERVE_PORT": "70000"},
                 {"SERVE_PORT": "8085", "COLLAGE_HOURS": "0"}, {"SERVE_PORT": "8085", "COLLAGE_HOURS": "x"},
                 {"SERVE_PORT": "8085", "ARTWORK_REF": "a b"}, {"SERVE_PORT": "8085", "ARTWORK_REF": " "},
@@ -201,6 +204,21 @@ def test_min_confidence_filters_page_and_api(tmp_path: Path):
     strict = serve.ServeConfig(**base, min_confidence=0.9)
     assert names(strict) == ["Ixoreus naevius", "Turdus migratorius"]
     assert [s.scientific_name for s in serve.load_species(strict, 24, frame.utcnow())] == names(strict)
+
+
+def test_single_confidence_hides_one_off_rows_from_page_and_api(tmp_path: Path):
+    """A lone 0.9 row stays out of /api/recent and the collage when
+    DISPLAY_SINGLE_CONFIDENCE is above it; two 0.9 rows still qualify, and the
+    hidden bird's pop-up still answers."""
+    seed(tmp_path)   # Varied Thrush once, American Robin twice, all at 0.9
+    base = {"port": 0, "hours": 24, "db_path": tmp_path / "birdlisten.sqlite", "art": frame.Artwork(tmp_path / "artwork"),
+            "min_confidence": 0.9}
+    names = lambda cfg: [s["scientific_name"] for s in serve.recent_json(cfg, 24)["species"]]  # noqa: E731
+    assert names(serve.ServeConfig(**base)) == ["Ixoreus naevius", "Turdus migratorius"]
+    strict = serve.ServeConfig(**base, single_confidence=0.95)
+    assert names(strict) == ["Turdus migratorius"]
+    assert [s.scientific_name for s in serve.load_species(strict, 24, frame.utcnow())] == ["Turdus migratorius"]
+    assert serve.species_known(strict, "Ixoreus naevius")
 
 
 def test_index_footer_keeps_attribution_link(server):
@@ -548,6 +566,11 @@ def test_facts_config_defaults_and_validation(tmp_path: Path, caplog):
                                    "LONGITUDE": "-122.3"})
     assert cfg.facts.nearby_on and (cfg.facts.lat, cfg.facts.lon) == (47.6, -122.3)
     assert "SENTINELKEY123" not in repr(cfg) and "SENTINELKEY123" not in str(cfg.facts)
+    # Cornell Lab eBird tokens are 36-char UUIDs with hyphens
+    cfg = serve.load_serve_config({**base, "EBIRD_API_KEY": "443c1234-abcd-5678-ef01-23456789c055",
+                                   "LATITUDE": "47.6", "LONGITUDE": "-122.3"})
+    assert cfg.facts.ebird_key is not None and cfg.facts.ebird_key.reveal() == "443c1234-abcd-5678-ef01-23456789c055"
+    assert cfg.facts.nearby_on
     for lat in ("x", "91", "nan"):
         c = serve.load_serve_config({**base, "EBIRD_API_KEY": "k", "LATITUDE": lat, "LONGITUDE": "1"})
         assert not c.facts.nearby_on

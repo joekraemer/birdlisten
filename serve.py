@@ -13,8 +13,12 @@ Environment (read once by load_serve_config):
   ARTWORK_REF     fugleramme commit/branch for plate URLs (default: a pinned sha)
   ARTWORK_DIR     plate cache (default $DATA_DIR/artwork)
   AUDUBON_FALLBACK  1 (default) = Audubon plates for species Fugleramme lacks, 0 = off
-  MIN_CONFIDENCE  rows below this are left off the page and /api/recent
-                  (default 0.5, the same variable and default as the capture loop)
+  DISPLAY_MIN_CONFIDENCE  rows below this are left off the page, the pop-up and
+                  /api/recent (default MIN_CONFIDENCE, which defaults to 0.5)
+  DISPLAY_SINGLE_CONFIDENCE  one row at or above this puts a species on the
+                  board; below it a species needs two rows at
+                  DISPLAY_MIN_CONFIDENCE (default DISPLAY_MIN_CONFIDENCE, so one
+                  row is enough)
   VISIT_GAP_MINUTES  a species heard again within this many minutes, on any
                   camera, is the same visit (default 10, 1..240)
   CLIP_SECONDS    the capture loop's clip length, for visit lengths (default 30)
@@ -51,7 +55,7 @@ from PIL import Image, ImageOps
 import facts
 import frame
 import taxa
-from birdlisten import ConfigError
+from birdlisten import ConfigError, load_thresholds
 
 log = logging.getLogger("serve")
 DEFAULT_W, DEFAULT_H = 1600, 1200
@@ -88,7 +92,7 @@ CREDIT_HTML = (
 
 # ----------------------------------------------------------------- config
 DEFAULT_TZ = "America/Los_Angeles"
-_KEY_RE = re.compile(r"[A-Za-z0-9]{1,64}")
+_KEY_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def load_tz(env=os.environ) -> dt.tzinfo:
@@ -125,7 +129,8 @@ class ServeConfig:
     hours: int
     db_path: Path
     art: frame.Artwork
-    min_confidence: float = 0.5
+    min_confidence: float = 0.5                 # DISPLAY_MIN_CONFIDENCE
+    single_confidence: float | None = None      # DISPLAY_SINGLE_CONFIDENCE; None = min_confidence
     facts: facts.FactsConfig = field(default_factory=lambda: facts.FactsConfig(Path("/nonexistent"), fetch=False))
     tz: dt.tzinfo = field(default_factory=lambda: _DEFAULT_ZONE)
     visit_gap: dt.timedelta = frame.DEFAULT_VISIT_GAP
@@ -140,7 +145,6 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     try:
         port = int(raw_port)
         hours = int(env.get("COLLAGE_HOURS", "24"))
-        min_conf = float(env.get("MIN_CONFIDENCE", "0.5"))
         gap_min = int(env.get("VISIT_GAP_MINUTES", "").strip() or "10")
         clip_s = int(env.get("CLIP_SECONDS", "30"))    # parsed as the capture loop does
     except ValueError as exc:
@@ -149,8 +153,7 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
         raise ConfigError(f"SERVE_PORT must be 1..65535, got {port}")
     if not 1 <= hours <= MAX_HOURS:
         raise ConfigError(f"COLLAGE_HOURS must be 1..{MAX_HOURS}, got {hours}")
-    if not 0 <= min_conf <= 1:
-        raise ConfigError(f"MIN_CONFIDENCE must be 0..1, got {min_conf}")
+    thresholds = load_thresholds(env)
     if not 1 <= gap_min <= 240:
         raise ConfigError(f"VISIT_GAP_MINUTES must be 1..240, got {gap_min}")
     if clip_s < 3:
@@ -173,7 +176,7 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
         if _KEY_RE.fullmatch(raw_key):
             key = facts.Secret(raw_key)
         else:
-            log.warning("EBIRD_API_KEY is malformed (expected 1-64 letters and digits); eBird features off")
+            log.warning("EBIRD_API_KEY is malformed (expected 1-64 letters, digits, underscores, or hyphens); eBird features off")
     del raw_key
     lat, lon = _coord(env, "LATITUDE", 90), _coord(env, "LONGITUDE", 180)
     if key is not None and (lat is None or lon is None):
@@ -182,7 +185,8 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     # A table that fails to load logs an ERROR and leaves the fallback off.
     audubon = frame.Audubon.load(art_dir / "audubon") if fallback == "1" else None
     return ServeConfig(port=port, hours=hours, db_path=data_dir / "birdlisten.sqlite",
-                       art=frame.Artwork(art_dir, ref, audubon), min_confidence=min_conf,
+                       art=frame.Artwork(art_dir, ref, audubon), min_confidence=thresholds.display,
+                       single_confidence=thresholds.single,
                        facts=facts.FactsConfig(facts_dir, fetch == "1", key, lat, lon),
                        tz=load_tz(env), visit_gap=dt.timedelta(minutes=gap_min),
                        clip=dt.timedelta(seconds=clip_s))
@@ -220,7 +224,8 @@ def load_species(cfg: ServeConfig, hours: int, now: dt.datetime) -> list[frame.S
         return []
     conn = frame.open_ro(cfg.db_path)
     try:
-        return frame.recent_species(conn, now, hours, cfg.min_confidence, cfg.visit_gap)
+        return frame.recent_species(conn, now, hours, cfg.min_confidence,
+                                    single_confidence=cfg.single_confidence, gap=cfg.visit_gap)
     finally:
         conn.close()
 
@@ -264,7 +269,7 @@ def parse_species_segment(path: str) -> str:
 
 
 def species_known(cfg: ServeConfig, name: str) -> bool:
-    """A bird heard at or above MIN_CONFIDENCE, or in the Audubon table (when on)."""
+    """A bird heard at or above DISPLAY_MIN_CONFIDENCE, or in the Audubon table (when on)."""
     if not taxa.is_bird(name):
         return False
     if cfg.db_path.exists():

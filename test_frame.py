@@ -214,6 +214,28 @@ def test_recent_species_min_confidence(tmp_path: Path):
     assert len(everything) == 3 and everything[2].first_ever is False   # default 0.0 keeps all rows
 
 
+def test_recent_species_needs_one_strong_or_two_qualifying_rows(tmp_path: Path):
+    now = dt.datetime(2026, 10, 2, 15, 0, tzinfo=UTC)
+    h = dt.timedelta(hours=1)
+    db = seed(tmp_path, [
+        (now - 5 * h, "back", "Golden-crowned Sparrow", "Zonotrichia atricapilla", 0.90),  # one, not strong: hidden
+        (now - 4 * h, "back", "Varied Thrush", "Ixoreus naevius", 0.95),                  # one, exactly strong
+        (now - 3 * h, "back", "Bushtit", "Psaltriparus minimus", 0.91),                   # two qualifying rows
+        (now - 2 * h, "front", "Bushtit", "Psaltriparus minimus", 0.92),
+        (now - 2 * h, "back", "Song Sparrow", "Melospiza melodia", 0.93),                 # second row is too low
+        (now - 1 * h, "back", "Song Sparrow", "Melospiza melodia", 0.85),
+    ])
+    conn = frame.open_ro(db)
+    try:
+        out = frame.recent_species(conn, now, 24, 0.9, single_confidence=0.95)
+        lenient = frame.recent_species(conn, now, 24, 0.9)      # single defaults to min: one row is enough
+    finally:
+        conn.close()
+    assert [s.scientific_name for s in out] == ["Psaltriparus minimus", "Ixoreus naevius"]
+    assert out[0].count == 2 and out[0].cameras == ("front", "back")
+    assert [s.common_name for s in lenient] == ["Song Sparrow", "Bushtit", "Varied Thrush", "Golden-crowned Sparrow"]
+
+
 def test_open_ro_cannot_write(tmp_path: Path):
     db = seed(tmp_path, [])
     conn = frame.open_ro(db)

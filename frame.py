@@ -69,6 +69,9 @@ FONT_FILES = {False: "LibreBaskerville.ttf", True: "LibreBaskerville-Italic.ttf"
 META_FILES = ("ATTRIBUTION.md", "manifest.json")
 
 
+REPEAT_DETECTIONS = 2        # rows a species needs below DISPLAY_SINGLE_CONFIDENCE
+
+
 def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)   # the one place "now" is made
 
@@ -90,7 +93,7 @@ class Species:
 # species' rows, on any camera, with no more than the gap of silence between
 # the end of one row's clip and the start of the next. The rows are kept as
 # they are; visits are worked out when reading, so a different gap or
-# MIN_CONFIDENCE applies to old rows too.
+# DISPLAY_MIN_CONFIDENCE applies to old rows too.
 DEFAULT_VISIT_GAP = dt.timedelta(minutes=10)
 DEFAULT_CLIP = dt.timedelta(seconds=30)
 
@@ -126,15 +129,24 @@ def open_ro(db_path: Path) -> sqlite3.Connection:
 
 
 def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
-                   min_confidence: float = 0.0, gap: dt.timedelta = DEFAULT_VISIT_GAP) -> list[Species]:
+                   min_confidence: float = 0.0, *, single_confidence: float | None = None,
+                   repeat: int = REPEAT_DETECTIONS,
+                   gap: dt.timedelta = DEFAULT_VISIT_GAP) -> list[Species]:
     """Species heard in the last `hours`, most recent first. `now` must be
     UTC-aware so `since` has the same fixed width and +00:00 suffix as every
     heard_at written by record(), which makes TEXT comparison chronological.
     Rows below `min_confidence` are ignored everywhere, first_ever included,
-    so raising MIN_CONFIDENCE hides older low-confidence rows immediately."""
+    so raising DISPLAY_MIN_CONFIDENCE hides older low-confidence rows immediately.
+
+    A species is kept when one of its rows reaches `single_confidence`, or it
+    has at least `repeat` rows at `min_confidence`. None (the default) means
+    `min_confidence`, so any one qualifying row is enough. first_ever only
+    asks whether any row before the window reached `min_confidence`; it does
+    not apply this repeat rule to the earlier rows."""
+    single = min_confidence if single_confidence is None else single_confidence
     since = (now - dt.timedelta(hours=hours)).isoformat(timespec="seconds")
     rows = conn.execute(
-        "SELECT scientific_name, common_name, camera, heard_at FROM detections"
+        "SELECT scientific_name, common_name, camera, heard_at, confidence FROM detections"
         " WHERE heard_at >= ? AND confidence >= ? ORDER BY heard_at DESC, id DESC",
         (since, min_confidence),
     ).fetchall()
@@ -146,9 +158,10 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
     common: dict[str, str] = {}
     last: dict[str, str] = {}
     count: dict[str, int] = {}
+    best: dict[str, float] = {}
     cameras: dict[str, list[str]] = {}
     times: dict[str, list[dt.datetime]] = {}
-    for sci, com, cam, heard in rows:
+    for sci, com, cam, heard, conf in rows:
         if not taxa.is_bird(sci):
             continue                   # kept in SQLite, never drawn (Dog, Engine, frogs)
         if sci not in count:
@@ -156,10 +169,12 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
             common[sci] = com          # most recent row wins
             last[sci] = heard
             count[sci] = 0
+            best[sci] = conf
             cameras[sci] = []
             times[sci] = []
         count[sci] += 1
         times[sci].append(heard_time(heard))
+        best[sci] = max(best[sci], conf)
         if cam not in cameras[sci]:
             cameras[sci].append(cam)   # most recent camera first
     return [
@@ -167,6 +182,7 @@ def recent_species(conn: sqlite3.Connection, now: dt.datetime, hours: int,
                 not conn.execute(heard_before, (sci, since, min_confidence)).fetchone()[0],
                 len(visits(times[sci], gap)))
         for sci in order
+        if best[sci] >= single or count[sci] >= repeat
     ]
 
 

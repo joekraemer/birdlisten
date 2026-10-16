@@ -38,7 +38,8 @@ plate caches, vignette processing, HTTP routes, click targets), the pop-up
 (species stats, fact fetching and caching, input validation, the eBird key),
 and the `audubon.json` build rules. NOT yet
 verified: an actual Reolink RTSP stream, and real bird detections. Expect to
-tune `MIN_CONFIDENCE` once you see what the yard sounds like to BirdNET.
+tune the confidence thresholds (see Tuning) once you see what the yard
+sounds like to BirdNET.
 
 ## Setup
 
@@ -125,7 +126,9 @@ Set `NTFY_TOPIC` to an unguessable string, install the ntfy app on your phone,
 subscribe to that topic. You get one push per species per hour: "Varied Thrush
 — 07:12 on back camera, 83% confidence". `NOTIFY_COOLDOWN_MIN` tunes the hour.
 BirdNET's non-bird labels (Dog, Engine, Human vocal, frogs, insects, mammals;
-see `taxa.py`) are recorded but never pushed.
+see `taxa.py`) are recorded but never pushed. A push needs one detection at
+`DISPLAY_SINGLE_CONFIDENCE` (see Tuning), so the extra low rows that
+`RECORD_MIN_CONFIDENCE` keeps never buzz the phone.
 
 ## Data
 
@@ -137,11 +140,39 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
 
 ## Tuning
 
-* `MIN_CONFIDENCE` 0.5 is a reasonable start. BirdNET's location/date filter
-  already removes implausible species (for Seattle in September it considers
-  ~160 of the model's 6,500); the remaining false positives are usually
-  mechanical noise scored as a bird at 0.3–0.5. birdnetlib clamps the value to
-  0.01–0.99 and the comparison is strict (a detection at exactly 0.5 is dropped).
+* Four confidence settings, each 0..1. What is stored and what is shown are
+  separate, so the db can keep more than the page draws:
+  * `RECORD_MIN_CONFIDENCE`: BirdNET drops anything below it; nothing under
+    it is stored.
+  * `DISPLAY_MIN_CONFIDENCE`: rows below it are invisible to the page, the
+    pop-up and `/api/recent`. Read on every request, so changing it changes
+    the page straight away, old rows included.
+  * `DISPLAY_SINGLE_CONFIDENCE`: one row at or above it puts a species on the
+    board. Between `DISPLAY_MIN_CONFIDENCE` and this, a species needs two rows
+    in the window (two clips, or two cameras at once). It is also the bar for
+    an ntfy push.
+  * `MIN_CONFIDENCE`: the default for `RECORD_` and `DISPLAY_MIN_`, which in
+    turn is the default for `DISPLAY_SINGLE_`. Setting only `MIN_CONFIDENCE`
+    behaves as before: one threshold for everything.
+
+  A blank value counts as unset; anything else outside 0..1 is a config
+  error. A bad `DISPLAY_*` value turns the collage server off and makes the
+  capture loop log a warning and push at the record threshold; recording
+  carries on. A bad `RECORD_MIN_CONFIDENCE` or `MIN_CONFIDENCE` stops the
+  container at startup.
+
+  Example: `RECORD_MIN_CONFIDENCE=0.7`, `DISPLAY_MIN_CONFIDENCE=0.9`,
+  `DISPLAY_SINGLE_CONFIDENCE=0.95`. Rows at 0.7 to 0.9 are kept for later
+  tuning; the board shows a bird heard once at 0.95 or more, or twice at 0.9
+  or more. BirdNET scores are not probabilities, so 0.9 does not mean 90%
+  right; check `--report` and the pop-up's best/typical confidence before
+  moving them.
+* For `RECORD_MIN_CONFIDENCE`, 0.5 is a reasonable start. BirdNET's
+  location/date filter already removes implausible species (for Seattle in
+  September it considers ~160 of the model's 6,500); the remaining false
+  positives are usually mechanical noise scored as a bird at 0.3–0.5.
+  birdnetlib clamps the value to 0.01–0.99 and the comparison is strict (a
+  detection at exactly 0.5 is dropped).
 * `CLIP_SECONDS` 30 gives ten 3-second BirdNET windows per clip. In stream
   mode every camera listens continuously whatever the value; shorter clips
   give finer `heard_at` times and faster pushes, at a little more overhead
@@ -182,7 +213,7 @@ each container start.
   mean analysis is falling behind.
 * `analyze_s`, `cpu_s`: wall time and process CPU (`getrusage`, all threads)
   of the BirdNET call only. `detections`: species kept after
-  `MIN_CONFIDENCE`.
+  `RECORD_MIN_CONFIDENCE`.
 * `error=`: the clip could not be analyzed or stored. It counts as `failed`
   in the summary.
 * `dropped=queue_full`: the queue was full and this, the oldest clip, was
@@ -296,8 +327,9 @@ birds" page laid out like a field-guide plate: a centred title ("Heard in the
 last 24 hours") and species count, then one plate per species heard in the
 last N hours (default 24), most recent first, with its common name beneath.
 Cameras, times and first-ever sightings are left off the picture and stay in
-`/api/recent`. Only detections at or above `MIN_CONFIDENCE` count, so raising
-it takes older low-confidence rows off the page straight away. BirdNET's
+`/api/recent`. Only detections at or above `DISPLAY_MIN_CONFIDENCE` count, so
+raising it takes older low-confidence rows off the page straight away, and a
+species heard only once needs `DISPLAY_SINGLE_CONFIDENCE` (see Tuning). BirdNET's
 non-bird labels (Dog, Engine, frogs, crickets; the list is `taxa.py`) stay in
 SQLite and in `--report`, but are left off the page and `/api/recent`, and
 their pop-up is a 404. It is meant to sit in a Home Assistant Webpage card (below). The server
@@ -310,7 +342,7 @@ own read-only connection; it never changes what the loop records or notifies.
 | `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
 | `GET /collage.png?v=<token>` | one cached render by its 16-hex content token (the last 8 are kept), `Cache-Control: public, max-age=31536000, immutable`; 404 once evicted |
 | `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
-| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
+| `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
 | `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out or Audubon plate is on disk. `?hours=` |
 | `GET /plate/<stem>.png` | a cached cut-out or vignette as a 480 px PNG, from disk only |
 | `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
@@ -380,7 +412,7 @@ its last; a visit that began before the window counts from the window's start.
 In the chart a visit counts once in every local hour it touched (on a
 fall-back night, in both 1 AMs). The rows themselves are unchanged and `count`
 still counts them; visits are worked out when reading, so a new gap or
-`MIN_CONFIDENCE` applies to old rows straight away. Two birds of one species
+`DISPLAY_MIN_CONFIDENCE` applies to old rows straight away. Two birds of one species
 heard at the same time on different cameras are one visit, since audio cannot
 tell them apart.
 
@@ -496,7 +528,9 @@ sensor:
 |---|---|---|
 | `SERVE_PORT` | unset | port for the collage server. Unset or empty = no server, no network traffic, nothing changes. |
 | `COLLAGE_HOURS` | `24` | window for `/`, `/collage.png` and `/api/recent`, 1..720 |
-| `MIN_CONFIDENCE` | `0.5` | the capture loop's threshold, also applied when reading: rows below it are left off the page and `/api/recent`, 0..1 |
+| `MIN_CONFIDENCE` | `0.5` | default for `DISPLAY_MIN_CONFIDENCE` (and the capture loop's `RECORD_MIN_CONFIDENCE`), 0..1 |
+| `DISPLAY_MIN_CONFIDENCE` | `MIN_CONFIDENCE` (`0.5`) | rows below it are left off the page, the pop-up and `/api/recent`, 0..1 |
+| `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Also the ntfy push bar. Must be at least `DISPLAY_MIN_CONFIDENCE` |
 | `VISIT_GAP_MINUTES` | `10` | a species heard again within this many minutes, on any camera, is the same visit, 1..240 |
 | `CLIP_SECONDS` | `30` | the capture loop's setting, read here for visit lengths |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
@@ -572,7 +606,7 @@ Other ideas:
 
 * Write detections to a Notion database (the movie-review pattern) or a
   weekly digest to ntfy.
-* Per-camera `MIN_CONFIDENCE`, since a camera near a road is noisier.
+* Per-camera `RECORD_MIN_CONFIDENCE`, since a camera near a road is noisier.
 * Trim the image: birdnetlib depends on matplotlib and librosa pulls in
   scikit-learn, making it ~2.5 GB. A slimmer inference path (`ai-edge-litert`
   + hand-rolled spectrogram) would be ~300 MB but is real work.
