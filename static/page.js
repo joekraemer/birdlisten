@@ -240,8 +240,9 @@
     aboutSec.hidden = false;
     const keepScroll = bodyEl.scrollTop;
     const active = document.activeElement;
-    const activeHref = active && (aboutEl.contains(active) || creditsEl.contains(active))
-      ? active.getAttribute('href') : null;
+    const activeIn = active && creditsEl.contains(active) ? creditsEl
+      : active && aboutEl.contains(active) ? aboutEl : null;
+    const activeHref = activeIn ? active.getAttribute('href') : null;
     clear(aboutEl);
     clear(creditsEl);
     const f = data.facts || {};
@@ -303,7 +304,7 @@
     if (links.firstChild) aboutEl.appendChild(links);
     bodyEl.scrollTop = keepScroll;
     if (activeHref) {
-      const again = Array.prototype.find.call(card.querySelectorAll('.about a, .credits a'),
+      const again = Array.prototype.find.call(activeIn.querySelectorAll('a'),   // same place, not a twin link
         function (a) { return a.getAttribute('href') === activeHref; });
       (again || closeBtn).focus();
     }
@@ -398,6 +399,7 @@
     clear(heardEl);
     heardEl.appendChild(el('p', 'loading', 'Gathering notes\u2026'));
     clear(aboutEl);
+    clear(creditsEl);
     aboutSec.hidden = false;
     card.hidden = false;
     scrim.hidden = false;
