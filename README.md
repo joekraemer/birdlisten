@@ -344,13 +344,13 @@ own read-only connection; it never changes what the loop records or notifies.
 | `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
 | `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
 | `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out, Audubon cut-out or Audubon plate is on disk. `?hours=` |
-| `GET /plate/<stem>.png` | a cached cut-out or vignette as a 480 px PNG, from disk only |
+| `GET /plate/<stem>.png` | a Fugleramme or Audubon cut-out, or a cached vignette, as a 480 px PNG, from disk only |
 | `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
 | `GET /static/page.js`, `/static/page.css` | the page's script and style (HTML responses carry a strict same-origin CSP) |
 | `GET /attribution` | credits: Fugleramme plus its `ATTRIBUTION.md`, the Audubon plates fetched so far, every cut-out's source picture, the Wikipedia articles quoted so far, Wikidata, eBird, and Libre Baskerville |
 | `GET /favicon.ico` | 204 |
 
-Artwork comes from two sources, tried in this order for each species:
+Artwork comes from three sources, tried in this order for each species:
 
 1. **Fugleramme cut-out.** The bird on a transparent background, pasted
    straight onto the page.
@@ -358,7 +358,8 @@ Artwork comes from two sources, tried in this order for each species:
    holds the bird cut out of its Audubon plate (one bird, no plants or
    neighbours), committed to the repo and pasted like a Fugleramme cut-out.
    Built offline by `tools/build_cutouts.py`; see "Rebuilding cutouts/".
-3. **Audubon vignette.** If Fugleramme has no plate under the BirdNET name,
+3. **Audubon vignette.** If Fugleramme has no plate under the BirdNET name and
+   there is no cut-out,
    `audubon.json` maps the name to one Havell plate of Audubon's *The Birds of
    America* (413 BirdNET species on 381 plates). The server fetches a 960 px
    Wikimedia Commons thumbnail of it, never the full-size scan, crops it to
@@ -478,7 +479,7 @@ Wikimedia's User-Agent policy asks; each species' thumbnail is fetched once and 
 
 The committed cut-outs in `cutouts/` are cut from those same public-domain
 scans, except the Ring-billed Gull, cut from plate 130 of James E. De Kay's
-*Zoology of New York, Part II: Birds* (1844, lithograph after J. W. Hill,
+*Zoology of New York, Part II: Birds* (1844, lithograph by J. W. Hill,
 public domain, on Commons). `/attribution` lists every source picture.
 
 Pop-up notes are excerpts from [Wikipedia](https://en.wikipedia.org/) articles,
@@ -602,7 +603,7 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_facts.py test_taxa.py   # arm64 macOS
+  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_build_cutouts.py test_facts.py test_taxa.py   # arm64 macOS
 ```
 
 The stream-capture tests (`test_stream.py`) drive the real supervisors,

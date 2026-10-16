@@ -504,7 +504,11 @@ class Cutouts:
         for key, e in species.items():
             s = stem(key) if isinstance(key, str) else ""
             if not (s and isinstance(e, dict) and e.get("file") == f"{s}.webp"
-                    and isinstance(e.get("page"), str) and e["page"].startswith(COMMONS_PREFIX)):
+                    and isinstance(e.get("page"), str) and e["page"].startswith(COMMONS_PREFIX)
+                    and e.get("source") in ("audubon", "other")
+                    and (e["source"] == "other" or type(e.get("plate")) is int)
+                    and (e.get("credit_url") is None
+                         or str(e["credit_url"]).startswith(("http://", "https://")))):
                 log.warning("cut-out index: skipping invalid entry %r", key)
                 continue
             table[s] = e

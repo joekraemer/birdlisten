@@ -18,8 +18,10 @@ audubon.json that Fugleramme has no plate for (#19). Offline; not in the image.
 
 By default only species missing from cutouts/index.json are built (a new
 audubon.json entry), so a routine run is seconds and loads no models when
-there is nothing to do. --species rebuilds the named ones (after an override
-edit); --full rebuilds everything (after a model or crop change).
+there is nothing to do. Every run also drops entries for species that left
+audubon.json, that Fugleramme now has, or that an override skips. --species
+rebuilds the named ones (after an override edit); --full rebuilds everything
+(after a model or crop change).
 
 Needs the network (Commons thumbnails, the Fugleramme manifest, and about
 4 GB of model weights from Hugging Face on the first run) and about 9 s per
@@ -242,14 +244,41 @@ def load_overrides(path: Path, wanted: dict) -> dict:
     stale = sorted(k for k in doc if k not in wanted)
     if stale:
         sys.exit(f"stale overrides (not an Audubon-only species): {', '.join(stale)}")
+    num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0  # noqa: E731
     for k, o in doc.items():
-        if not o.get("skip") and not (isinstance(o.get("box"), list) and len(o["box"]) == 4):
-            sys.exit(f"override {k}: needs a 4-number box or skip")
+        if not isinstance(o, dict):
+            sys.exit(f"override {k}: must be an object")
+        if o.get("skip"):
+            continue
+        b = o.get("box")
+        if not (isinstance(b, list) and len(b) == 4 and all(map(num, b)) and b[0] < b[2] and b[1] < b[3]):
+            sys.exit(f"override {k}: needs a box [x0, y0, x1, y1] with x0 < x1, y0 < y1, or skip")
+        for key in ("pos", "neg"):
+            pts = o.get(key, [])
+            if not (isinstance(pts, list) and all(isinstance(q, list) and len(q) == 2 and all(map(num, q))
+                                                  for q in pts)):
+                sys.exit(f"override {k}: {key} must be a list of [x, y]")
         s = o.get("source")
-        if s is not None and not (isinstance(s.get("file"), str)
+        if s is not None and not (isinstance(s, dict) and isinstance(s.get("file"), str)
                                   and str(s.get("page", "")).startswith(frame.COMMONS_PREFIX)):
             sys.exit(f"override {k}: source needs file and a Commons page")
     return doc
+
+
+def write_index(ipath: Path, before: dict, species: dict) -> None:
+    """Rewrite index.json only when its species map changed, then delete any
+    WebP it no longer lists."""
+    if species != before or not ipath.exists():
+        OUT.mkdir(exist_ok=True)
+        frame._write_atomic(ipath, json.dumps(
+            {"generated": dt.date.today().isoformat(), "species": dict(sorted(species.items()))},
+            indent=1, ensure_ascii=False).encode() + b"\n")
+        print(f"index.json: {len(species)} species (was {len(before)})")
+    keep = {v["file"] for v in species.values()}
+    for p in OUT.glob("*.webp"):
+        if p.name not in keep:
+            p.unlink()
+            print("removed", p.name)
 
 
 def save_webp(cut, path: Path) -> None:
@@ -307,9 +336,10 @@ def review_page(work: Path, rows: list[dict]) -> Path:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--work", type=Path, required=True, help="cache: thumbnails, results.json, review/")
-    ap.add_argument("--species", nargs="*", help="only these (scientific names), rebuilt even if present")
-    ap.add_argument("--full", action="store_true",
-                    help="rebuild every species and drop stale files (default: only species not in index.json)")
+    which = ap.add_mutually_exclusive_group()
+    which.add_argument("--species", nargs="+", help="rebuild only these (scientific names)")
+    which.add_argument("--full", action="store_true",
+                       help="rebuild every species (default: only species not in index.json)")
     ap.add_argument("--review", action="store_true", help="write WORK/review/index.html")
     args = ap.parse_args(argv)
     from PIL import Image
@@ -321,15 +351,25 @@ def main(argv=None) -> int:
     wanted = {k: e for k, e in aud.items() if frame.stem(k) not in fug}
     overrides = load_overrides(OVERRIDES, wanted)
     ipath = OUT / "index.json"
-    old = {} if args.full or not ipath.exists() else json.loads(ipath.read_text())["species"]
+    before = json.loads(ipath.read_text())["species"] if ipath.exists() else {}
+    skip = {k for k, o in overrides.items() if o.get("skip")}
+    # Every run (cheap, no models): drop species that left audubon.json, that
+    # Fugleramme now has, or that an override now skips.
+    old = {} if args.full else {k: v for k, v in before.items() if k in wanted and k not in skip}
     if args.species:
+        bad = [k for k in args.species if k not in wanted]
+        if bad:
+            sys.exit(f"not an Audubon-only species: {', '.join(bad)}")
         todo = {k: wanted[k] for k in args.species}
     elif args.full:
         todo = wanted
     else:   # new audubon.json species, or Fugleramme dropped one
-        todo = {k: e for k, e in wanted.items() if k not in old}
+        todo = {k: e for k, e in wanted.items() if k not in old and k not in skip}
         print(f"{len(old)} cut-outs present, {len(todo)} to build (--full rebuilds all)")
-    if not todo and not args.review:
+    if not todo:
+        if args.review:
+            print("nothing to review; pass --species or --full")
+        write_index(ipath, before, old)
         return 0
     byplate: dict[int, list[str]] = {}
     for k, e in aud.items():
@@ -373,6 +413,7 @@ def main(argv=None) -> int:
                      "notes": notes, "status": status})
         if cut is None:
             missing.append((sci, "; ".join(notes)))
+            old.pop(sci, None)
             continue
         save_webp(cut, OUT / f"{frame.stem(sci)}.webp")
         meta = src or {k: e.get(k) for k in ("plate", "title", "page", "credit", "credit_url")}
@@ -381,13 +422,7 @@ def main(argv=None) -> int:
         print(f"{n + 1}/{len(todo)} {sci}: {status}", flush=True)
 
     old.update(index)
-    if args.full:   # a species dropped from the table, now skipped, or now in Fugleramme
-        for p in OUT.glob("*.webp"):
-            if p.name not in {v["file"] for v in old.values()}:
-                p.unlink()
-    frame._write_atomic(ipath, json.dumps(
-        {"generated": dt.date.today().isoformat(), "species": dict(sorted(old.items()))},
-        indent=1, ensure_ascii=False).encode() + b"\n")
+    write_index(ipath, before, old)
     print(f"\n{len(old)} cut-outs in {OUT.relative_to(ROOT)}/; {len(missing)} keep the vignette:")
     for sci, why in missing:
         print(f"  {sci}: {why}")

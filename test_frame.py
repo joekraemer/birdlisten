@@ -1103,8 +1103,15 @@ def write_cutouts(tmp_path: Path, species: dict[str, dict | None]) -> Path:
 
 def test_cutouts_load_and_validation(tmp_path: Path, caplog):
     d = write_cutouts(tmp_path, {"Cyanocitta stelleri": None,
-                                 "Bad file": {"file": "other.webp", "page": "https://commons.wikimedia.org/x"},
-                                 "Bad page": {"file": "bad-page.webp", "page": "https://example.com/x"}})
+                                 "Bad file": {"file": "other.webp", "source": "other", "page": "https://commons.wikimedia.org/x"},
+                                 "Bad page": {"file": "bad-page.webp", "page": "https://example.com/x"},
+                                 "No plate": {"file": "no-plate.webp", "source": "audubon",
+                                              "page": "https://commons.wikimedia.org/x"},
+                                 "Bad source": {"file": "bad-source.webp", "source": "web",
+                                                "page": "https://commons.wikimedia.org/x"},
+                                 "Bad credit": {"file": "bad-credit.webp", "source": "other",
+                                                "page": "https://commons.wikimedia.org/x",
+                                                "credit_url": "javascript:alert(1)"}})
     c = frame.Cutouts.load(d)
     assert set(c.table) == {"cyanocitta-stelleri"} and "skipping invalid entry" in caplog.text
     assert c.has_art("Cyanocitta stelleri") and c.path("Cyanocitta stelleri") == d / "cyanocitta-stelleri.webp"

@@ -11,5 +11,5 @@
  "Sphyrapicus ruber": {"box": [76, 1041, 379, 1158]},
  "Sterna forsteri": {"box": [275, 41, 557, 187]},
  "Anas rubripes": {"box": [40, 180, 382, 442], "pos": [[150, 330], [320, 232], [250, 420]], "neg": [[405, 300], [480, 232], [520, 200]], "_why": "the plate's two ducks touch; cut the front one"},
- "Larus delawarensis": {"box": [128, 192, 781, 601], "pos": [[400, 360], [444, 520], [416, 589]], "neg": [[560, 560], [609, 552]], "_why": "Audubon's plate 212 overlaps an adult and a juvenile; De Kay's adult is alone", "source": {"file": "De Kay and Hill 1844 Plate 130.jpg", "page": "https://commons.wikimedia.org/wiki/File:De_Kay_and_Hill_1844_Plate_130.jpg", "title": "Zoology of New York, Part II: Birds (1844), plate 130, fig. 285", "credit": "James E. De Kay; lithograph after John William Hill"}}
+ "Larus delawarensis": {"box": [128, 192, 781, 601], "pos": [[400, 360], [444, 520], [416, 589]], "neg": [[560, 560], [609, 552]], "_why": "Audubon's plate 212 overlaps an adult and a juvenile; De Kay's adult is alone", "source": {"file": "De Kay and Hill 1844 Plate 130.jpg", "page": "https://commons.wikimedia.org/wiki/File:De_Kay_and_Hill_1844_Plate_130.jpg", "title": "Zoology of New York, Part II: Birds (1844), plate 130, fig. 285", "credit": "James Ellsworth De Kay and J. W. Hill", "credit_url": "http://www.gallery.oldbookart.com/main.php?g2_itemId=25705"}}
 }
