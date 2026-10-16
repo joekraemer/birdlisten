@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"   # numpy 2.5; the app itself stays on 3.11
 # dependencies = [
 #     "numpy==2.5.4",
 #     "open_clip_torch==3.3.0",
