@@ -95,6 +95,7 @@
   const heardEl = card.querySelector('.heard .content');
   const aboutSec = card.querySelector('section.about');
   const aboutEl = aboutSec.querySelector('.content');
+  const creditsEl = card.querySelector('.credits');   // sources and licences, at the bottom
   let reqId = 0;
   let openSci = null;
   let followTimer = null;
@@ -212,27 +213,14 @@
     clear(heardEl);
     const h = data.heard || {};
     const typical = validTypical(h);
-    const caption = typical
-      ? 'Dark: ' + windowPhrase(data.hours) + '. Light: when it is usually heard, over the last ' +
-        h.typical_days + ' days. Local time.'
-      : 'Visits by hour of day, local time';
     if (!h.count) {
       heardEl.appendChild(el('p', 'quiet', 'Not heard in ' + windowPhrase(data.hours)));
-      if (typical) {
-        heardEl.appendChild(chart(h.by_hour || new Array(24).fill(0), 0, data.hours, typical));
-        heardEl.appendChild(el('p', 'credit', caption));
-      }
+      if (typical) heardEl.appendChild(chart(h.by_hour || new Array(24).fill(0), 0, data.hours, typical));
       return;
     }
     heardEl.appendChild(el('p', null, visitsPhrase(h) +
       ' \u00b7 best ' + pct(h.max_conf) + ', typical ' + pct(h.median_conf)));
-    heardEl.appendChild(el('p', null, h.first_local === h.last_local ? 'Heard ' + h.last_local
-      : 'First ' + h.first_local + ' \u00b7 last ' + h.last_local));
-    if (h.cameras && h.cameras.length) {
-      heardEl.appendChild(el('p', null, 'Cameras: ' + h.cameras.join(', ')));
-    }
     heardEl.appendChild(chart(h.by_hour, h.busiest_hour, data.hours, typical));
-    heardEl.appendChild(el('p', 'credit', caption));
   }
 
   function credit(prefix, parts) {
@@ -248,18 +236,20 @@
   // final: the last pass for this card (the follow-up). Nothing else is
   // fetched after it, so it must not promise more notes (#6).
   function fillAbout(data, final) {
-    if (!data.binomial) { aboutSec.hidden = true; return; }
+    if (!data.binomial) { aboutSec.hidden = true; clear(creditsEl); return; }
     aboutSec.hidden = false;
     const keepScroll = bodyEl.scrollTop;
     const active = document.activeElement;
-    const activeHref = active && aboutEl.contains(active) ? active.getAttribute('href') : null;
+    const activeHref = active && (aboutEl.contains(active) || creditsEl.contains(active))
+      ? active.getAttribute('href') : null;
     clear(aboutEl);
+    clear(creditsEl);
     const f = data.facts || {};
     const w = f.wikipedia;
     let any = false;
     if (w && typeof w.extract === 'string' && safeLink(w.url, w.title)) {
       aboutEl.appendChild(el('p', 'blurb', w.extract));
-      aboutEl.appendChild(credit(w.trimmed ? 'Excerpt from Wikipedia: ' : 'From Wikipedia: ',
+      creditsEl.appendChild(credit(w.trimmed ? 'Excerpt from Wikipedia: ' : 'From Wikipedia: ',
         [[w.url, w.title], ', ', [w.license_url, w.license]]));
       any = true;
     }
@@ -279,7 +269,7 @@
         parts.push([s.url, s.name], ' (', [s.license_url, s.license], ')');
         if (sz.sources.length > 1 && s.fields) parts.push(' for ' + s.fields.join(', '));
       });
-      aboutEl.appendChild(credit('Size: ', parts));
+      creditsEl.appendChild(credit('Size: ', parts));
       any = true;
     }
     const nb = f.nearby;
@@ -293,7 +283,7 @@
         text = 'No eBird reports within ' + nb.dist_km + ' km in the last ' + nb.back_days + ' days';
       }
       aboutEl.appendChild(el('p', 'nearby', text));
-      aboutEl.appendChild(credit('Data from ', [[nb.url, 'eBird.org'], ' (Cornell Lab of Ornithology)']));
+      creditsEl.appendChild(credit('Data from ', [[nb.url, 'eBird.org'], ' (Cornell Lab of Ornithology)']));
       any = true;
     }
     const links = el('p', 'links');
@@ -313,7 +303,7 @@
     if (links.firstChild) aboutEl.appendChild(links);
     bodyEl.scrollTop = keepScroll;
     if (activeHref) {
-      const again = Array.prototype.find.call(aboutEl.querySelectorAll('a'),
+      const again = Array.prototype.find.call(card.querySelectorAll('.about a, .credits a'),
         function (a) { return a.getAttribute('href') === activeHref; });
       (again || closeBtn).focus();
     }
@@ -323,6 +313,7 @@
     clear(heardEl);
     heardEl.appendChild(el('p', 'quiet', 'Couldn\u2019t load details'));
     aboutSec.hidden = true;
+    clear(creditsEl);
   }
 
   async function load(sci, my, aboutOnly, seen) {

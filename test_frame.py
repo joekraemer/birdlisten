@@ -266,13 +266,13 @@ def test_pack_no_overlap_in_canvas(n, size):
 def test_pack_drop_policy():
     _, margin, gap, top = frame._metrics(1600, 1200)
     boxes, dropped = frame.pack(200, 1600, 1200, top, margin, gap)
-    assert (len(boxes), dropped) == (98, 102)
+    assert (len(boxes), dropped) == (128, 72)
     _, margin, gap, top = frame._metrics(200, 200)
     boxes, dropped = frame.pack(30, 200, 200, top, margin, gap)
     assert (len(boxes), dropped) == (2, 28)
     assert frame.pack(0, 800, 600, top, margin, gap) == ([], 0)
     assert frame.capacity(800, 600) == 32        # README quotes these
-    assert frame.capacity(1600, 1200) == 98
+    assert frame.capacity(1600, 1200) == 128
 
 
 @pytest.mark.parametrize("n,rows", [(22, [6, 6, 5, 5]), (5, [3, 2]), (7, [4, 3])])
@@ -610,15 +610,17 @@ def golden_renders(tmp: Path) -> dict[tuple[int, int, bool], bytes]:
 
 
 # Recorded by tools/golden_render.py at beead01, before the pop-up change
-# touched frame.py. Never regenerate these from changed rendering code.
+# touched frame.py. Never regenerate these from changed rendering code. The
+# non-quiet renders were re-recorded once for the deliberate layout change
+# (wider plates, tighter gaps); the quiet page did not change.
 GOLDEN_PX = {
-    (1600, 1200, False): 'dee9b792d8f9af98cda0abc6d349ccada9e621ee03958b3ba51c15d4888e1687',
-    (533, 400, False): 'a3316b56c4019b03613ba4654aa272f01e7c00c50798c604cad1e69cd2cee3e6',
+    (1600, 1200, False): '7e3bd74bce0f3e37823e7a2d4953bb94cd6706bdf4d2ef8b026bde9b45cdebc9',
+    (533, 400, False): '25e57fdb0f24a240ddafb98502cec0397404805538c4f4760c27bfaa4da6a6f1',
     (1600, 1200, True): '2022876fe517928f0f6b77571a8ee1b07fb89aa0a54af676c1a98dc5ca3658f0',
 }
 GOLDEN_RAW = {   # macOS only: the PNG bytes depend on the platform's zlib build
-    (1600, 1200, False): 'f45cee5d2bbde151ca00bde699ac68ada1485701275e6a51f561ee666c899531',
-    (533, 400, False): '592805ad99c00a2e2329fe0f8fec6407af27c620e4506282538d32a7d7ae3164',
+    (1600, 1200, False): '6f89e3fa88b8862f353c6cb5a57edbd1f5bff0077c727306630ffd622950b6c8',
+    (533, 400, False): '47c4df7ad5ee2b7be67555cb5fcf92304910049fe3b25f6aa8c1b090cf477e60',
     (1600, 1200, True): 'bb9d25f56394eec829be041fe168fdc73e6074a90a958dc9dd166dec46b4ea35',
 }
 

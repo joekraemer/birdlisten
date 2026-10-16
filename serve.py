@@ -499,6 +499,7 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
 <div class="body">
 <section class="about"><h3>About the bird</h3><div class="content"></div></section>
 <section class="heard"><h3>What we heard</h3><div class="content"></div></section>
+<footer class="credits"></footer>
 </div>
 </section>
 <script type="application/json" id="layout">{_json_block(layout)}</script>

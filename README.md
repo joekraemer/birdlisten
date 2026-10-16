@@ -376,11 +376,13 @@ changed (a species, its name or order, art arriving or changing source), so
 the 60 s page refresh normally costs nothing.
 
 Layout: every cell is the same size, species are spread evenly over the rows
-(22 at 1600x1200 is 6, 6, 5, 5) and each row is centred. Every name on a page
+(22 at 1600x1200 is 6, 6, 5, 5) and each row is centred. Spare width goes
+to the plates first (up to 1.3 times as wide as tall, so side-on birds grow)
+and only then to the gaps between them. Every name on a page
 is set in one size; a long name wraps onto a second line rather than
 shrinking. Capacity: cells shrink to an 80 px minimum, then the oldest species
 are dropped and the count reads `N species, M not shown`; that is 32 species
-at 800x600 and 98 at the default 1600x1200 (`frame.capacity(w, h)` computes
+at 800x600 and 128 at the default 1600x1200 (`frame.capacity(w, h)` computes
 it).
 
 ### Pop-up
@@ -390,7 +392,8 @@ the page: the plate, common and scientific name, then **About the bird** (a
 Wikipedia excerpt, Wikidata sizes when it has them, nearby eBird reports, and
 links to eBird, All About Birds and Wikipedia) and **What we heard** (visits
 in the window and roughly how long it was heard, best and typical confidence,
-first and last heard, cameras, and a small chart of visits per hour of day).
+and a small chart of visits per hour of day, local time). The sources and
+licences for the notes sit in small type at the bottom of the card.
 Once there are 3 days of history, wide light bars behind the chart show when
 the species is usually heard: its visits per local hour over the last 28 days
 (or since the first detection, if sooner), averaged per day. The window's own
