@@ -1,6 +1,7 @@
-# Build the container image on every push to main and publish it to GHCR as
+# Build the container image, test it, and only then publish it to GHCR as
 # ghcr.io/<owner>/<repo>:main. The fleet host pulls that tag every 10 minutes,
-# so "push to main" IS the deploy.
+# so "push to main" IS the deploy, and a failing test keeps the old image in
+# place. Pull requests build and test only.
 #
 # Also pushes :sha-<short> so a bad release can be pinned back in
 # fleet/compose.yaml by changing one tag.
@@ -54,32 +55,41 @@ jobs:
             type=sha,prefix=sha-
             type=ref,event=pr
 
-      - name: Build and push
+      # Build once into the runner's local Docker so the tests below run on
+      # the exact image, and only push it if they pass. The push step reuses
+      # this build's cache, so it does not rebuild.
+      - name: Build (for testing)
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          load: true
+          push: false
+          tags: birdlisten:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       # Smoke test: the image must at least start and import the app. Catches
       # a broken lockfile or a bad module name before the fleet pulls it.
-      # The tag is read from metadata-action's output rather than rebuilt by
-      # hand, so the two can never drift.
+      # pipefail: without it the step takes `tail`'s exit code and never fails.
       - name: Smoke test
-        if: github.event_name != 'pull_request'
         run: |
-          tag=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | grep ':sha-' | head -1)
-          echo "testing $tag"
-          docker run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--help" "$tag" 2>&1 | tail -20
+          set -o pipefail
+          docker run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--help" birdlisten:test 2>&1 | tail -20
 
       # The image's real ffmpeg cuts a 7 s test tone into segments through the
       # exact stream-mode flags. Fails the build if segmenting is broken.
       - name: Segment muxer self-test
+        run: docker run --rm --entrypoint python birdlisten:test stream.py --selftest
+
+      # Only reached when both tests passed. Pull requests stop here.
+      - name: Push
         if: github.event_name != 'pull_request'
-        run: |
-          tag=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | grep ':sha-' | head -1)
-          docker run --rm --entrypoint python "$tag" stream.py --selftest
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
