@@ -82,6 +82,49 @@ def test_idle_connection_is_dropped_after_the_timeout(tmp_path, monkeypatch):
         srv.server_close()
 
 
+# ----------------------------------------------------------------- container healthcheck (#27)
+def test_healthcheck_passes_against_a_live_server(server, tmp_path):
+    import healthcheck
+
+    srv, _ = server
+    seed(tmp_path)
+    ok, msg = healthcheck.check({"SERVE_PORT": str(srv.server_address[1])}, timeout=5)
+    assert ok, msg
+
+
+def test_healthcheck_fails_when_nothing_answers():
+    import healthcheck
+
+    with socket.socket() as s:                    # a port that was free a moment ago
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    ok, msg = healthcheck.check({"SERVE_PORT": str(port)}, timeout=2)
+    assert not ok and "/api/recent" in msg
+
+
+def test_healthcheck_fails_on_a_server_that_never_answers():
+    import healthcheck
+
+    with socket.socket() as s:                    # accepts the connection, never replies
+        s.bind(("127.0.0.1", 0))
+        s.listen()
+        t0 = time.monotonic()
+        ok, msg = healthcheck.check({"SERVE_PORT": str(s.getsockname()[1])}, timeout=0.5)
+    assert not ok and time.monotonic() - t0 < 3
+
+
+def test_healthcheck_passes_when_the_server_is_off():
+    import healthcheck
+
+    assert healthcheck.check({})[0] and healthcheck.check({"SERVE_PORT": " "})[0]
+
+
+def test_dockerfile_runs_the_healthcheck():
+    df = (Path(__file__).parent / "Dockerfile").read_text()
+    assert re.search(r'^HEALTHCHECK .*\\\n\s+CMD \["python", "healthcheck.py"\]', df, re.M)
+    assert "test -f healthcheck.py" in df          # the build fails if the script is missing
+
+
 def get(url: str):
     with urllib.request.urlopen(url, timeout=10) as resp:
         return resp.status, resp.headers, resp.read()

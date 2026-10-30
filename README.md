@@ -586,6 +586,17 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 `SERVE_PORT=8085` to the birdlisten service, and note that the existing
 `/data` volume now also holds `artwork/` (a few hundred KB per species).
 
+### Container healthcheck
+
+The image has a `HEALTHCHECK` (`healthcheck.py`, every 60 s after a 120 s
+start period, unhealthy after 3 misses): `GET /api/recent?hours=1` on
+`SERVE_PORT` must answer 200 within 8 s. That covers a wedged or dead server
+thread and a missing or corrupt db (the route reads SQLite); the fleet's
+`bin/health.sh` already reports `unhealthy` containers, so nothing changes on
+the fleet side. It is HTTP liveness only: there is no cheap signal for a hung
+capture pipeline yet (a dead pipeline thread already makes `main()` return 1
+and `loop.py` restart it). With `SERVE_PORT` unset the check always passes.
+
 ## Tests
 
 ```
@@ -674,9 +685,10 @@ Other ideas:
 | `static/` | `page.js` (tap targets, refresh swap, pop-up card) and `page.css` |
 | `tools/facts_coverage.py`, `tools/popup_shots.py`, `tools/golden_render.py` | manual checks (real-network fact coverage, browser checks and screenshots, collage golden hashes); not in the image |
 | `loop.py` | container entrypoint (fleet template), runs `main()` back to back (in stream mode `main()` returns only at shutdown or after a fatal error); starts the server when `SERVE_PORT` is set |
+| `healthcheck.py` | the container `HEALTHCHECK`: HTTP liveness of the collage server (see Collage page) |
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
-| `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test and the segment muxer self-test |
+| `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test, the segment muxer self-test and the healthcheck script |
 | `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
