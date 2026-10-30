@@ -28,7 +28,7 @@ Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
 synthetic clip runs through analysis and storage; the stream-mode segment
 muxer cuts a test tone into the expected clips with the image's own ffmpeg
-(`python stream.py --selftest`, run by CI). 266 test functions (369 cases
+(`python stream.py --selftest`, run by CI). 333 test functions (461 cases
 with parametrization, one of which needs a local ffmpeg and is skipped on
 macOS) cover config parsing, dedupe, cooldown, storage, the per-pass error
 handling, stream capture (segment hand-off, restarts and backoff, the queue,
@@ -589,13 +589,32 @@ Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 ### Container healthcheck
 
 The image has a `HEALTHCHECK` (`healthcheck.py`, every 60 s after a 120 s
-start period, unhealthy after 3 misses): `GET /api/recent?hours=1` on
-`SERVE_PORT` must answer 200 within 8 s. That covers a wedged or dead server
-thread and a missing or corrupt db (the route reads SQLite); the fleet's
-`bin/health.sh` already reports `unhealthy` containers, so nothing changes on
-the fleet side. It is HTTP liveness only: there is no cheap signal for a hung
-capture pipeline yet (a dead pipeline thread already makes `main()` return 1
-and `loop.py` restart it). With `SERVE_PORT` unset the check always passes.
+start period, unhealthy after 3 misses). Two checks, both must pass:
+
+- **HTTP:** `GET /api/recent?hours=1` on `SERVE_PORT` must answer 200 within
+  8 s. That covers a wedged or dead server thread and a missing or corrupt db
+  (the route reads SQLite). Skipped with `SERVE_PORT` unset.
+- **Worker heartbeat (stream mode):** the analysis worker touches
+  `$DATA_DIR/heartbeat` on every loop iteration, at least every 0.5 s when
+  idle and after each clip (~1-2 s) when busy. The check fails when that
+  file is older than `HEARTBEAT_MAX_AGE_S` (default `300`; `0` turns the
+  check off), so a worker stuck in an analysis or a db write marks the
+  container unhealthy. The worker keeps beating while cameras are down or
+  retrying, so **a camera outage never makes the container unhealthy**: that
+  shows in the timing lines and `cameras_up` instead. A dead pipeline thread
+  already makes `main()` return 1 and `loop.py` restart it.
+
+  Start-up grace: a beat older than the container's PID 1 is left over from
+  an earlier run (the volume outlives the container). Until this run's first
+  beat, the check passes for `HEARTBEAT_MAX_AGE_S` after PID 1 started (the
+  model load and db open come first), then fails. The check is skipped with
+  `CAPTURE_MODE=roundrobin` (no worker thread, and `loop.py` sleeps
+  `LOOP_INTERVAL` between passes) and when `DATA_DIR` does not exist.
+
+The fleet's `bin/health.sh` already reports `unhealthy` containers, so
+nothing changes on the fleet side. `HEARTBEAT_MAX_AGE_S` is read only by
+the healthcheck; a bad value falls back to 300 and says so in the check
+output (`docker inspect --format '{{json .State.Health}}' <container>`).
 
 ## Tests
 
@@ -685,7 +704,7 @@ Other ideas:
 | `static/` | `page.js` (tap targets, refresh swap, pop-up card) and `page.css` |
 | `tools/facts_coverage.py`, `tools/popup_shots.py`, `tools/golden_render.py` | manual checks (real-network fact coverage, browser checks and screenshots, collage golden hashes); not in the image |
 | `loop.py` | container entrypoint (fleet template), runs `main()` back to back (in stream mode `main()` returns only at shutdown or after a fatal error); starts the server when `SERVE_PORT` is set |
-| `healthcheck.py` | the container `HEALTHCHECK`: HTTP liveness of the collage server (see Collage page) |
+| `healthcheck.py` | the container `HEALTHCHECK`: HTTP liveness of the collage server and the analysis worker's heartbeat file (see Container healthcheck) |
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |

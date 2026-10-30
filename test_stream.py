@@ -1388,6 +1388,114 @@ def test_final_sweep_kills_all_then_waits_one_deadline(tmp_path):
         f._writer.join(timeout=1)
 
 
+# ----------------------------------------------------------------- worker heartbeat (#32)
+def _beat_mtime(cfg) -> float | None:
+    try:
+        return (cfg.data_dir / stream.HEARTBEAT_FILE).stat().st_mtime
+    except OSError:
+        return None
+
+
+def _age_beat(cfg) -> None:
+    os.utime(cfg.data_dir / stream.HEARTBEAT_FILE, (1_000_000, 1_000_000))   # 1970: long stale
+
+
+def test_heartbeat_matches_healthcheck():
+    import healthcheck
+    assert stream.HEARTBEAT_FILE == healthcheck.HEARTBEAT_FILE
+
+
+def test_idle_worker_keeps_beating(tmp_path):
+    """No clip at all (every camera down): the idle get() loop still beats."""
+    cfg = stream_cfg(tmp_path)
+    stats = stream.Stats(time.monotonic)
+    q = stream.ClipQueue(4, stats, time.monotonic)
+    stop = threading.Event()
+    w = stream.Worker(cfg, queue=q, stats=stats, stop=stop, cameras={c.name: c for c in cfg.cameras},
+                      analyze_fn=lambda *a: [], clock=time.monotonic)
+    stream._track(w)
+    w.start()
+    try:
+        assert w.ready.wait(2) and w.open_error is None
+        wait_for(lambda: _beat_mtime(cfg) is not None, timeout=10)
+        for _ in range(2):                            # beats again, and again, with nothing queued
+            _age_beat(cfg)
+            wait_for(lambda: _beat_mtime(cfg) > 1_000_000, timeout=10)
+    finally:
+        stop.set(); q.close()
+        w.join(timeout=2)
+    assert not w.is_alive()
+
+
+def test_heartbeat_continues_while_cameras_retry(tmp_path, caplog, spies):
+    """A camera outage must not look like a hung worker."""
+    import healthcheck
+    cfg = stream_cfg(tmp_path)
+    refused = dict(n_segments=0, exit_code=1, stderr_lines=["Connection refused"])
+    sp = Spawner({"00-front": [refused] * 500})
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        r = BgRun(cfg, sp).start()
+        try:
+            wait_for(lambda: sp.count("00-front") >= 3 and _beat_mtime(cfg) is not None, timeout=10)
+            _age_beat(cfg)
+            wait_for(lambda: _beat_mtime(cfg) > 1_000_000, timeout=10)
+            assert spies.record == []                 # still nothing captured
+            env = {"DATA_DIR": str(cfg.data_dir), "HEARTBEAT_MAX_AGE_S": "60"}
+            ok, msg = healthcheck.check_heartbeat(env, started_at=time.time() - 3600)
+            assert ok, msg
+        finally:
+            r.signal()
+            assert r.join() == 0
+
+
+def test_hung_worker_stops_beating(tmp_path, caplog, spies):
+    """A worker stuck in one analysis (cameras fine) goes stale and fails the healthcheck."""
+    import healthcheck
+    cfg = stream_cfg(tmp_path)
+    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    entered, release = threading.Event(), threading.Event()
+
+    def analyze(w, c, t):
+        entered.set()
+        release.wait(10)                              # hung: no beat until released
+        return []
+
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        r = BgRun(cfg, sp, analyze_fn=analyze).start()
+        try:
+            assert entered.wait(10)
+            _age_beat(cfg)
+            time.sleep(1.5)                           # 3 idle cadences (0.5 s): an idle worker would have beaten
+            assert _beat_mtime(cfg) == 1_000_000
+            env = {"DATA_DIR": str(cfg.data_dir), "HEARTBEAT_MAX_AGE_S": "60"}
+            ok, msg = healthcheck.check_heartbeat(env, started_at=900_000)
+            assert not ok and "worker hung or dead" in msg, msg
+            release.set()
+            wait_for(lambda: _beat_mtime(cfg) > 1_000_000, timeout=10)    # back to beating
+        finally:
+            release.set()
+            r.signal()
+            assert r.join() == 0
+
+
+def test_unwritable_heartbeat_is_logged_once_and_analysis_goes_on(tmp_path, caplog, spies, monkeypatch):
+    cfg = stream_cfg(tmp_path)
+    calls = []
+
+    def bad_utime(*a, **kw):
+        calls.append(a)
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(stream.os, "utime", bad_utime)
+    sp = Spawner({"00-front": [dict(n_segments=None, stall_after=2, gap_s=0.05)]})   # exactly one clip
+    with caplog.at_level(logging.INFO, logger="birdlisten"):
+        assert run(cfg, sp, once=True, analyze_fn=lambda w, c, t: [BUSHTIT]) == 0
+    assert len(calls) >= 2
+    warns = [m for m in _msgs(caplog, logging.WARNING) if m.startswith("heartbeat ")]
+    assert len(warns) == 1 and "not writable: [Errno 13] Permission denied" in warns[0]
+    assert len(spies.record) == 1                     # the clip was still analyzed and stored
+
+
 def test_worker_takes_no_clip_after_stop(tmp_path):
     cfg = stream_cfg(tmp_path)
     stats = stream.Stats(time.monotonic)

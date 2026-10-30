@@ -119,6 +119,123 @@ def test_healthcheck_passes_when_the_server_is_off():
     assert healthcheck.check({})[0] and healthcheck.check({"SERVE_PORT": " "})[0]
 
 
+# ----------------------------------------------------------------- worker heartbeat (#32)
+def _beat_env(tmp_path, **kw):
+    data = tmp_path / "data"
+    data.mkdir(exist_ok=True)
+    return {"DATA_DIR": str(data), **kw}, data / "heartbeat"
+
+
+def _run_healthcheck(env):
+    import os
+    import subprocess
+    import sys
+    keep = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "SYSTEMROOT")}
+    return subprocess.run([sys.executable, str(Path(__file__).parent / "healthcheck.py")],
+                          env={**keep, **env}, capture_output=True, text=True, timeout=30)
+
+
+def test_healthcheck_script_fails_on_a_stale_heartbeat(tmp_path):
+    """The real script, as Docker runs it. Fails on the HTTP-only healthcheck (it passed)."""
+    import os
+    env, beat = _beat_env(tmp_path)
+    beat.touch()
+    old = time.time() - 600
+    os.utime(beat, (old, old))
+    r = _run_healthcheck(env)
+    assert r.returncode == 1, r.stdout
+    assert "worker heartbeat 600s old (limit 300s)" in r.stdout
+    os.utime(beat)                                   # a fresh beat passes
+    r = _run_healthcheck(env)
+    assert r.returncode == 0, r.stdout
+
+
+def test_heartbeat_fresh_passes_stale_fails(tmp_path):
+    import os
+    import healthcheck
+    env, beat = _beat_env(tmp_path, HEARTBEAT_MAX_AGE_S="120")
+    now = time.time()
+    beat.touch()
+    os.utime(beat, (now - 119, now - 119))
+    ok, msg = healthcheck.check(env, now=now, started_at=now - 3600)
+    assert ok and "worker heartbeat 119s old" in msg, msg
+    os.utime(beat, (now - 121, now - 121))
+    ok, msg = healthcheck.check(env, now=now, started_at=now - 3600)
+    assert not ok and "121s old (limit 120s): worker hung or dead" in msg, msg
+
+
+def test_heartbeat_missing_passes_during_grace_then_fails(tmp_path):
+    import healthcheck
+    env, _ = _beat_env(tmp_path)
+    now = time.time()
+    ok, msg = healthcheck.check(env, now=now, started_at=now - 30)
+    assert ok and "starting: no heartbeat yet, 30s since start" in msg, msg
+    ok, msg = healthcheck.check(env, now=now, started_at=now - 301)
+    assert not ok and "no worker heartbeat" in msg and "301s after start" in msg, msg
+
+
+def test_heartbeat_from_an_earlier_run_counts_as_missing(tmp_path):
+    """The /data volume outlives the container: last run's beat is not this run's."""
+    import os
+    import healthcheck
+    env, beat = _beat_env(tmp_path)
+    now = time.time()
+    beat.touch()
+    os.utime(beat, (now - 7200, now - 7200))
+    assert healthcheck.check(env, now=now, started_at=now - 60)[0]          # still in grace
+    ok, msg = healthcheck.check(env, now=now, started_at=now - 400)
+    assert not ok and "400s after start" in msg, msg
+
+
+def test_heartbeat_check_skips(tmp_path):
+    import os
+    import healthcheck
+    env, beat = _beat_env(tmp_path)
+    now = time.time()
+    beat.touch()
+    os.utime(beat, (now - 10_000, now - 10_000))
+    started = now - 20_000
+    assert not healthcheck.check(env, now=now, started_at=started)[0]
+    for extra in ({"HEARTBEAT_MAX_AGE_S": "0"}, {"CAPTURE_MODE": "RoundRobin"},
+                  {"DATA_DIR": str(tmp_path / "nope")}):
+        ok, msg = healthcheck.check({**env, **extra}, now=now, started_at=started)
+        assert ok, (extra, msg)
+    ok, msg = healthcheck.check({**env, "HEARTBEAT_MAX_AGE_S": "soon"}, now=now, started_at=started)
+    assert not ok and "bad HEARTBEAT_MAX_AGE_S='soon', using 300" in msg
+    # no /proc (not Linux): a missing beat passes, a stale one still fails
+    proc = str(tmp_path / "no-proc")
+    assert not healthcheck.check(env, now=now, proc=proc)[0]
+    beat.unlink()
+    ok, msg = healthcheck.check(env, now=now, proc=proc)
+    assert ok and "start time unknown" in msg
+
+
+def test_heartbeat_and_http_must_both_pass(tmp_path):
+    import healthcheck
+    with socket.socket() as s:                    # a port that was free a moment ago
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env, beat = _beat_env(tmp_path, SERVE_PORT=str(port))
+    beat.touch()
+    ok, msg = healthcheck.check(env, timeout=2, started_at=time.time() - 60)
+    assert not ok and "/api/recent" in msg and "worker heartbeat 0s old" in msg
+
+
+def test_main_started_at_reads_pid1_from_proc(tmp_path, monkeypatch):
+    import os
+    import healthcheck
+    (tmp_path / "1").mkdir()
+    rest = ["S"] + ["0"] * 18 + ["250000"] + ["0"] * 10          # field 22 = starttime
+    (tmp_path / "1" / "stat").write_text("1 (python (loop) x) " + " ".join(rest) + "\n")
+    (tmp_path / "uptime").write_text("10000.00 5000.00\n")
+    monkeypatch.setattr(os, "sysconf", lambda name: 100)
+    monkeypatch.setattr(healthcheck.time, "time", lambda: 1_000_000.0)
+    assert healthcheck.main_started_at(str(tmp_path)) == pytest.approx(1_000_000 - 10000 + 2500)
+    (tmp_path / "uptime").write_text("garbage\n")
+    assert healthcheck.main_started_at(str(tmp_path)) is None
+    assert healthcheck.main_started_at(str(tmp_path / "missing")) is None
+
+
 def test_dockerfile_runs_the_healthcheck():
     df = (Path(__file__).parent / "Dockerfile").read_text()
     assert re.search(r'^HEALTHCHECK .*\\\n\s+CMD \["python", "healthcheck.py"\]', df, re.M)

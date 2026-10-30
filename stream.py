@@ -737,6 +737,9 @@ class CameraSupervisor(threading.Thread):
 
 
 # ----------------------------------------------------------------- worker
+HEARTBEAT_FILE = "heartbeat"   # in DATA_DIR; healthcheck.py fails when it goes stale (#32)
+
+
 class Worker(threading.Thread):
     """The one analysis thread. It makes every BirdNET call, owns the only
     SQLite write connection (opened in this thread)."""
@@ -753,6 +756,21 @@ class Worker(threading.Thread):
         self._cameras = cameras
         self._analyze = analyze_fn
         self._clock = clock
+        self._heartbeat = Path(cfg.data_dir) / HEARTBEAT_FILE
+        self._beat_failed = False
+
+    def _beat(self) -> None:
+        """Touch DATA_DIR/heartbeat. Once per loop iteration, idle or not, so a
+        camera outage never makes it stale; only a hung or dead worker does."""
+        try:
+            try:
+                os.utime(self._heartbeat)
+            except FileNotFoundError:
+                self._heartbeat.touch()
+        except OSError as exc:                       # never stop analysis over it
+            if not self._beat_failed:
+                self._beat_failed = True
+                log.warning("heartbeat %s not writable: %s", self._heartbeat, bl.scrub(str(exc)))
 
     def run(self) -> None:
         try:
@@ -764,6 +782,7 @@ class Worker(threading.Thread):
         self.ready.set()
         try:
             while True:
+                self._beat()                          # every <= 0.5 s idle, after each clip when busy
                 if self._stop_event.is_set():         # shutdown: take no other clip
                     break
                 clip = self._queue.get(timeout=0.5)
