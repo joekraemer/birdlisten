@@ -1008,7 +1008,12 @@ def test_refusals_rate_limit_logs(tmp_path, caplog):
     other = dict(n_segments=0, exit_code=1, exit_after_s=0.05, stderr_lines=["Connection timed out"])
     sp = Spawner({"00-front": [bw] * 10 + [other]})
     with caplog.at_level(logging.INFO, logger="birdlisten"), Rig(tmp_path, sp) as rig:
-        wait_for(lambda: len(_msgs(caplog, logging.INFO, "timing camera=front ")) >= 11, timeout=5)
+        # 11 fake ffmpeg runs, each a real Python subprocess: ~2-3 s idle, but
+        # well past 5 s on a loaded machine (#35). wait_for returns as soon as
+        # they are done, so a generous deadline costs a passing run nothing,
+        # and the assertions below only check order and minimum gaps, which
+        # a slow machine can only widen.
+        wait_for(lambda: len(_msgs(caplog, logging.INFO, "timing camera=front ")) >= 11, timeout=30)
     recs = [r for r in caplog.records if r.name == "birdlisten"]
     timing = [r.getMessage() for r in recs if r.getMessage().startswith("timing camera=front ")]
     assert all("refused=1" in m and "453_Not_Enough_Bandwidth" in m for m in timing[:10])
