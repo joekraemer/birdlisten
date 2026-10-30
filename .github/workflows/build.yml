@@ -83,13 +83,20 @@ jobs:
         run: docker run --rm --entrypoint python birdlisten:test stream.py --selftest
 
       # The HEALTHCHECK script is in the image and runs. With SERVE_PORT unset
-      # it must pass; pointed at a port nothing listens on it must fail.
+      # and no heartbeat yet (start-up grace) it must pass; pointed at a port
+      # nothing listens on it must fail. Then the heartbeat against the
+      # image's real /proc: no beat 2 s after PID 1 (sh) started fails with a
+      # 1 s limit, and a fresh beat passes.
       - name: Healthcheck script
         run: |
           docker run --rm --entrypoint python birdlisten:test healthcheck.py
           if docker run --rm -e SERVE_PORT=1 --entrypoint python birdlisten:test healthcheck.py; then
             echo "healthcheck passed with no server listening"; exit 1
           fi
+          if docker run --rm -e HEARTBEAT_MAX_AGE_S=1 --entrypoint sh birdlisten:test -c 'sleep 2; python healthcheck.py'; then
+            echo "healthcheck passed with no worker heartbeat after the grace"; exit 1
+          fi
+          docker run --rm -e HEARTBEAT_MAX_AGE_S=60 --entrypoint sh birdlisten:test -c 'sleep 2; touch /data/heartbeat; python healthcheck.py'
 
       # Only reached when all tests passed. Pull requests stop here.
       - name: Push

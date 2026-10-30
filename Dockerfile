@@ -50,8 +50,9 @@ VOLUME /data
 EXPOSE 8085
 ENV PATH="/app/.venv/bin:$PATH"
 # HTTP liveness of the collage server (GET /api/recent, which also reads the
-# db); passes when SERVE_PORT is unset. See healthcheck.py for what it does
-# not cover. A failing check marks the container unhealthy for fleet health.
+# db; skipped when SERVE_PORT is unset) and the analysis worker's heartbeat
+# file in /data (stale after HEARTBEAT_MAX_AGE_S, default 300 s). See
+# healthcheck.py. A failing check marks the container unhealthy for fleet health.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=120s --retries=3 \
   CMD ["python", "healthcheck.py"]
 # loop.py calls main(). In stream mode (the default) main() runs until the
