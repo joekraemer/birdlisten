@@ -54,6 +54,34 @@ def server(tmp_path):
     srv.server_close()
 
 
+def test_idle_connection_is_dropped_after_the_timeout(tmp_path, monkeypatch):
+    """Issue #28: a client that connects and sends nothing must not hold a
+    handler thread forever."""
+    assert serve.Handler.timeout is not None and 0 < serve.Handler.timeout <= 60   # old code: None
+    monkeypatch.setattr(serve.Handler, "timeout", 0.3)                          # shrink it for the test
+    cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                            art=frame.Artwork(tmp_path / "artwork"),
+                            facts=facts.FactsConfig(tmp_path / "facts", fetch=True))
+    srv = serve.CollageServer(cfg, host="127.0.0.1")
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        before = threading.active_count()
+        with socket.create_connection(("127.0.0.1", srv.server_address[1]), timeout=3) as s:
+            deadline = time.monotonic() + 3
+            while threading.active_count() == before and time.monotonic() < deadline:
+                time.sleep(0.01)                  # the handler thread has started
+            t0 = time.monotonic()
+            assert s.recv(1) == b""               # the server closed it (old code: socket.timeout)
+            assert time.monotonic() - t0 < 2
+        deadline = time.monotonic() + 2
+        while threading.active_count() > before and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert threading.active_count() == before  # and its thread ended
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def get(url: str):
     with urllib.request.urlopen(url, timeout=10) as resp:
         return resp.status, resp.headers, resp.read()

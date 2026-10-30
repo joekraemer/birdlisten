@@ -73,6 +73,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'
        "img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'")
 IMMUTABLE = "public, max-age=31536000, immutable"
 SPECIES_PREFIX = "/api/species/"
+HANDLER_TIMEOUT_S = 30           # idle or stalled client connections are dropped after this
 _NAME_RE = re.compile(r"[A-Za-z .'-]{1,100}")
 _STEM_RE = re.compile(r"[a-z0-9-]{1,100}")
 PLATE_MAX = 480
@@ -666,6 +667,11 @@ def static_file(name: str) -> bytes:
 # ----------------------------------------------------------------- http
 class Handler(BaseHTTPRequestHandler):
     server: "CollageServer"
+    # Socket timeout for every read and write (StreamRequestHandler applies it
+    # with settimeout). Without it a client that connects and never finishes
+    # its request holds a daemon thread forever (#28). The slowest real
+    # request is a cold render, which never waits on the client.
+    timeout = HANDLER_TIMEOUT_S
 
     def _send(self, status: int, ctype: str | None, body: bytes, cache: str = "no-store",
               extra_headers: dict[str, str] | None = None) -> None:
