@@ -82,7 +82,16 @@ jobs:
       - name: Segment muxer self-test
         run: docker run --rm --entrypoint python birdlisten:test stream.py --selftest
 
-      # Only reached when both tests passed. Pull requests stop here.
+      # The HEALTHCHECK script is in the image and runs. With SERVE_PORT unset
+      # it must pass; pointed at a port nothing listens on it must fail.
+      - name: Healthcheck script
+        run: |
+          docker run --rm --entrypoint python birdlisten:test healthcheck.py
+          if docker run --rm -e SERVE_PORT=1 --entrypoint python birdlisten:test healthcheck.py; then
+            echo "healthcheck passed with no server listening"; exit 1
+          fi
+
+      # Only reached when all tests passed. Pull requests stop here.
       - name: Push
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6

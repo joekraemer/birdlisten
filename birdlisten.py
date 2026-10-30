@@ -8,11 +8,11 @@ Pipeline (CAPTURE_MODE=stream, the default; the code is in stream.py):
   --finished segment renamed into SEGMENT_DIR/queued/--> bounded queue
       (the oldest clip is dropped when analysis falls behind)
   --one analysis worker: BirdNET (birdnetlib)--> [(species, confidence, t0, t1)]
-  --dedupe per clip--> SQLite + stdout + optional ntfy push
+  --dedupe per clip--> SQLite + stdout
 
 Every camera listens all the time. A single worker runs every BirdNET
 analysis, so the CPU (an old Intel MacBook) only ever runs one at a time, and
-it is the only SQLite writer and ntfy sender. main() blocks until SIGTERM or
+it is the only SQLite writer. main() blocks until SIGTERM or
 SIGINT; loop.py calls it again if it returns 1.
 
 CAPTURE_MODE=roundrobin keeps the old behaviour: each call to main() is one
@@ -33,13 +33,9 @@ Environment (all read at startup):
   MIN_CONFIDENCE  0..1, default for the three below (default 0.5)
   RECORD_MIN_CONFIDENCE  0..1, drop detections below this (default MIN_CONFIDENCE)
   DISPLAY_MIN_CONFIDENCE, DISPLAY_SINGLE_CONFIDENCE  the collage's thresholds
-                  (see serve.py); DISPLAY_SINGLE_CONFIDENCE is also the bar
-                  for an ntfy push (default DISPLAY_MIN_CONFIDENCE)
+                  (see serve.py)
   DATA_DIR        where the SQLite db (and optional clips) live (default /data)
   KEEP_CLIPS      1 = keep the WAV of any clip that had a detection (default 0)
-  NTFY_TOPIC      optional. If set, POST a line per new species to ntfy.sh
-  NTFY_SERVER     default https://ntfy.sh
-  NOTIFY_COOLDOWN_MIN  don't re-notify the same species within N min (default 60)
   TZ              for timestamps in messages
   CAPTURE_MODE    stream (default) or roundrobin
   QUEUE_SIZE      clips waiting for analysis before the oldest is dropped
@@ -72,12 +68,10 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import taxa
 
 log = logging.getLogger("birdlisten")
 
@@ -102,7 +96,7 @@ class Thresholds:
     display: rows below this are invisible to the page, pop-up and /api/recent.
     single:  one row at or above this puts a species on the board by itself;
              between `display` and `single` it takes frame.REPEAT_DETECTIONS
-             (two) rows. Also the bar for a push notification."""
+             (two) rows."""
     record: float
     display: float
     single: float
@@ -176,14 +170,10 @@ class Config:
     min_conf: float
     data_dir: Path
     keep_clips: bool
-    ntfy_topic: str | None
-    ntfy_server: str
-    notify_cooldown: dt.timedelta
     capture_mode: str = "stream"
     queue_size: int = 0
     summary_minutes: int = 5
     segment_dir: Path = Path("/tmp/birdlisten-segments")
-    notify_conf: float = 0.0          # Thresholds.single; min_conf is Thresholds.record
 
 
 def main_stream_urls(cfg: Config) -> list[str]:
@@ -213,6 +203,10 @@ def parse_cameras(raw: str) -> tuple[Camera, ...]:
     if len({c.name for c in cams}) != len(cams):
         raise ConfigError("CAMERAS names must be unique")
     return tuple(cams)
+
+
+# Settings of the removed ntfy push. load_config() warns when one is still set.
+REMOVED_ENV = ("NTFY_TOPIC", "NTFY_SERVER", "NOTIFY_COOLDOWN_MIN")
 
 
 def load_config(env=os.environ) -> Config:
@@ -255,27 +249,21 @@ def load_config(env=os.environ) -> Config:
         if seg == data or data in seg.parents:
             raise ConfigError("SEGMENT_DIR must not be DATA_DIR or inside it")
 
-        # The capture loop only needs the display settings for the push bar,
-        # so a typo there must not stop recording: warn and push at the
-        # record threshold instead. A bad RECORD_/MIN_CONFIDENCE is still fatal.
+        # The capture loop only reads the record threshold; a typo in the
+        # display settings is serve.py's problem and never stops recording.
         record_conf = record_threshold(env)
-        try:
-            notify_conf = load_thresholds(env).single
-        except ConfigError as exc:
-            log.warning("%s; pushes use the record threshold %s until it is fixed", exc, record_conf)
-            notify_conf = record_conf
+        stale = [k for k in REMOVED_ENV if env.get(k, "").strip()]
+        if stale:
+            log.warning("%s no longer does anything: ntfy push was removed; delete it from the env file",
+                        ", ".join(stale))
         return Config(
             cameras=cameras,
             lat=lat,
             lon=lon,
             clip_seconds=clip_seconds,
             min_conf=record_conf,
-            notify_conf=notify_conf,
             data_dir=data_dir,
             keep_clips=env.get("KEEP_CLIPS", "0") == "1",
-            ntfy_topic=env.get("NTFY_TOPIC", "").strip() or None,
-            ntfy_server=env.get("NTFY_SERVER", "https://ntfy.sh").rstrip("/"),
-            notify_cooldown=dt.timedelta(minutes=int(env.get("NOTIFY_COOLDOWN_MIN", "60"))),
             capture_mode=capture_mode,
             queue_size=queue_size,
             summary_minutes=summary_minutes,
@@ -376,7 +364,7 @@ def analyze(wav: Path, cfg: Config, when: dt.datetime) -> list[Detection]:
 
 def best_per_species(dets: list[Detection]) -> dict[str, Detection]:
     """One clip often yields the same bird in several 3 s windows; keep the
-    most confident window per species for storage and notification."""
+    most confident window per species for storage."""
     best: dict[str, Detection] = {}
     for d in dets:
         if d.common_name not in best or d.confidence > best[d.common_name].confidence:
@@ -400,59 +388,34 @@ CREATE INDEX IF NOT EXISTS idx_detections_species_time ON detections(common_name
 -- the collage's recent window, and the pop-up's per-species stats and typical day
 CREATE INDEX IF NOT EXISTS idx_detections_time ON detections(heard_at);
 CREATE INDEX IF NOT EXISTS idx_detections_sci_time ON detections(scientific_name, heard_at);
-CREATE TABLE IF NOT EXISTS notified (
-  common_name TEXT PRIMARY KEY,
-  last_sent   TEXT NOT NULL
-);
 """
 
 
 def open_db(data_dir: Path) -> sqlite3.Connection:
     data_dir.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(data_dir / "birdlisten.sqlite")
+    # WAL (persistent in the db file): the collage server's read-only
+    # connections and this single writer run concurrently. In the default
+    # rollback journal a long read made the worker's commit wait out the busy
+    # timeout and fail with "database is locked", losing the clip (#25).
+    # NORMAL is durable across app crashes; only an OS crash can lose the last
+    # commits, never corrupt the db.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(SCHEMA)
     return conn
 
 
-def record(conn: sqlite3.Connection, when: dt.datetime, cam: Camera, d: Detection, clip: str | None) -> None:
+def record(conn: sqlite3.Connection, when: dt.datetime, cam: Camera, d: Detection, clip: str | None,
+           *, commit: bool = True) -> None:
     conn.execute(
         "INSERT INTO detections(heard_at,camera,common_name,scientific_name,confidence,clip_offset_s,clip_path)"
         " VALUES (?,?,?,?,?,?,?)",
         (when.isoformat(timespec="seconds"), cam.name, d.common_name, d.scientific_name,
          d.confidence, d.start, clip),
     )
-    conn.commit()
-
-
-def should_notify(conn: sqlite3.Connection, species: str, now: dt.datetime, cooldown: dt.timedelta) -> bool:
-    row = conn.execute("SELECT last_sent FROM notified WHERE common_name=?", (species,)).fetchone()
-    if row and now - dt.datetime.fromisoformat(row[0]) < cooldown:
-        return False
-    conn.execute(
-        "INSERT INTO notified(common_name,last_sent) VALUES(?,?)"
-        " ON CONFLICT(common_name) DO UPDATE SET last_sent=excluded.last_sent",
-        (species, now.isoformat(timespec="seconds")),
-    )
-    conn.commit()
-    return True
-
-
-# ----------------------------------------------------------------- notify
-def notify(cfg: Config, title: str, body: str) -> None:
-    """ntfy.sh: free, no account, phone app. `NTFY_TOPIC` is effectively the
-    password, so make it unguessable. Failures are logged, never fatal."""
-    if not cfg.ntfy_topic:
-        return
-    req = urllib.request.Request(
-        f"{cfg.ntfy_server}/{cfg.ntfy_topic}",
-        data=body.encode(),
-        headers={"Title": title, "Tags": "bird"},
-        method="POST",
-    )
-    try:
-        urllib.request.urlopen(req, timeout=10).read()
-    except Exception as exc:  # noqa: BLE001
-        log.warning("ntfy failed: %s", exc)
+    if commit:
+        conn.commit()
 
 
 # ----------------------------------------------------------------- timing
@@ -502,13 +465,12 @@ def _fmt_timing(head: str, pairs) -> str:
 
 # ----------------------------------------------------------------- one pass
 def store_clip(cfg: Config, conn: sqlite3.Connection, cam: Camera, when: dt.datetime, wav: Path,
-               best: dict[str, Detection], *, clip_s: float, dry_run: bool) -> float:
-    """Log, keep, record and notify one analyzed clip. Shared by both capture
-    modes. Returns the wall seconds spent inside notify()."""
+               best: dict[str, Detection], *, clip_s: float, dry_run: bool) -> None:
+    """Log, keep and record one analyzed clip. Shared by both capture modes."""
     if not best:
         log.info("%s: %ss, nothing above %.2f", cam.name,
                  clip_s if isinstance(clip_s, int) else f"{clip_s:.0f}", cfg.min_conf)
-        return 0.0
+        return
 
     clip_path = None
     if cfg.keep_clips and not dry_run:
@@ -517,21 +479,14 @@ def store_clip(cfg: Config, conn: sqlite3.Connection, cam: Camera, when: dt.date
         clip_path = str(dest / f"{when.strftime('%H%M%S')}_{cam.name}.wav")
         shutil.copy(wav, clip_path)
 
-    notify_s = 0.0
-    for name, d in sorted(best.items(), key=lambda kv: -kv[1].confidence):
+    ranked = sorted(best.items(), key=lambda kv: -kv[1].confidence)
+    for name, d in ranked:
         log.info("%s: %s (%s) %.0f%% at +%.0fs", cam.name, name, d.scientific_name, d.confidence * 100, d.start)
-        if dry_run:
-            continue
-        record(conn, when, cam, d, clip_path)
-        # Stored at RECORD_MIN_CONFIDENCE, but only pushed at the board's
-        # single-detection bar; should_notify() is last because it writes.
-        if (taxa.is_bird(d.scientific_name) and d.confidence >= cfg.notify_conf
-                and should_notify(conn, name, when, cfg.notify_cooldown)):
-            local = when.astimezone().strftime("%H:%M")
-            t0 = time.perf_counter()
-            notify(cfg, f"{name}", f"{local} on {cam.name} camera, {d.confidence:.0%} confidence")
-            notify_s += time.perf_counter() - t0
-    return notify_s
+    if dry_run:
+        return
+    with conn:                                    # one transaction: a clip is stored all or nothing
+        for _, d in ranked:
+            record(conn, when, cam, d, clip_path, commit=False)
 
 
 def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) -> int:
@@ -580,7 +535,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
                         datefmt="%Y-%m-%dT%H:%M:%S", stream=sys.stdout)
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--dry-run", action="store_true", help="capture and analyze, but write nothing and notify nobody")
+    parser.add_argument("--dry-run", action="store_true", help="capture and analyze, but write nothing")
     parser.add_argument("--check", action="store_true", help="validate config, ffmpeg, and the BirdNET model, then exit")
     parser.add_argument("--report", metavar="DAYS", type=int, help="print species heard in the last N days and exit")
     args = parser.parse_args()
@@ -639,14 +594,13 @@ def check(cfg: Config) -> int:
     for name in main_stream_urls(cfg):
         print(f"hint: {name} uses a main-stream URL; use the sub-stream")
     print(f"location: {cfg.lat}, {cfg.lon}; clip {cfg.clip_seconds}s; "
-          f"record >= {cfg.min_conf}, notify >= {cfg.notify_conf}")
+          f"record >= {cfg.min_conf}")
     try:
         t = load_thresholds()
         print(f"display: board needs one row >= {t.single} or two >= {t.display}")
     except ConfigError as exc:
         print(f"display: {exc}")
         problems += 1
-    print(f"notify: {'ntfy ' + cfg.ntfy_server if cfg.ntfy_topic else 'off'}")
     return 1 if problems else 0
 
 

@@ -3,12 +3,12 @@
 Listens to the audio track of Reolink cameras and logs which birds
 [BirdNET](https://birdnet.cornell.edu/) (Cornell Lab of Ornithology) hears.
 The cameras you already have become distributed microphones; a SQLite table of
-detections and optional phone pushes come out the other end.
+detections comes out the other end, and a collage page shows it.
 
 ```
 camera 1 RTSP ──ffmpeg (always on)──▶ 30 s WAV segments ─┐
 camera 2 RTSP ──ffmpeg (always on)──▶ 30 s WAV segments ─┼─▶ queue ──▶ one BirdNET worker ──▶ SQLite
-   ...                                                    │   (drops oldest       └─▶ ntfy push (new species, 60-min cooldown)
+   ...                                                    │   (drops oldest
 camera N RTSP ──ffmpeg (always on)──▶ 30 s WAV segments ─┘    when behind)
 ```
 
@@ -17,7 +17,7 @@ Every camera listens all the time: each one has a long-lived ffmpeg that cuts
 its audio into back-to-back `CLIP_SECONDS` WAV segments, so no audio is missed
 between clips. Finished segments go on a small queue to a single analysis
 worker, so the Mac only ever runs one BirdNET analysis at a time, and that
-worker is the only thing that writes to SQLite or sends a push. `loop.py`
+worker is the only thing that writes to SQLite. `loop.py`
 calls `main()`, which runs this pipeline until the container stops. The old
 behaviour, one camera at a time in passes, is still there as
 `CAPTURE_MODE=roundrobin` (see [Capture](#capture)).
@@ -120,20 +120,11 @@ A `--check` run next to a live stream-mode container (for example
 RTSP session per camera for its 3 s probe, and the NVR may refuse it. Stop
 the container first, or read the latest `timing summary` line instead.
 
-## Notifications
-
-Set `NTFY_TOPIC` to an unguessable string, install the ntfy app on your phone,
-subscribe to that topic. You get one push per species per hour: "Varied Thrush
-— 07:12 on back camera, 83% confidence". `NOTIFY_COOLDOWN_MIN` tunes the hour.
-BirdNET's non-bird labels (Dog, Engine, Human vocal, frogs, insects, mammals;
-see `taxa.py`) are recorded but never pushed. A push needs one detection at
-`DISPLAY_SINGLE_CONFIDENCE` (see Tuning), so the extra low rows that
-`RECORD_MIN_CONFIDENCE` keeps never buzz the phone.
-
 ## Data
 
-`/data/birdlisten.sqlite` on the container volume. Two tables: `detections`
-(one row per species per clip, best window) and `notified` (cooldown state).
+`/data/birdlisten.sqlite` on the container volume. One table, `detections`
+(one row per species per clip, best window). A db from before the ntfy push
+was removed (#26) also has an unused `notified` table; it is harmless.
 `--report N` summarizes. `KEEP_CLIPS=1` also saves the WAV of any clip with a
 detection under `/data/clips/YYYY-MM-DD/`, useful for checking BirdNET's work
 by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten python birdlisten.py --report 7`.
@@ -149,15 +140,13 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
     the page straight away, old rows included.
   * `DISPLAY_SINGLE_CONFIDENCE`: one row at or above it puts a species on the
     board. Between `DISPLAY_MIN_CONFIDENCE` and this, a species needs two rows
-    in the window (two clips, or two cameras at once). It is also the bar for
-    an ntfy push.
+    in the window (two clips, or two cameras at once).
   * `MIN_CONFIDENCE`: the default for `RECORD_` and `DISPLAY_MIN_`, which in
     turn is the default for `DISPLAY_SINGLE_`. Setting only `MIN_CONFIDENCE`
     behaves as before: one threshold for everything.
 
   A blank value counts as unset; anything else outside 0..1 is a config
-  error. A bad `DISPLAY_*` value turns the collage server off and makes the
-  capture loop log a warning and push at the record threshold; recording
+  error. A bad `DISPLAY_*` value turns the collage server off; recording
   carries on. A bad `RECORD_MIN_CONFIDENCE` or `MIN_CONFIDENCE` stops the
   container at startup.
 
@@ -175,7 +164,7 @@ by ear. From the Mac: `docker compose -f ~/fleet/compose.yaml exec birdlisten py
   detection at exactly 0.5 is dropped).
 * `CLIP_SECONDS` 30 gives ten 3-second BirdNET windows per clip. In stream
   mode every camera listens continuously whatever the value; shorter clips
-  give finer `heard_at` times and faster pushes, at a little more overhead
+  give finer `heard_at` times and a fresher page, at a little more overhead
   per clip.
 * CPU: on the 2017 Intel MacBook a 30 s clip analyzes in about 1.2 s, so one
   worker is busy about 4 × 1.2 / 30 ≈ 16% of the time with 4 cameras (the
@@ -196,8 +185,8 @@ timing camera=garage clip_s=30.0 segment_lag_s=0.55 queue_wait_s=0.03 analyze_s=
 timing camera=yard clip_s=30.0 queue_wait_s=148.20 dropped=queue_full rss_mb=611
 timing camera=doorbell up_s=812.4 segments=27 backoff_s=4.3 error=ffmpeg_exited:_Connection_refused
 timing camera=garage up_s=3.1 segments=0 backoff_s=61.7 refused=1 error=ffmpeg_exited:_method_DESCRIBE_failed:_453_Not_Enough_Bandwidth
-timing summary window_s=300 cameras=4 cameras_up=4 clips=40 analyzed=40 dropped=0 short=0 failed=0 restarts=0 refused=0 analyze_mean_s=1.21 analyze_p95_s=1.40 duty=0.16 notify_s=0.8 queue_max=2 queue_len=0 cpu_s=58.3 ffmpeg_cpu_s=9.1 rss_mb=640 ffmpeg_rss_mb=96
-timing summary window_s=212 final=1 cameras=4 cameras_up=0 clips=28 analyzed=28 dropped=0 short=0 failed=0 restarts=0 refused=0 analyze_mean_s=1.20 analyze_p95_s=1.33 duty=0.16 notify_s=0.0 queue_max=1 queue_len=0 cpu_s=41.0 rss_mb=640
+timing summary window_s=300 cameras=4 cameras_up=4 clips=40 analyzed=40 dropped=0 short=0 failed=0 restarts=0 refused=0 analyze_mean_s=1.21 analyze_p95_s=1.40 duty=0.16 queue_max=2 queue_len=0 cpu_s=58.3 ffmpeg_cpu_s=9.1 rss_mb=640 ffmpeg_rss_mb=96
+timing summary window_s=212 final=1 cameras=4 cameras_up=0 clips=28 analyzed=28 dropped=0 short=0 failed=0 restarts=0 refused=0 analyze_mean_s=1.20 analyze_p95_s=1.33 duty=0.16 queue_max=1 queue_len=0 cpu_s=41.0 rss_mb=640
 ```
 
 The model is loaded once per process, so `model_load_s` appears once after
@@ -242,13 +231,10 @@ now appears only at shutdown.
   and spawn failures. `refused` is the subset that were NVR refusals.
 * `analyze_mean_s`, `analyze_p95_s`: over the clips analyzed in the window,
   omitted when there were none.
-* `duty`: the fraction of the window the worker was busy (analysis, storage
-  and ntfy), 0..1. Expect about cameras × `analyze_s` / `clip_s`, 0.16 for
+* `duty`: the fraction of the window the worker was busy (analysis and
+  storage), 0..1. Expect about cameras × `analyze_s` / `clip_s`, 0.16 for
   4 cameras. **`duty` at 0.9 or more, or `dropped > 0`, sustained, means one
   worker cannot keep up.**
-* `notify_s`: seconds spent sending ntfy pushes in the window.
-  `duty - notify_s / window_s` is the BirdNET share, so a slow ntfy can be
-  told apart from slow analysis.
 * `queue_max`: the longest the queue got in the window. `queue_len`: its
   length now.
 * `cpu_s`: Python's CPU over the window, all threads.
@@ -282,8 +268,7 @@ timing pass cameras=5 ok=4 wall_s=171.30 analyze_total_s=15.20 rss_mb=612
   before the failure.
 * Duty cycle per camera is `clip_s / wall_s` of the pass line.
 
-`--dry-run` prints these lines for one pass without writing to the DB or
-notifying: `docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--dry-run" app`.
+`--dry-run` prints these lines for one pass without writing to the DB: `docker compose run --rm -e LOOP_ONCE=1 -e RUN_ARGS="--dry-run" app`.
 
 ### Reading the logs
 
@@ -334,7 +319,7 @@ non-bird labels (Dog, Engine, frogs, crickets; the list is `taxa.py`) stay in
 SQLite and in `--report`, but are left off the page and `/api/recent`, and
 their pop-up is a 404. It is meant to sit in a Home Assistant Webpage card (below). The server
 is a daemon thread beside the capture loop and reads the SQLite db through its
-own read-only connection; it never changes what the loop records or notifies.
+own read-only connection; it never changes what the loop records.
 
 | route | what |
 |---|---|
@@ -579,7 +564,7 @@ sensor:
 | `COLLAGE_HOURS` | `24` | window for `/`, `/collage.png` and `/api/recent`, 1..720 |
 | `MIN_CONFIDENCE` | `0.5` | default for `DISPLAY_MIN_CONFIDENCE` (and the capture loop's `RECORD_MIN_CONFIDENCE`), 0..1 |
 | `DISPLAY_MIN_CONFIDENCE` | `MIN_CONFIDENCE` (`0.5`) | rows below it are left off the page, the pop-up and `/api/recent`, 0..1 |
-| `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Also the ntfy push bar. Must be at least `DISPLAY_MIN_CONFIDENCE` |
+| `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Must be at least `DISPLAY_MIN_CONFIDENCE` |
 | `VISIT_GAP_MINUTES` | `10` | a species heard again within this many minutes, on any camera, is the same visit, 1..240 |
 | `CLIP_SECONDS` | `30` | the capture loop's setting, read here for visit lengths |
 | `ARTWORK_REF` | `8e8b0034f069b4d3b021bc7195482c1fe7caf880` | Fugleramme commit (or branch) the plates are fetched from |
@@ -600,6 +585,17 @@ same. The server never changes the loop's exit code.
 Mirror two things in `fleet/compose.yaml`: add `ports: ["8085:8085"]` and
 `SERVE_PORT=8085` to the birdlisten service, and note that the existing
 `/data` volume now also holds `artwork/` (a few hundred KB per species).
+
+### Container healthcheck
+
+The image has a `HEALTHCHECK` (`healthcheck.py`, every 60 s after a 120 s
+start period, unhealthy after 3 misses): `GET /api/recent?hours=1` on
+`SERVE_PORT` must answer 200 within 8 s. That covers a wedged or dead server
+thread and a missing or corrupt db (the route reads SQLite); the fleet's
+`bin/health.sh` already reports `unhealthy` containers, so nothing changes on
+the fleet side. It is HTTP liveness only: there is no cheap signal for a hung
+capture pipeline yet (a dead pipeline thread already makes `main()` return 1
+and `loop.py` restart it). With `SERVE_PORT` unset the check always passes.
 
 ## Tests
 
@@ -644,8 +640,7 @@ Stream capture follow-ups, worth building only if the summaries call for them:
   Worth it only if `duty` stays above about 0.6 or clips are dropped. At the
   measured 0.16 it saves nothing and risks skipping faint distant calls.
 * More than one analysis worker, if `duty` above 0.9 or drops persist after
-  a silence gate and the VM has 400 MB to spare per extra BirdNET model. The
-  ntfy cooldown would then need a single notifier.
+  a silence gate and the VM has 400 MB to spare per extra BirdNET model.
 * `-allowed_media_types audio` on the RTSP input, so the NVR never sets up
   video. Needs testing against the real NVR.
 * A status file in `SEGMENT_DIR`, written at every summary, so `--check` or
@@ -653,15 +648,14 @@ Stream capture follow-ups, worth building only if the summaries call for them:
 
 Other ideas:
 
-* Write detections to a Notion database (the movie-review pattern) or a
-  weekly digest to ntfy.
+* Write detections to a Notion database (the movie-review pattern).
 * Per-camera `RECORD_MIN_CONFIDENCE`, since a camera near a road is noisier.
 * Trim the image: birdnetlib depends on matplotlib and librosa pulls in
   scikit-learn, making it ~2.5 GB. A slimmer inference path (`ai-edge-litert`
   + hand-rolled spectrogram) would be ~300 MB but is real work.
-* Detect and alert on *new* species for the yard (first ever sighting) as a
-  separate notification tier. (`/api/recent` already flags them as
-  `first_ever`; this is about a push.)
+* Phone alerts for *new* species for the yard (first ever sighting), over a
+  free channel such as a Telegram bot. (`/api/recent` already flags them as
+  `first_ever`.) The old ntfy push was removed in #26.
 * MQTT / Home Assistant discovery for the collage data. The REST sensor above
   covers the species count.
 * E-ink output. Fugleramme already does this well; this project stops at a PNG.
@@ -687,13 +681,14 @@ Other ideas:
 | `tools/build_sizes.py` | offline builder of `sizes.json` from AVONET and BirdNET's label file; not in the image |
 | `serve.py` | the collage HTTP server; `start_from_env()` is what `loop.py` calls |
 | `facts.py` | pop-up facts: Wikidata, Wikipedia and eBird fetching, single flight, cache under `FACTS_DIR` |
-| `taxa.py` | `is_bird()`: BirdNET's non-bird labels and genera, kept off the page and ntfy |
+| `taxa.py` | `is_bird()`: BirdNET's non-bird labels and genera, kept off the page |
 | `static/` | `page.js` (tap targets, refresh swap, pop-up card) and `page.css` |
 | `tools/facts_coverage.py`, `tools/popup_shots.py`, `tools/golden_render.py` | manual checks (real-network fact coverage, browser checks and screenshots, collage golden hashes); not in the image |
 | `loop.py` | container entrypoint (fleet template), runs `main()` back to back (in stream mode `main()` returns only at shutdown or after a fatal error); starts the server when `SERVE_PORT` is set |
+| `healthcheck.py` | the container `HEALTHCHECK`: HTTP liveness of the collage server (see Collage page) |
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
-| `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test and the segment muxer self-test |
+| `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test, the segment muxer self-test and the healthcheck script |
 | `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |

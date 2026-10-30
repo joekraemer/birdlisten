@@ -240,7 +240,7 @@ def test_open_ro_cannot_write(tmp_path: Path):
     db = seed(tmp_path, [])
     conn = frame.open_ro(db)
     with pytest.raises(frame.sqlite3.OperationalError):
-        conn.execute("INSERT INTO notified(common_name,last_sent) VALUES('x','y')")
+        conn.execute("DELETE FROM detections")
     conn.close()
 
 
