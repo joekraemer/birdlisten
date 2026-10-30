@@ -127,7 +127,8 @@ def visits(times, gap: dt.timedelta = DEFAULT_VISIT_GAP,
 
 def open_ro(db_path: Path) -> sqlite3.Connection:
     # mode=ro: the server can never write, so the loop's DB is safe by construction.
-    # timeout=5: wait out the capture loop's short write transactions.
+    # timeout=5: the db is in WAL mode (birdlisten.open_db), so reads do not
+    # wait for the capture loop's writes; the timeout covers WAL recovery.
     # as_uri() percent-encodes '?', '#', '%' and spaces in the path.
     return sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True, timeout=5)
 

@@ -394,18 +394,28 @@ CREATE INDEX IF NOT EXISTS idx_detections_sci_time ON detections(scientific_name
 def open_db(data_dir: Path) -> sqlite3.Connection:
     data_dir.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(data_dir / "birdlisten.sqlite")
+    # WAL (persistent in the db file): the collage server's read-only
+    # connections and this single writer run concurrently. In the default
+    # rollback journal a long read made the worker's commit wait out the busy
+    # timeout and fail with "database is locked", losing the clip (#25).
+    # NORMAL is durable across app crashes; only an OS crash can lose the last
+    # commits, never corrupt the db.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(SCHEMA)
     return conn
 
 
-def record(conn: sqlite3.Connection, when: dt.datetime, cam: Camera, d: Detection, clip: str | None) -> None:
+def record(conn: sqlite3.Connection, when: dt.datetime, cam: Camera, d: Detection, clip: str | None,
+           *, commit: bool = True) -> None:
     conn.execute(
         "INSERT INTO detections(heard_at,camera,common_name,scientific_name,confidence,clip_offset_s,clip_path)"
         " VALUES (?,?,?,?,?,?,?)",
         (when.isoformat(timespec="seconds"), cam.name, d.common_name, d.scientific_name,
          d.confidence, d.start, clip),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 # ----------------------------------------------------------------- timing
@@ -469,11 +479,14 @@ def store_clip(cfg: Config, conn: sqlite3.Connection, cam: Camera, when: dt.date
         clip_path = str(dest / f"{when.strftime('%H%M%S')}_{cam.name}.wav")
         shutil.copy(wav, clip_path)
 
-    for name, d in sorted(best.items(), key=lambda kv: -kv[1].confidence):
+    ranked = sorted(best.items(), key=lambda kv: -kv[1].confidence)
+    for name, d in ranked:
         log.info("%s: %s (%s) %.0f%% at +%.0fs", cam.name, name, d.scientific_name, d.confidence * 100, d.start)
-        if dry_run:
-            continue
-        record(conn, when, cam, d, clip_path)
+    if dry_run:
+        return
+    with conn:                                    # one transaction: a clip is stored all or nothing
+        for _, d in ranked:
+            record(conn, when, cam, d, clip_path, commit=False)
 
 
 def listen_once(cfg: Config, conn: sqlite3.Connection, dry_run: bool = False) -> int:

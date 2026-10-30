@@ -1085,9 +1085,9 @@ def spies(monkeypatch):
     s = SimpleNamespace(record=[])
     real_record = bl.record
 
-    def record(conn, when, cam, d, clip):
+    def record(conn, when, cam, d, clip, **kw):
         s.record.append((threading.current_thread().name, when.isoformat(timespec="seconds"), cam.name, d.common_name))
-        real_record(conn, when, cam, d, clip)
+        real_record(conn, when, cam, d, clip, **kw)
 
     monkeypatch.setattr(bl, "record", record)
     return s

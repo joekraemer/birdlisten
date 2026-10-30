@@ -304,6 +304,45 @@ def test_fmt_timing_skips_none_and_puts_error_last():
     assert bl._fmt_timing("summary", [("error", None, "{}"), ("ok", 2, "{}")]) == "timing summary ok=2"
 
 
+def test_record_succeeds_while_a_collage_read_is_open(tmp_path: Path):
+    """Issue #25: a frame.open_ro reader in the middle of a query must not make
+    the worker's commit fail with "database is locked"."""
+    import frame
+
+    conn = bl.open_db(tmp_path)
+    conn.execute("PRAGMA busy_timeout=200")       # fail fast instead of the 5 s default
+    cam = bl.Camera("c", "rtsp://x")
+    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
+    for i in range(50):
+        bl.record(conn, when, cam, bl.Detection(f"S{i}", f"G s{i}", 0.9, 0, 3), None)
+    ro = frame.open_ro(tmp_path / "birdlisten.sqlite")
+    cur = ro.execute("SELECT * FROM detections")
+    assert cur.fetchone()                         # the read is open and holds its snapshot
+    bl.record(conn, when, cam, bl.Detection("Bushtit", "P. minimus", 0.9, 0, 3), None)  # "locked" before WAL
+    assert len(cur.fetchall()) == 49              # the reader still sees its own snapshot
+    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 51
+    ro.close()
+
+
+def test_store_clip_is_all_or_nothing(tmp_path: Path):
+    """Issue #25: a clip's species go in one transaction, so a failure part-way
+    leaves no half-stored clip behind."""
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
+    conn = bl.open_db(cfg.data_dir)
+    best = {"Bushtit": bl.Detection("Bushtit", "Psaltriparus minimus", 0.9, 0, 3),
+            "Bad": bl.Detection("Bad", None, 0.5, 3, 6)}        # NOT NULL fails on the second insert
+    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
+    with pytest.raises(bl.sqlite3.IntegrityError):
+        bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=3, dry_run=False)
+    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 0
+
+
+def test_open_db_uses_wal(tmp_path: Path):
+    bl.open_db(tmp_path).close()
+    conn = bl.sqlite3.connect(tmp_path / "birdlisten.sqlite")
+    assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"   # persistent in the file
+
+
 def test_store_clip_records_non_birds_too(tmp_path: Path):
     cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0",
                           "DATA_DIR": str(tmp_path)})
