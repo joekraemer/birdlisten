@@ -2,7 +2,7 @@
 
 BirdNET v2.4's 6,522 labels are mostly birds, but they also include sound
 events (Dog, Engine, Human vocal, ...) and frogs, insects and mammals. The
-detections table keeps every row; the page and ntfy show birds only.
+detections table keeps every row; the page shows birds only.
 
 This is a denylist. NON_BIRD_GENERA came from diffing birdnetlib 0.18.0's
 BirdNET_GLOBAL_6K_V2.4_Labels.txt against the eBird/Clements taxonomy

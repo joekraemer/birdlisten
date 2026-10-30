@@ -286,14 +286,13 @@ def test_stats_mean_p95_and_omission():
     s = snap(stats, 5.0)
     assert "analyze_mean_s" not in s and "analyze_p95_s" not in s
     for v in range(20, 0, -1):                # 20 values, unsorted
-        stats.analyzed(float(v), 0.1)
+        stats.analyzed(float(v))
     s = snap(stats, 10.0)
     assert s["analyzed"] == 20
     assert s["analyze_mean_s"] == pytest.approx(10.5)
     assert s["analyze_p95_s"] == 19.0         # sorted(v)[int(.95 * 19)] = sorted(v)[18]
-    assert s["notify_s"] == pytest.approx(2.0)
     s = snap(stats, 15.0)
-    assert s["analyzed"] == 0 and s["notify_s"] == 0.0 and "analyze_p95_s" not in s
+    assert s["analyzed"] == 0 and "analyze_p95_s" not in s
 
 
 def test_stats_summary_key_order_and_counters():
@@ -301,12 +300,12 @@ def test_stats_summary_key_order_and_counters():
     stats.add(failed=2, short=1)
     stats.add(restarts=1, refused=1)
     stats.clip_queued(3)
-    stats.analyzed(1.0, 0.0)
+    stats.analyzed(1.0)
     s = stats.snapshot_and_reset(5.0, queue_len=1, cameras=4, cameras_up=3, cpu_s=2.0, rss_mb=600.0,
                                  ffmpeg_cpu_s=1.5, ffmpeg_rss_mb=90.0)
     assert list(s) == ["window_s", "cameras", "cameras_up", "clips", "analyzed", "dropped", "short",
                        "failed", "restarts", "refused", "analyze_mean_s", "analyze_p95_s", "duty",
-                       "notify_s", "queue_max", "queue_len", "cpu_s", "ffmpeg_cpu_s", "rss_mb",
+                       "queue_max", "queue_len", "cpu_s", "ffmpeg_cpu_s", "rss_mb",
                        "ffmpeg_rss_mb"]
     assert (s["cameras"], s["cameras_up"], s["clips"], s["failed"], s["short"], s["restarts"],
             s["refused"], s["queue_max"], s["queue_len"]) == (4, 3, 1, 2, 1, 1, 1, 3, 1)
@@ -1065,7 +1064,7 @@ def test_once_mode_one_clip_or_one_error(tmp_path, caplog):
 BUSHTIT = bl.Detection("Bushtit", "P. minimus", 0.9, 3.0, 6.0)
 HEALTH_RE = re.compile(r"(?i)traceback|error|exception|fatal|panic")      # fleet/bin/health.sh
 SUMMARY_KEYS = ["window_s", "final", "cameras", "cameras_up", "clips", "analyzed", "dropped", "short", "failed",
-                "restarts", "refused", "analyze_mean_s", "analyze_p95_s", "duty", "notify_s", "queue_max",
+                "restarts", "refused", "analyze_mean_s", "analyze_p95_s", "duty", "queue_max",
                 "queue_len", "cpu_s", "ffmpeg_cpu_s", "rss_mb", "ffmpeg_rss_mb"]
 OPTIONAL_KEYS = {"final", "analyze_mean_s", "analyze_p95_s", "ffmpeg_cpu_s", "ffmpeg_rss_mb"}
 
@@ -1082,19 +1081,15 @@ def stream_cfg(tmp_path, names=("front",), **env) -> bl.Config:
 
 @pytest.fixture
 def spies(monkeypatch):
-    """bl.record runs for real and bl.notify is a no-op; both note the calling thread."""
-    s = SimpleNamespace(record=[], notify=[])
+    """bl.record runs for real and notes the calling thread."""
+    s = SimpleNamespace(record=[])
     real_record = bl.record
 
     def record(conn, when, cam, d, clip):
         s.record.append((threading.current_thread().name, when.isoformat(timespec="seconds"), cam.name, d.common_name))
         real_record(conn, when, cam, d, clip)
 
-    def notify(cfg, title, body):
-        s.notify.append((threading.current_thread().name, title, body))
-
     monkeypatch.setattr(bl, "record", record)
-    monkeypatch.setattr(bl, "notify", notify)
     return s
 
 
@@ -1206,11 +1201,8 @@ def _reaped(f: FakeFfmpeg) -> bool:
 
 
 # ----------------------------------------------------------------- 10: worker storage
-def test_worker_stores_segment_start_keeps_clip_and_applies_cooldown(tmp_path, caplog, spies):
+def test_worker_stores_segment_start_and_keeps_clip(tmp_path, caplog, spies):
     cfg = stream_cfg(tmp_path, KEEP_CLIPS="1")
-    conn = bl.open_db(cfg.data_dir)                   # an aware row from 15 min earlier
-    conn.execute("INSERT INTO notified VALUES (?, ?)", ("Bushtit", "2026-10-05T23:00:00+00:00"))
-    conn.commit(); conn.close()
     sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
     seen = []
 
@@ -1228,7 +1220,6 @@ def test_worker_stores_segment_start_keeps_clip_and_applies_cooldown(tmp_path, c
     kept = cfg.data_dir / "clips" / "2026-10-05" / "231500_front.wav"
     assert _rows(cfg) == [("2026-10-05T23:15:00+00:00", "front", "Bushtit", 3.0, str(kept))]
     assert kept.exists()
-    assert spies.notify == []                         # cooldown from the existing aware row
     assert not list(cfg.segment_dir.rglob("*.wav"))
     ok = _msgs(caplog, logging.INFO, "timing camera=front ")
     assert len(ok) == 1 and re.fullmatch(
@@ -1289,8 +1280,8 @@ def test_clip_queued_across_respawn_is_analyzed(tmp_path, caplog, spies):
     assert sum(int(s["failed"]) for s in sums) == 0 and sum(int(s["analyzed"]) for s in sums) == 2
 
 
-# ----------------------------------------------------------------- 11: concurrency and cooldown
-def test_three_cameras_one_worker_one_notify(tmp_path, caplog, spies):
+# ----------------------------------------------------------------- 11: concurrency
+def test_three_cameras_one_worker(tmp_path, caplog, spies):
     cfg = stream_cfg(tmp_path, ("a", "b", "c"))
     plan = [dict(n_segments=3, gap_s=0.03, exit_after_s=0.03)]
     sp = Spawner({"00-a": plan, "01-b": plan, "02-c": plan})
@@ -1301,7 +1292,6 @@ def test_three_cameras_one_worker_one_notify(tmp_path, caplog, spies):
         assert r.join() == 0
     assert len(spies.record) == 9
     assert {th for th, *_ in spies.record} == {"birdlisten-worker"}
-    assert [(th, title) for th, title, _ in spies.notify] == [("birdlisten-worker", "Bushtit")]
     want = [(BASE + dt.timedelta(seconds=30 * k)).isoformat() for k in range(3)]
     rows = _rows(cfg)
     assert [r[:2] for r in rows] == [(t, cam) for cam in "abc" for t in want]
@@ -1846,7 +1836,7 @@ def test_selftest_real_ffmpeg():
 @pytest.fixture
 def main_env(monkeypatch, tmp_path, no_loop_stop):
     for k in ("CAPTURE_MODE", "QUEUE_SIZE", "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS",
-              "NTFY_TOPIC", "MIN_CONFIDENCE"):
+              "MIN_CONFIDENCE"):
         monkeypatch.delenv(k, raising=False)
     base = {"CAMERAS": "front=rtsp://admin:s3cret@10.0.0.2/h264Preview_01_sub", "LATITUDE": "0",
             "LONGITUDE": "0", "DATA_DIR": str(tmp_path / "data"), "SEGMENT_DIR": str(tmp_path / "seg")}
@@ -1875,7 +1865,7 @@ def test_main_dry_run_writes_nothing(main_env, monkeypatch, spies):
     monkeypatch.setattr(bl, "capture", lambda cam, seconds, out: out.write_bytes(b"RIFF"))
     monkeypatch.setattr(bl, "analyze", lambda wav, c, when: [BUSHTIT])
     assert bl.main() == 0
-    assert spies.record == [] and spies.notify == []
+    assert spies.record == []
     assert _rows(cfg) == []
 
 
@@ -1904,7 +1894,6 @@ def test_main_loop_once_stream_end_to_end(main_env, monkeypatch, caplog, spies):
     rows = _rows(cfg)
     assert [(r[1], r[2]) for r in rows] == [("front", "Bushtit")]
     assert rows[0][0] == "2026-10-05T23:15:00+00:00" and rows[0][3] == 3.0   # segment start, detection offset
-    assert [n for n, *_ in spies.notify] == ["birdlisten-worker"]
     assert _summaries(caplog)[-1]["final"] == "1"
     assert "stream pipeline stopped" in _msgs(caplog, logging.INFO)
     assert not list((tmp := Path(cfg.segment_dir)).rglob("*.wav")), sorted(tmp.rglob("*"))

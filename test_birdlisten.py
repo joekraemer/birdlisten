@@ -8,6 +8,7 @@ import importlib
 import importlib.util
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -66,8 +67,7 @@ def test_capture_error_is_scrubbed(tmp_path: Path, monkeypatch):
 def test_load_config_defaults_and_required():
     env = {"CAMERAS": "c=rtsp://x", "LATITUDE": "47.6", "LONGITUDE": "-122.3"}
     cfg = bl.load_config(env)
-    assert cfg.clip_seconds == 30 and cfg.min_conf == 0.5 and cfg.ntfy_topic is None
-    assert cfg.notify_cooldown == dt.timedelta(minutes=60)
+    assert cfg.clip_seconds == 30 and cfg.min_conf == 0.5
     with pytest.raises(bl.ConfigError, match="LATITUDE"):
         bl.load_config({"CAMERAS": "c=rtsp://x"})
     with pytest.raises(bl.ConfigError, match="numeric"):
@@ -163,16 +163,6 @@ def test_record_and_report(tmp_path: Path, capsys):
     assert out.index("Song Sparrow") < out.index("Bushtit")  # ordered by count desc
 
 
-def test_should_notify_cooldown(tmp_path: Path):
-    conn = bl.open_db(tmp_path)
-    t0 = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
-    cd = dt.timedelta(minutes=60)
-    assert bl.should_notify(conn, "Bushtit", t0, cd) is True
-    assert bl.should_notify(conn, "Bushtit", t0 + dt.timedelta(minutes=30), cd) is False
-    assert bl.should_notify(conn, "Bushtit", t0 + dt.timedelta(minutes=61), cd) is True
-    assert bl.should_notify(conn, "Varied Thrush", t0, cd) is True  # different species unaffected
-
-
 # ----------------------------------------------------------------- one pass, mocked
 def test_listen_once_with_mocks(tmp_path: Path, monkeypatch):
     cfg = bl.load_config({
@@ -189,22 +179,18 @@ def test_listen_once_with_mocks(tmp_path: Path, monkeypatch):
     def fake_analyze(wav, cfg_, when):
         return [bl.Detection("Bushtit", "P. minimus", 0.7, 0, 3), bl.Detection("Bushtit", "P. minimus", 0.9, 3, 6)]
 
-    sent = []
     monkeypatch.setattr(bl, "capture", fake_capture)
     monkeypatch.setattr(bl, "analyze", fake_analyze)
-    monkeypatch.setattr(bl, "notify", lambda cfg_, title, body: sent.append(title))
 
     # One camera failed, one worked: pass counts as ok (1), the failure is logged.
     assert bl.listen_once(cfg, conn) == 1
     rows = conn.execute("SELECT camera, common_name, confidence, clip_path FROM detections").fetchall()
     assert len(rows) == 1 and rows[0][0] == "front" and rows[0][2] == 0.9
     assert rows[0][3] and Path(rows[0][3]).exists()  # KEEP_CLIPS copied the WAV
-    assert sent == ["Bushtit"]
 
-    # Second pass within the cooldown: recorded again, NOT notified again.
+    # Second pass: recorded again.
     assert bl.listen_once(cfg, conn) == 1
     assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
-    assert sent == ["Bushtit"]
 
     # Dry run writes nothing.
     assert bl.listen_once(cfg, conn, dry_run=True) == 1
@@ -238,7 +224,6 @@ def test_listen_once_logs_timing(tmp_path: Path, monkeypatch, caplog):
 
     monkeypatch.setattr(bl, "capture", fake_capture)
     monkeypatch.setattr(bl, "analyze", fake_analyze)
-    monkeypatch.setattr(bl, "notify", lambda *a: None)
     caplog.set_level("INFO", logger="birdlisten")
     assert bl.listen_once(cfg, conn, dry_run=True) == 1
 
@@ -319,18 +304,34 @@ def test_fmt_timing_skips_none_and_puts_error_last():
     assert bl._fmt_timing("summary", [("error", None, "{}"), ("ok", 2, "{}")]) == "timing summary ok=2"
 
 
-def test_store_clip_records_but_does_not_push_non_birds(tmp_path: Path, monkeypatch):
+def test_store_clip_records_non_birds_too(tmp_path: Path):
     cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0",
-                          "DATA_DIR": str(tmp_path), "NTFY_TOPIC": "t"})
+                          "DATA_DIR": str(tmp_path)})
     conn = bl.open_db(cfg.data_dir)
-    sent = []
-    monkeypatch.setattr(bl, "notify", lambda cfg_, title, body: sent.append(title))
     best = {"Dog": bl.Detection("Dog", "Dog", 0.95, 0, 3),
             "Bushtit": bl.Detection("Bushtit", "Psaltriparus minimus", 0.9, 3, 6)}
     when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
     bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=12.4, dry_run=False)
-    assert sent == ["Bushtit"]
     assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
+
+
+def test_ntfy_push_is_gone(tmp_path: Path, monkeypatch, caplog):
+    """Issue #26: an env file that still sets NTFY_TOPIC gets a warning, and a
+    stored detection never reaches the network."""
+    calls = []
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: calls.append(a))
+    caplog.set_level("WARNING", logger="birdlisten")
+    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path),
+                          "NTFY_TOPIC": "t", "NOTIFY_COOLDOWN_MIN": "5"})
+    assert any("NTFY_TOPIC, NOTIFY_COOLDOWN_MIN no longer does anything" in m for m in caplog.messages)
+    conn = bl.open_db(cfg.data_dir)
+    best = {"Bushtit": bl.Detection("Bushtit", "Psaltriparus minimus", 0.99, 0, 3)}
+    bl.store_clip(cfg, conn, cfg.cameras[0], dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC), tmp_path / "x.wav",
+                  best, clip_s=3, dry_run=False)
+    assert calls == []
+    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 1
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "notified" not in tables
 
 
 def test_load_thresholds_fall_back_to_min_confidence():
@@ -359,15 +360,15 @@ def test_single_below_display_error_names_where_the_floor_came_from():
         bl.load_thresholds({"MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.8"})
 
 
-@pytest.mark.parametrize("extra, record, push", [
-    ({}, 0.5, 0.5),                                                   # nothing set
-    ({"MIN_CONFIDENCE": "0.9"}, 0.9, 0.9),                            # old env file: one threshold
-    ({"MIN_CONFIDENCE": "0.9", "RECORD_MIN_CONFIDENCE": "0.7"}, 0.7, 0.9),
-    ({"DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.95"}, 0.5, 0.95),
+@pytest.mark.parametrize("extra, record", [
+    ({}, 0.5),                                                        # nothing set
+    ({"MIN_CONFIDENCE": "0.9"}, 0.9),                                 # old env file: one threshold
+    ({"MIN_CONFIDENCE": "0.9", "RECORD_MIN_CONFIDENCE": "0.7"}, 0.7),
+    ({"DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.95"}, 0.5),
 ])
-def test_load_config_record_and_push_thresholds(extra, record, push):
+def test_load_config_record_threshold(extra, record):
     cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", **extra})
-    assert (cfg.min_conf, cfg.notify_conf) == (record, push)
+    assert cfg.min_conf == record
 
 
 def test_display_typo_does_not_stop_recording(caplog):
@@ -375,54 +376,22 @@ def test_display_typo_does_not_stop_recording(caplog):
     env = {"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "RECORD_MIN_CONFIDENCE": "0.7"}
     for bad in ({"DISPLAY_MIN_CONFIDENCE": "0.9x"}, {"DISPLAY_MIN_CONFIDENCE": "0.9", "DISPLAY_SINGLE_CONFIDENCE": "0.8"}):
         cfg = bl.load_config({**env, **bad})
-        assert (cfg.min_conf, cfg.notify_conf) == (0.7, 0.7)
-    assert sum("pushes use the record threshold 0.7" in m for m in caplog.messages) == 2
+        assert cfg.min_conf == 0.7
     with pytest.raises(bl.ConfigError, match="RECORD_MIN_CONFIDENCE"):
         bl.load_config({**env, "RECORD_MIN_CONFIDENCE": "2"})   # the record threshold itself stays fatal
-
-
-def test_store_clip_records_low_rows_but_pushes_only_at_single_threshold(tmp_path: Path, monkeypatch):
-    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path),
-                          "NTFY_TOPIC": "t", "RECORD_MIN_CONFIDENCE": "0.7", "DISPLAY_MIN_CONFIDENCE": "0.9",
-                          "DISPLAY_SINGLE_CONFIDENCE": "0.95"})
-    assert (cfg.min_conf, cfg.notify_conf) == (0.7, 0.95)
-    conn = bl.open_db(cfg.data_dir)
-    sent = []
-    monkeypatch.setattr(bl, "notify", lambda cfg_, title, body: sent.append(title))
-    best = {"Bushtit": bl.Detection("Bushtit", "Psaltriparus minimus", 0.94, 0, 3),
-            "Varied Thrush": bl.Detection("Varied Thrush", "Ixoreus naevius", 0.95, 3, 6)}
-    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
-    bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=12.4, dry_run=False)
-    assert sent == ["Varied Thrush"]
-    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 2
-    # the 0.94 Bushtit never took the cooldown, so a later 0.95 one still pushes
-    assert conn.execute("SELECT common_name FROM notified").fetchall() == [("Varied Thrush",)]
-
-
-def test_store_clip_returns_notify_time(tmp_path: Path, monkeypatch):
-    import time
-
-    cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
-    conn = bl.open_db(cfg.data_dir)
-    monkeypatch.setattr(bl, "notify", lambda *a: time.sleep(0.05))
-    best = {"Bushtit": bl.Detection("Bushtit", "P. minimus", 0.9, 3, 6)}
-    when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
-    notify_s = bl.store_clip(cfg, conn, cfg.cameras[0], when, tmp_path / "x.wav", best, clip_s=12.4, dry_run=False)
-    assert notify_s >= 0.05
-    assert conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0] == 1
 
 
 def test_store_clip_float_seconds_in_nothing_above(tmp_path: Path, caplog):
     cfg = bl.load_config({"CAMERAS": "c=rtsp://x", "LATITUDE": "0", "LONGITUDE": "0", "DATA_DIR": str(tmp_path)})
     caplog.set_level("INFO", logger="birdlisten")
     when = dt.datetime(2026, 9, 16, 14, 0, tzinfo=UTC)
-    assert bl.store_clip(cfg, None, cfg.cameras[0], when, tmp_path / "x.wav", {}, clip_s=12.4, dry_run=False) == 0.0
+    assert bl.store_clip(cfg, None, cfg.cameras[0], when, tmp_path / "x.wav", {}, clip_s=12.4, dry_run=False) is None
     assert "c: 12s, nothing above 0.50" in caplog.messages
 
 
 # ----------------------------------------------------------------- main() dispatch and check()
 _MAIN_KEYS = ("CAMERAS", "LATITUDE", "LONGITUDE", "DATA_DIR", "SEGMENT_DIR", "CAPTURE_MODE", "QUEUE_SIZE",
-              "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS", "NTFY_TOPIC", "MIN_CONFIDENCE",
+              "SUMMARY_MINUTES", "CLIP_SECONDS", "LOOP_ONCE", "KEEP_CLIPS", *bl.REMOVED_ENV, "MIN_CONFIDENCE",
               "RECORD_MIN_CONFIDENCE", "DISPLAY_MIN_CONFIDENCE", "DISPLAY_SINGLE_CONFIDENCE")
 
 

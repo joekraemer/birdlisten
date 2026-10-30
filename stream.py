@@ -4,8 +4,8 @@ Each camera gets one supervisor thread that keeps one long-lived ffmpeg
 running. ffmpeg writes back-to-back CLIP_SECONDS WAV segments with its
 segment muxer into SEGMENT_DIR/<NN>-<name>/. A finished segment is validated,
 renamed into SEGMENT_DIR/queued/ and put on a bounded drop-oldest queue. One
-analysis worker thread owns the BirdNET analyzer, the SQLite write connection
-and ntfy.
+analysis worker thread owns the BirdNET analyzer and the SQLite write
+connection.
 
 This module holds the building blocks (tuning constants, the ffmpeg command,
 the queue, the process registry, the summary statistics, /proc sums, the
@@ -222,7 +222,7 @@ class Stats:
         self._lock = threading.Lock(); self._clock = clock
         self._win = dict.fromkeys(COUNTERS, 0); self._tot = dict.fromkeys(COUNTERS, 0)
         self._drop_warned = False; self._queue_max = 0
-        self._analyze: list[float] = []; self._notify_s = 0.0
+        self._analyze: list[float] = []
         self._busy_s = 0.0; self._busy_since: float | None = None
         self._win_start = clock()
 
@@ -247,10 +247,10 @@ class Stats:
             self._win["clips"] += 1; self._tot["clips"] += 1
             self._queue_max = max(self._queue_max, qlen)
 
-    def analyzed(self, analyze_s: float, notify_s: float) -> None:
+    def analyzed(self, analyze_s: float) -> None:
         with self._lock:
             self._win["analyzed"] += 1; self._tot["analyzed"] += 1
-            self._analyze.append(analyze_s); self._notify_s += notify_s
+            self._analyze.append(analyze_s)
 
     def busy_begin(self) -> None:
         with self._lock:
@@ -285,11 +285,11 @@ class Stats:
                 v = sorted(self._analyze)
                 out["analyze_mean_s"] = sum(v) / len(v)
                 out["analyze_p95_s"] = v[int(.95 * (len(v) - 1))]
-            out.update(duty=duty, notify_s=self._notify_s, queue_max=self._queue_max,
+            out.update(duty=duty, queue_max=self._queue_max,
                        queue_len=queue_len, cpu_s=cpu_s, ffmpeg_cpu_s=ffmpeg_cpu_s,
                        rss_mb=rss_mb, ffmpeg_rss_mb=ffmpeg_rss_mb)
             self._win = dict.fromkeys(COUNTERS, 0)
-            self._analyze = []; self._notify_s = 0.0; self._busy_s = 0.0
+            self._analyze = []; self._busy_s = 0.0
             self._drop_warned = False
             self._queue_max = queue_len
             self._win_start = now
@@ -739,7 +739,7 @@ class CameraSupervisor(threading.Thread):
 # ----------------------------------------------------------------- worker
 class Worker(threading.Thread):
     """The one analysis thread. It makes every BirdNET call, owns the only
-    SQLite write connection (opened in this thread) and is the only ntfy sender."""
+    SQLite write connection (opened in this thread)."""
 
     def __init__(self, cfg: bl.Config, *, queue: ClipQueue, stats: Stats, stop: threading.Event,
                  cameras: dict[str, bl.Camera], analyze_fn, clock):
@@ -791,9 +791,9 @@ class Worker(threading.Thread):
                 analyze_s, cpu_s = self._clock() - t0, _self_cpu_seconds() - c0
             best = bl.best_per_species(dets)
             log.info("%s", self._timing(clip, lag, queue_wait, analyze_s, len(best), cpu_s))
-            notify_s = bl.store_clip(self.cfg, conn, self._cameras[clip.camera], clip.start_utc,
-                                     clip.path, best, clip_s=clip.duration_s, dry_run=False)
-            self._stats.analyzed(analyze_s, notify_s)
+            bl.store_clip(self.cfg, conn, self._cameras[clip.camera], clip.start_utc,
+                          clip.path, best, clip_s=clip.duration_s, dry_run=False)
+            self._stats.analyzed(analyze_s)
         except Exception as exc:                      # one bad clip never stops the worker
             self._stats.add(failed=1)
             reason = bl.scrub(str(exc)) or type(exc).__name__
@@ -854,7 +854,7 @@ def _join_until(threads, deadline: float, tick_s: float, clock) -> None:
 
 
 _SUMMARY_FMT = {"window_s": "{:.0f}", "analyze_mean_s": "{:.2f}", "analyze_p95_s": "{:.2f}",
-                "duty": "{:.2f}", "notify_s": "{:.1f}", "cpu_s": "{:.1f}", "ffmpeg_cpu_s": "{:.1f}",
+                "duty": "{:.2f}", "cpu_s": "{:.1f}", "ffmpeg_cpu_s": "{:.1f}",
                 "rss_mb": "{:.0f}", "ffmpeg_rss_mb": "{:.0f}"}
 
 
