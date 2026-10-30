@@ -65,6 +65,7 @@ CARD = (236, 226, 202)       # placeholder card, a shade darker than the page
 MIN_CELL = 80                # px; below this we stop shrinking and drop species
 MIN_FONT = 9                 # px; name_layout never goes smaller
 CELL_RATIO = 1.27            # cell height / plate height: the plate plus two name lines
+BARE_RATIO = 1.0             # the same with names hidden (issue #15): just the plate
 MAX_CELL_FRAC = 0.4          # largest plate height as a fraction of the short side (n = 1)
 WIDE_MAX = 1.3               # spare width widens plates up to this x their height first,
 GUTTER_MAX = 0.2             # then gutters up to this x plate height
@@ -874,9 +875,10 @@ def _metrics(width: int, height: int) -> tuple[float, int, int, int]:
     return unit, round(2.5 * unit), round(1.2 * unit), round(10 * unit)
 
 
-def pack(n: int, width: int, height: int, top: int, margin: int, gap: int) -> tuple[list[Box], int]:
+def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
+         ratio: float = CELL_RATIO) -> tuple[list[Box], int]:
     """Uniform portrait cells in a grid: a plate `cell` px tall with room for
-    two name lines below (CELL_RATIO). Picks the column count that gives the
+    two name lines below (`ratio`: CELL_RATIO, or BARE_RATIO with names hidden). Picks the column count that gives the
     tallest plate (capped at MAX_CELL_FRAC of the short side), shrinks to
     MIN_CELL, then drops the tail of the list (the oldest species, since
     callers pass most-recent-first).
@@ -897,14 +899,14 @@ def pack(n: int, width: int, height: int, top: int, margin: int, gap: int) -> tu
         rows = math.ceil(n / cols)
         cell_w = (W - (cols - 1) * gap) // cols
         cell_h = (H - (rows - 1) * gap) // rows
-        cell = min(cell_w, int(cell_h / CELL_RATIO), cap)
+        cell = min(cell_w, int(cell_h / ratio), cap)
         if cell > best_cell:
             best_cell, best_cols = cell, cols
     cell, cols = best_cell, best_cols
     if cell < MIN_CELL:
         cell = MIN_CELL
         cols = max(1, (W + gap) // (cell + gap))
-        rows = max(1, (H + gap) // (round(CELL_RATIO * cell) + gap))
+        rows = max(1, (H + gap) // (round(ratio * cell) + gap))
         shown = min(n, cols * rows)
     else:
         shown = n
@@ -920,7 +922,7 @@ def pack(n: int, width: int, height: int, top: int, margin: int, gap: int) -> tu
     if widest > 1:
         spare = (W - widest * bw) // (widest - 1)
         gx = max(gap, min(spare, round(GUTTER_MAX * cell)))
-    bh = round(CELL_RATIO * cell)
+    bh = round(ratio * cell)
     grid_h = rows * bh + (rows - 1) * gap
     y = top + margin + max(0, H - grid_h) * 2 // 5   # a little above centre reads as centred
     boxes: list[Box] = []
@@ -1123,9 +1125,11 @@ def _png(img: Image.Image) -> bytes:
 
 
 def render(species: list[Species], art: Artwork, width: int, height: int, hours: int,
-           now: dt.datetime | None = None) -> Rendered:
+           now: dt.datetime | None = None, names: bool = True) -> Rendered:
     """A field-guide style page: centred title and species count, then one
-    plate per species with its common name beneath, all in one type size."""
+    plate per species with its common name beneath, all in one type size.
+    names=False (issue #15) draws the plates only, and bigger, because the
+    cells no longer keep room for two name lines."""
     now = now or utcnow()
     deadline = time.monotonic() + FETCH_BUDGET
     art.ensure_meta(deadline)   # first, so the two small meta files win over plates
@@ -1143,7 +1147,8 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         _ornament(draw, cx, cy + round(3 * unit), round(6 * unit), RULE, rule_w)
         return Rendered(_png(img), 0, 0, True, 0)
 
-    boxes, dropped = pack(len(species), width, height, top, margin, gap)
+    ratio = CELL_RATIO if names else BARE_RATIO
+    boxes, dropped = pack(len(species), width, height, top, margin, gap, ratio)
     title_font = _font(max(MIN_FONT, round(3.4 * unit)))
     sub_font = _font(max(MIN_FONT, round(2.1 * unit)), italic=True)
     title = _ellipsise(draw, f"Heard in {window_phrase(hours)}", title_font, width - 2 * margin)
@@ -1174,18 +1179,21 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         log.info("fetch budget exhausted, %d plates deferred", deferred)
 
     bw = boxes[0].w                         # pack makes every box the same size
-    cell = round(boxes[0].h / CELL_RATIO)   # plate height; inverts pack's rounding exactly
+    cell = round(boxes[0].h / ratio)        # plate height; inverts pack's rounding exactly
     inset = round(cell * 0.03)
     # Names may spill into 3/8 of the gutter on each side, leaving 1/4 of it
     # between neighbours, so fewer of them need a second line.
     row_gap = min((b.x - a.x - bw for a, b in itertools.pairwise(boxes) if b.y == a.y), default=0)
     label_w = bw + min(row_gap * 3 // 4, margin)   # and never past the page margin
-    font, names = name_layout(draw, [sp.common_name for sp in species[:len(boxes)]], label_w,
-                              min(round(cell / 10), round(2.3 * unit)))   # never rivals the title
-    ascent, descent = font.getmetrics()
-    line_h = round((ascent + descent) * 1.1)
+    if names:
+        font, labels = name_layout(draw, [sp.common_name for sp in species[:len(boxes)]], label_w,
+                                   min(round(cell / 10), round(2.3 * unit)))   # never rivals the title
+        ascent, descent = font.getmetrics()
+        line_h = round((ascent + descent) * 1.1)
+    else:
+        labels = [[] for _ in boxes]
     arts: list[str | None] = []
-    for sp, box, lines in zip(species, boxes, names):
+    for sp, box, lines in zip(species, boxes, labels):
         px, py, pw, ph = box.x + inset, box.y + inset, bw - 2 * inset, cell - 2 * inset
         name = sp.scientific_name
         kind = art.art_kind(name) if stem(name) else None
@@ -1216,6 +1224,8 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         arts.append(drew)
         # Names hang from the same line in every cell; a wrapped name adds a
         # second line below rather than shifting the first.
+        if not lines:
+            continue
         y = box.y + cell - inset + round(cell * 0.04) + ascent
         for line in lines:
             draw.text((box.x + bw // 2, y), line, font=font, fill=INK, anchor="ms")
@@ -1243,25 +1253,25 @@ class RenderCache:
     max_tokens: int = 8                               # PNGs kept for /collage.png?v=
     renders: int = 0                                  # test observability
     _lock: threading.Lock = field(default_factory=threading.Lock)
-    _entries: dict[tuple[int, int, int], tuple[tuple, Rendered]] = field(default_factory=dict)
+    _entries: dict[tuple[int, int, int, bool], tuple[tuple, Rendered]] = field(default_factory=dict)
     _tok_lock: threading.Lock = field(default_factory=threading.Lock)
     _by_token: OrderedDict[str, Rendered] = field(default_factory=OrderedDict)
 
     def get(self, species: list[Species], width: int, height: int, hours: int,
-            now: dt.datetime | None = None) -> bytes:
-        return self.get_rendered(species, width, height, hours, now).png
+            now: dt.datetime | None = None, names: bool = True) -> bytes:
+        return self.get_rendered(species, width, height, hours, now, names).png
 
     def get_rendered(self, species: list[Species], width: int, height: int, hours: int,
-                     now: dt.datetime | None = None) -> Rendered:
+                     now: dt.datetime | None = None, names: bool = True) -> Rendered:
         with self._lock:
-            k = (width, height, hours)
+            k = (width, height, hours, names)
             key = cache_key(species, self.art)
             hit = self._entries.get(k)
             if hit and hit[0] == key:
                 out = hit[1]
             else:
                 t0 = time.monotonic()
-                out = render(species, self.art, width, height, hours, now=now)
+                out = render(species, self.art, width, height, hours, now=now, names=names)
                 self.renders += 1
                 log.info("rendered %sx%s in %d ms: %s species, %s dropped, %s deferred, quiet=%s",
                          width, height, (time.monotonic() - t0) * 1000,
