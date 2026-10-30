@@ -28,7 +28,7 @@ Verified in the built image: ffmpeg is present and the `capture()` flags are
 valid; the BirdNET model loads under tflite-runtime; a full pass with a
 synthetic clip runs through analysis and storage; the stream-mode segment
 muxer cuts a test tone into the expected clips with the image's own ffmpeg
-(`python stream.py --selftest`, run by CI). 333 test functions (461 cases
+(`python stream.py --selftest`, run by CI). 339 test functions (467 cases
 with parametrization, one of which needs a local ffmpeg and is skipped on
 macOS) cover config parsing, dedupe, cooldown, storage, the per-pass error
 handling, stream capture (segment hand-off, restarts and backoff, the queue,
@@ -323,10 +323,10 @@ own read-only connection; it never changes what the loop records.
 
 | route | what |
 |---|---|
-| `GET /` | HTML page: the collage with a tappable bird pop-up (below), refreshed every 60 s (meta refresh fallback without JS). `?hours=`, `?w=`, `?h=` as for `/collage.png`. It renders in the request, so the first load after a restart can wait for plates (up to the 15 s fetch budget). |
-| `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200) |
+| `GET /` | HTML page: the collage with a tappable bird pop-up (below), refreshed every 60 s (meta refresh fallback without JS). `?hours=`, `?w=`, `?h=`, `?names=` as for `/collage.png`; refreshes keep the same `names` choice, and the pop-up still names the bird. It renders in the request, so the first load after a restart can wait for plates (up to the 15 s fetch budget). |
+| `GET /collage.png` | the collage. `?hours=1..720` (default `COLLAGE_HOURS`), `?w=`, `?h=` 200..4000 (default 1600x1200), `?names=0` hides the bird names and gives the plates their room, `?names=1` shows them (default `COLLAGE_NAMES`) |
 | `GET /collage.png?v=<token>` | one cached render by its 16-hex content token (the last 8 are kept), `Cache-Control: public, max-age=31536000, immutable`; 404 once evicted |
-| `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
+| `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, names, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
 | `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
 | `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out, Audubon cut-out or Audubon plate is on disk. `?hours=` |
 | `GET /plate/<stem>.png` | a Fugleramme or Audubon cut-out, or a cached vignette, as a 480 px PNG, from disk only |
@@ -562,6 +562,7 @@ sensor:
 |---|---|---|
 | `SERVE_PORT` | unset | port for the collage server. Unset or empty = no server, no network traffic, nothing changes. |
 | `COLLAGE_HOURS` | `24` | window for `/`, `/collage.png` and `/api/recent`, 1..720 |
+| `COLLAGE_NAMES` | `1` | `0` hides the bird names under the plates by default (the plates grow into the space); a request's `?names=` overrides it, so a card or e-ink display and a browser can differ |
 | `MIN_CONFIDENCE` | `0.5` | default for `DISPLAY_MIN_CONFIDENCE` (and the capture loop's `RECORD_MIN_CONFIDENCE`), 0..1 |
 | `DISPLAY_MIN_CONFIDENCE` | `MIN_CONFIDENCE` (`0.5`) | rows below it are left off the page, the pop-up and `/api/recent`, 0..1 |
 | `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Must be at least `DISPLAY_MIN_CONFIDENCE` |

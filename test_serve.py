@@ -1327,3 +1327,55 @@ def test_popup_shows_visits_and_minutes():
     assert "visitsPhrase(h)" in js and "Most visits" in js and "'Most detections" not in js
     # the first/last times, the camera list and the chart caption are gone from the card
     assert "'First '" not in js and "'Cameras: '" not in js and "'Dark: '" not in js
+
+
+# ----------------------------------------------------------------- names off (#15)
+def test_names_param_on_page_png_and_layout(server, tmp_path: Path):
+    srv, base = server
+    seed(tmp_path)
+    _, _, named = get(base + "/collage.png?w=800&h=600")
+    _, _, bare = get(base + "/collage.png?w=800&h=600&names=0")
+    assert named != bare and Image.open(io.BytesIO(bare)).size == (800, 600)
+    _, _, again = get(base + "/collage.png?w=800&h=600&names=1")
+    assert again == named
+    _, _, body = get(base + "/api/layout?w=800&h=600&names=0")
+    lay = json.loads(body)
+    assert lay["names"] is False and lay["targets"]       # pop-up targets still there
+    _, _, png = get(base + lay["png"])
+    assert png == bare                                     # the token names the bare render
+    _, _, body = get(base + "/?names=0")
+    assert page_layout(body.decode())["names"] is False
+    _, _, body = get(base + "/")
+    assert page_layout(body.decode())["names"] is True
+    for q in ("names=2", "names=yes", "names=true"):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            get(base + "/collage.png?" + q)
+        assert exc.value.code == 400
+
+
+def test_collage_names_env_sets_the_default(tmp_path: Path):
+    assert serve.load_serve_config({"SERVE_PORT": "8085"}).names is True
+    assert serve.load_serve_config({"SERVE_PORT": "8085", "COLLAGE_NAMES": "0"}).names is False
+    assert serve.load_serve_config({"SERVE_PORT": "8085", "COLLAGE_NAMES": " "}).names is True
+    with pytest.raises(bl.ConfigError):
+        serve.load_serve_config({"SERVE_PORT": "8085", "COLLAGE_NAMES": "no"})
+    seed(tmp_path)
+    cfg = serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                            art=frame.Artwork(tmp_path / "artwork"), names=False,
+                            facts=facts.FactsConfig(tmp_path / "facts", fetch=False))
+    srv = serve.CollageServer(cfg, host="127.0.0.1")
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        _, _, body = get(base + "/api/layout")
+        assert json.loads(body)["names"] is False
+        _, _, body = get(base + "/api/layout?names=1")      # a request can still ask for names
+        assert json.loads(body)["names"] is True
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_page_js_keeps_names_choice_on_refresh():
+    js = (Path(serve.__file__).parent / "static" / "page.js").read_text()
+    assert "'&names=' + (shown.names === false ? 0 : 1)" in js

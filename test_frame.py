@@ -1355,3 +1355,41 @@ def test_recent_species_queries_use_indexes(tmp_path: Path):
         conn.close()
     assert "idx_detections_time" in window
     assert "idx_detections_sci_time" in before
+
+
+# ----------------------------------------------------------------- names off (#15)
+def test_render_without_names_draws_no_names(tmp_path: Path):
+    """names=False must not draw any name: two renders that differ only in
+    the common names give identical pixels, while with names on they differ."""
+    art = frame.Artwork(tmp_path / "art")
+    a = [sp(com="American Robin"), sp("Ixoreus naevius", "Varied Thrush")]
+    b = [sp(com="Robin Redbreast"), sp("Ixoreus naevius", "Thrush, Varied")]
+    assert frame.render(a, art, 800, 600, 24, now=T0).png != frame.render(b, art, 800, 600, 24, now=T0).png
+    bare_a = frame.render(a, art, 800, 600, 24, now=T0, names=False)
+    bare_b = frame.render(b, art, 800, 600, 24, now=T0, names=False)
+    assert bare_a.png == bare_b.png
+    # Click targets still carry the names, so the pop-up card works the same.
+    assert [t["common_name"] for t in bare_a.layout(800, 600)["targets"]] == ["American Robin", "Varied Thrush"]
+
+
+def test_render_without_names_gives_bigger_plates(tmp_path: Path):
+    art = frame.Artwork(tmp_path / "art")
+    with_names = frame.render(many(12), art, 1600, 1200, 24, now=T0)
+    bare = frame.render(many(12), art, 1600, 1200, 24, now=T0, names=False)
+    plate = lambda r, ratio: round(r.boxes[0].h / ratio)  # noqa: E731
+    assert plate(bare, frame.BARE_RATIO) > plate(with_names, frame.CELL_RATIO)
+    assert bare.shown == with_names.shown == 12
+    _, margin, gap, top = frame._metrics(800, 600)
+    for n in (10, 40, 80):   # never fits fewer birds than the named grid
+        assert (frame.pack(n, 800, 600, top, margin, gap, frame.BARE_RATIO)[1]
+                <= frame.pack(n, 800, 600, top, margin, gap)[1])
+
+
+def test_render_cache_keeps_names_and_bare_apart(tmp_path: Path):
+    cache = frame.RenderCache(frame.Artwork(tmp_path / "art"))
+    a = [sp(), sp("Ixoreus naevius", "Varied Thrush")]
+    named = cache.get(a, 800, 600, 24, now=T0)
+    bare = cache.get(a, 800, 600, 24, now=T0, names=False)
+    assert cache.renders == 2 and named != bare
+    assert cache.get(a, 800, 600, 24, now=T0) == named and cache.renders == 2
+    assert cache.get(a, 800, 600, 24, now=T0, names=False) == bare and cache.renders == 2

@@ -136,7 +136,7 @@ class ServeConfig:
     tz: dt.tzinfo = field(default_factory=lambda: _DEFAULT_ZONE)
     visit_gap: dt.timedelta = frame.DEFAULT_VISIT_GAP
     clip: dt.timedelta = frame.DEFAULT_CLIP
-
+    names: bool = True                          # COLLAGE_NAMES; ?names=0|1 overrides per request (#15)
 
 def load_serve_config(env=os.environ) -> ServeConfig | None:
     """None when SERVE_PORT is unset or empty (the server is off)."""
@@ -170,6 +170,9 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     fetch = env.get("FACTS_FETCH", "1").strip()
     if fetch not in ("0", "1"):
         raise ConfigError("FACTS_FETCH must be 0 or 1")
+    show_names = env.get("COLLAGE_NAMES", "1").strip() or "1"
+    if show_names not in ("0", "1"):
+        raise ConfigError("COLLAGE_NAMES must be 0 or 1")
     facts_dir = Path(env.get("FACTS_DIR", "").strip() or data_dir / "facts")
     key = None
     raw_key = env.get("EBIRD_API_KEY", "").strip()
@@ -191,7 +194,7 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
                        single_confidence=thresholds.single,
                        facts=facts.FactsConfig(facts_dir, fetch == "1", key, lat, lon),
                        tz=load_tz(env), visit_gap=dt.timedelta(minutes=gap_min),
-                       clip=dt.timedelta(seconds=clip_s))
+                       clip=dt.timedelta(seconds=clip_s), names=show_names == "1")
 
 
 _DEFAULT_ZONE = load_tz({})
@@ -218,6 +221,15 @@ def int_param(qs: dict[str, list[str]], name: str, default: int, lo: int, hi: in
         raise BadRequest(f"{name} must be {lo}..{hi}")
     return value
 
+
+def bool_param(qs: dict[str, list[str]], name: str, default: bool) -> bool:
+    """Missing -> default; repeated -> first; 0 or 1 only, anything else -> 400."""
+    if name not in qs:
+        return default
+    raw = qs[name][0]
+    if raw not in ("0", "1"):
+        raise BadRequest(f"{name} must be 0 or 1")
+    return raw == "1"
 
 def load_species(cfg: ServeConfig, hours: int, now: dt.datetime) -> list[frame.Species]:
     """Per-request read-only connection; nothing shared with the capture loop.
@@ -458,10 +470,12 @@ def font_file(name: str) -> bytes:
     return (frame.FONT_DIR / name).read_bytes()
 
 
-def layout_json(rendered: frame.Rendered, w: int, h: int, hours: int) -> dict:
+def layout_json(rendered: frame.Rendered, w: int, h: int, hours: int, names: bool = True) -> dict:
     """What /api/layout returns and / embeds: the render's click targets and
-    the URL of exactly the PNG they were built from."""
-    return {**rendered.layout(w, h), "png": f"/collage.png?v={rendered.token}", "hours": hours}
+    the URL of exactly the PNG they were built from. `names` lets the page
+    ask for the same kind of render on refresh."""
+    return {**rendered.layout(w, h), "png": f"/collage.png?v={rendered.token}", "hours": hours,
+            "names": names}
 
 
 def _json_block(obj: dict) -> str:
@@ -704,9 +718,11 @@ class Handler(BaseHTTPRequestHandler):
             now = frame.utcnow()   # once per request: window, generated_at, and marker checks agree
             if path == "/":
                 hours, w, h = self._size_params(qs)
+                names = bool_param(qs, "names", cfg.names)
                 refresh_ms = int_param(qs, "refresh_ms", REFRESH_SECONDS * 1000, 500, 3_600_000)
-                r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now)
-                page = index_html(layout_json(r, w, h, hours), w, h, refresh_ms, cfg.art.audubon is not None)
+                r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now,
+                                                   names=names)
+                page = index_html(layout_json(r, w, h, hours, names), w, h, refresh_ms, cfg.art.audubon is not None)
                 self._send(200, "text/html; charset=utf-8", page.encode())
             elif path == "/collage.png" and "v" in qs:
                 token = qs["v"][0]
@@ -720,12 +736,15 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, "image/png", r.png, cache=IMMUTABLE)
             elif path == "/collage.png":
                 hours, w, h = self._size_params(qs)
+                names = bool_param(qs, "names", cfg.names)
                 species = load_species(cfg, hours, now)
-                self._send(200, "image/png", self.server.cache.get(species, w, h, hours, now=now))
+                self._send(200, "image/png", self.server.cache.get(species, w, h, hours, now=now, names=names))
             elif path == "/api/layout":
                 hours, w, h = self._size_params(qs)
-                r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now)
-                body = json.dumps(layout_json(r, w, h, hours), ensure_ascii=False).encode()
+                names = bool_param(qs, "names", cfg.names)
+                r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now,
+                                                   names=names)
+                body = json.dumps(layout_json(r, w, h, hours, names), ensure_ascii=False).encode()
                 self._send(200, "application/json; charset=utf-8", body)
             elif path == "/api/recent":
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)

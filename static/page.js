@@ -52,7 +52,8 @@
     });
     deadline.catch(function () {});   // only ever awaited inside Promise.race
     try {
-      const url = '/api/layout?hours=' + shown.hours + '&w=' + shown.w + '&h=' + shown.h;
+      const url = '/api/layout?hours=' + shown.hours + '&w=' + shown.w + '&h=' + shown.h
+        + '&names=' + (shown.names === false ? 0 : 1);   // keep the kind of render the page was opened with
       const r = await Promise.race([fetch(url, {cache: 'no-store', signal: ac.signal}), deadline]);
       if (!r.ok) return;
       const layout = await Promise.race([r.json(), deadline]);
