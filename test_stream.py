@@ -720,6 +720,11 @@ class FakeFfmpeg:
 
 
 HOLD = dict(n_segments=0, stall_after=0)              # alive and silent: what a spawn gets once its plan runs out
+# Two segments, then alive and silent: exactly one segment is ever complete
+# while it runs, so a once-mode supervisor hands off one clip however late its
+# polls are. An endless writer can finish a second segment between two polls
+# of a CPU-starved supervisor, and both get queued (issue #29).
+ONE_CLIP = dict(n_segments=None, stall_after=2, gap_s=0.05)
 
 
 class Spawner:
@@ -957,7 +962,9 @@ def test_healthy_run_resets_backoff(tmp_path, caplog):
     healthy = dict(n_segments=9, gap_s=0.1, exit_code=1, stderr_lines=["Connection timed out"])
     sp = Spawner({"00-front": [quick, quick, quick, healthy]})
     with caplog.at_level(logging.INFO, logger="birdlisten"), Rig(tmp_path, sp) as rig:
-        wait_for(lambda: sp.count("00-front") >= 5)
+        # ~1.3 s of scripted runs; generous so a CPU-starved run still gets there
+        # (issue #29). A passing run returns as soon as the 5th spawn happens.
+        wait_for(lambda: sp.count("00-front") >= 5, timeout=15)
         backoffs = list(rig.sups[0].backoffs)
     _approx_backoffs(backoffs, [0.01, 0.02, 0.04, 0.01])    # hand-offs alone did not reset; the healthy run did
     assert "front: recovered after 3 attempts" in _msgs(caplog, logging.INFO)
@@ -1042,7 +1049,7 @@ def test_registry_removed_before_reader_join(tmp_path, caplog):
 
 # ----------------------------------------------------------------- once mode (supervisor part)
 def test_once_mode_one_clip_or_one_error(tmp_path, caplog):
-    sp = Spawner({"00-ok": [dict(n_segments=None, gap_s=0.05)],
+    sp = Spawner({"00-ok": [ONE_CLIP],
                   "01-bad": [dict(n_segments=0, exit_code=1, stderr_lines=["Connection refused"])]})
     with caplog.at_level(logging.INFO, logger="birdlisten"), Rig(tmp_path, sp, ("ok", "bad"), once=True) as rig:
         for s in rig.sups:
@@ -1203,7 +1210,7 @@ def _reaped(f: FakeFfmpeg) -> bool:
 # ----------------------------------------------------------------- 10: worker storage
 def test_worker_stores_segment_start_and_keeps_clip(tmp_path, caplog, spies):
     cfg = stream_cfg(tmp_path, KEEP_CLIPS="1")
-    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    sp = Spawner({"00-front": [ONE_CLIP]})
     seen = []
 
     def analyze(w, c, when):
@@ -1238,7 +1245,7 @@ def test_worker_nothing_above_uses_real_segment_length(tmp_path, caplog, spies):
 
 def test_worker_failure_is_counted_and_scrubbed(tmp_path, caplog, spies):
     cfg = stream_cfg(tmp_path)
-    sp = Spawner({"00-front": [dict(n_segments=None, gap_s=0.05)]})
+    sp = Spawner({"00-front": [ONE_CLIP]})
 
     def analyze(w, c, t):
         raise RuntimeError(f"database is locked {SECRET_URL}")
@@ -1407,7 +1414,7 @@ def test_worker_takes_no_clip_after_stop(tmp_path):
 # ----------------------------------------------------------------- 15: once mode
 def test_once_mode_one_camera_failing(tmp_path, caplog, spies):
     cfg = stream_cfg(tmp_path, ("ok", "bad"))
-    sp = Spawner({"00-ok": [dict(n_segments=None, gap_s=0.05)],
+    sp = Spawner({"00-ok": [ONE_CLIP],
                   "01-bad": [dict(n_segments=0, exit_code=1, stderr_lines=["Connection refused"])]})
     seen = []
 
