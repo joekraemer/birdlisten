@@ -37,6 +37,31 @@ footer a:hover { text-decoration: underline; }
 body.attribution { font: 14px sans-serif; margin: 2em; background: #f4ecd8; color: #28241e; }
 body.attribution pre { white-space: pre-wrap; }
 
+/* /birds: every bird heard (#14) */
+body.birds {
+  margin: 0 auto; padding: 16px; max-width: 760px; color: #28241e;
+  font: 15px/1.4 "Libre Baskerville", Baskerville, "Baskerville Old Face", Georgia, serif;
+}
+body.birds header { display: flex; align-items: baseline; justify-content: space-between; gap: 1em; }
+body.birds h1 { font-size: 22px; font-weight: normal; margin: 0 0 8px; }
+body.birds header p { margin: 0; color: #7c705e; font-style: italic; }
+body.birds table { width: 100%; border-collapse: collapse; }
+body.birds th { text-align: left; font-weight: normal; font-style: italic; color: #7c705e;
+                border-bottom: 1px solid #baaa8e; padding: 4px 6px; }
+body.birds td { border-bottom: 1px solid #e3d8bf; padding: 4px 6px; vertical-align: middle; }
+body.birds td.thumb { width: 56px; padding: 2px 6px; }
+body.birds td.thumb img { display: block; width: 56px; height: 56px; object-fit: contain; }
+body.birds td.name .sci { display: block; font-style: italic; font-size: 12px; color: #7c705e; }
+body.birds .num { text-align: right; white-space: nowrap; }
+body.birds td.when { white-space: nowrap; color: #4f473b; }
+body.birds td.empty { text-align: center; padding: 24px; color: #7c705e; }
+body.birds footer { padding-top: 12px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 480px) {
+  body.birds { padding: 8px; font-size: 14px; }
+  body.birds th:nth-child(4), body.birds td:nth-child(4) { display: none; }   /* drop "First" on phones */
+}
+
 /* ------------------------------------------------------------ pop-up card
    Palette from frame.py: page #f4ecd8, card #ece2ca, ink #342c22,
    grey #7c705e, rule #baaa8e. Libre Baskerville (SIL OFL 1.1). */

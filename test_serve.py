@@ -409,6 +409,80 @@ def test_single_confidence_hides_one_off_rows_from_page_and_api(tmp_path: Path):
     assert serve.species_known(strict, "Ixoreus naevius")
 
 
+# ----------------------------------------------------------------- /birds (#14)
+def _birds_cfg(tmp_path: Path, **kw) -> serve.ServeConfig:
+    from zoneinfo import ZoneInfo
+    return serve.ServeConfig(port=0, hours=24, db_path=tmp_path / "birdlisten.sqlite",
+                             art=frame.Artwork(tmp_path / "artwork"), tz=ZoneInfo("America/Los_Angeles"), **kw)
+
+
+def test_all_birds_counts_local_days_and_orders_by_days(tmp_path: Path):
+    insert(tmp_path, [
+        # Robin: Oct 1 20:00 UTC and Oct 2 03:30 UTC are both Oct 1 in Los Angeles (UTC-7),
+        # so they are one day, which counting UTC dates would split; plus Oct 3 local
+        ("2026-10-01T20:00:00+00:00", "back", "Robin (old name)", "Turdus migratorius", 0.9),
+        ("2026-10-02T03:30:00+00:00", "front", "American Robin", "Turdus migratorius", 0.9),
+        ("2026-10-03T20:00:00+00:00", "back", "American Robin", "Turdus migratorius", 0.9),
+        # Thrush: one day, heard later than the robin
+        ("2026-10-05T18:00:00+00:00", "back", "Varied Thrush", "Ixoreus naevius", 0.9),
+        # Mallard: one day, heard earlier than the thrush
+        ("2026-10-04T18:00:00+00:00", "back", "Mallard", "Anas platyrhynchos", 0.9),
+        ("2026-10-04T19:00:00+00:00", "back", "Dog", "Dog", 0.99),                    # non-bird
+        ("2026-10-04T19:00:00+00:00", "back", "Steller's Jay", "Cyanocitta stelleri", 0.2),  # below min
+    ])
+    birds = serve.all_birds(_birds_cfg(tmp_path), frame.utcnow())
+    assert [(b.scientific_name, b.days, b.count) for b in birds] == [
+        ("Turdus migratorius", 2, 3), ("Ixoreus naevius", 1, 1), ("Anas platyrhynchos", 1, 1)]
+    robin = birds[0]
+    assert robin.common_name == "American Robin"          # the latest row's name
+    assert robin.first_heard == "2026-10-01T20:00:00+00:00" and robin.last_heard == "2026-10-03T20:00:00+00:00"
+
+
+def test_all_birds_follows_the_single_confidence_rule(tmp_path: Path):
+    insert(tmp_path, [
+        ("2026-10-02T18:00:00+00:00", "back", "Varied Thrush", "Ixoreus naevius", 0.6),     # once: hidden
+        ("2026-10-02T18:00:00+00:00", "back", "Mallard", "Anas platyrhynchos", 0.6),
+        ("2026-10-02T18:30:00+00:00", "back", "Mallard", "Anas platyrhynchos", 0.6),        # twice: shown
+        ("2026-10-02T18:00:00+00:00", "back", "American Robin", "Turdus migratorius", 0.95),  # once, sure
+    ])
+    names = lambda cfg: sorted(b.scientific_name for b in serve.all_birds(cfg, frame.utcnow()))  # noqa: E731
+    assert names(_birds_cfg(tmp_path, min_confidence=0.5)) == [
+        "Anas platyrhynchos", "Ixoreus naevius", "Turdus migratorius"]
+    assert names(_birds_cfg(tmp_path, min_confidence=0.5, single_confidence=0.9)) == [
+        "Anas platyrhynchos", "Turdus migratorius"]
+
+
+def test_birds_page(server, tmp_path: Path):
+    _, base = server
+    status, headers, body = get(base + "/birds")
+    assert status == 200 and "No birds heard yet." in body.decode()     # before the db exists
+    assert headers["Content-Security-Policy"] == serve.CSP
+    seed(tmp_path)
+    insert(tmp_path, [(dt.datetime.now(UTC).isoformat(timespec="seconds"), "back",
+                       "<b>Jay</b>", "Cyanocitta stelleri", 0.9)])
+    text = get(base + "/birds")[2].decode()
+    assert "3 species" in text and "American Robin" in text and "Varied Thrush" in text
+    assert "<b>Jay</b>" not in text and "&lt;b&gt;Jay&lt;/b&gt;" in text
+    assert "<script" not in text
+    assert 'href="/"' in text and 'href="/attribution"' in text
+
+
+def test_birds_page_thumbnail_only_with_art(server, tmp_path: Path):
+    srv, base = server
+    seed(tmp_path)
+    p = srv.cfg.art.plate_path("Turdus migratorius")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (60, 40), (90, 60, 40, 255)).save(p, "WEBP")
+    text = get(base + "/birds")[2].decode()
+    assert '<img src="/plate/turdus-migratorius.png"' in text
+    assert "/plate/ixoreus-naevius.png" not in text
+
+
+def test_index_links_to_birds_page(server):
+    _, base = server
+    assert '<a href="/birds">' in get(base + "/")[2].decode()
+
+
 def test_index_footer_keeps_attribution_link(server):
     _, base = server
     _, _, body = get(base + "/")
