@@ -875,8 +875,15 @@ def _metrics(width: int, height: int) -> tuple[float, int, int, int]:
     return unit, round(2.5 * unit), round(1.2 * unit), round(10 * unit)
 
 
+DEFAULT_SIZE = 100           # %, bird size (#16): 100 = the largest that fits
+DEFAULT_SPACING = 100        # %, space between birds (#16): 100 = the standard gaps
+SIZE_RANGE = (40, 150)
+SPACING_RANGE = (0, 300)
+
+
 def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
-         ratio: float = CELL_RATIO) -> tuple[list[Box], int]:
+         ratio: float = CELL_RATIO, size: int = DEFAULT_SIZE,
+         gutter_max: float = GUTTER_MAX) -> tuple[list[Box], int]:
     """Uniform portrait cells in a grid: a plate `cell` px tall with room for
     two name lines below (`ratio`: CELL_RATIO, or BARE_RATIO with names hidden). Picks the column count that gives the
     tallest plate (capped at MAX_CELL_FRAC of the short side), shrinks to
@@ -888,12 +895,20 @@ def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
     sides; spare height is split above and below the grid.
     Species are spread evenly over the rows (fuller rows first, row lengths
     differ by at most one) and every row is centred, so a short last row is
-    one bird shorter rather than a ragged stub."""
+    one bird shorter rather than a ragged stub.
+
+    `size` (%, #16) scales the plates: below 100 they are that share of the
+    largest that fits, never below MIN_CELL; above 100 only the MAX_CELL_FRAC
+    cap grows, so a few birds can be drawn bigger but a full page never
+    drops a bird for it. `gutter_max` is how far spare width may widen the
+    gutters, as a multiple of the plate height."""
     if n <= 0:
         return [], 0
     W = width - 2 * margin
     H = height - top - 2 * margin
     cap = round(MAX_CELL_FRAC * min(width, height))
+    if size > 100:
+        cap = cap * size // 100
     best_cell, best_cols = -1, 1
     for cols in range(1, n + 1):
         rows = math.ceil(n / cols)
@@ -910,6 +925,8 @@ def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
         shown = min(n, cols * rows)
     else:
         shown = n
+        if size < 100:
+            cell = max(MIN_CELL, cell * size // 100)
     dropped = n - shown
     rows = math.ceil(shown / cols)
     base, extra = divmod(shown, rows)
@@ -921,7 +938,7 @@ def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
     gx = gap
     if widest > 1:
         spare = (W - widest * bw) // (widest - 1)
-        gx = max(gap, min(spare, round(GUTTER_MAX * cell)))
+        gx = max(gap, min(spare, round(gutter_max * cell)))
     bh = round(ratio * cell)
     grid_h = rows * bh + (rows - 1) * gap
     y = top + margin + max(0, H - grid_h) * 2 // 5   # a little above centre reads as centred
@@ -1125,11 +1142,13 @@ def _png(img: Image.Image) -> bytes:
 
 
 def render(species: list[Species], art: Artwork, width: int, height: int, hours: int,
-           now: dt.datetime | None = None, names: bool = True) -> Rendered:
+           now: dt.datetime | None = None, names: bool = True,
+           size: int = DEFAULT_SIZE, spacing: int = DEFAULT_SPACING) -> Rendered:
     """A field-guide style page: centred title and species count, then one
     plate per species with its common name beneath, all in one type size.
     names=False (issue #15) draws the plates only, and bigger, because the
-    cells no longer keep room for two name lines."""
+    cells no longer keep room for two name lines. `size` and `spacing` (#16)
+    are percentages of the standard plate size and gaps (see pack)."""
     now = now or utcnow()
     deadline = time.monotonic() + FETCH_BUDGET
     art.ensure_meta(deadline)   # first, so the two small meta files win over plates
@@ -1148,7 +1167,11 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         return Rendered(_png(img), 0, 0, True, 0)
 
     ratio = CELL_RATIO if names else BARE_RATIO
-    boxes, dropped = pack(len(species), width, height, top, margin, gap, ratio)
+    gutter_max = GUTTER_MAX
+    if spacing != DEFAULT_SPACING:          # the default path stays exactly the old arithmetic
+        gap = round(gap * spacing / 100)
+        gutter_max = GUTTER_MAX * spacing / 100
+    boxes, dropped = pack(len(species), width, height, top, margin, gap, ratio, size, gutter_max)
     title_font = _font(max(MIN_FONT, round(3.4 * unit)))
     sub_font = _font(max(MIN_FONT, round(2.1 * unit)), italic=True)
     title = _ellipsise(draw, f"Heard in {window_phrase(hours)}", title_font, width - 2 * margin)
@@ -1249,29 +1272,32 @@ def cache_key(species: list[Species], art: Artwork) -> tuple:
 @dataclass
 class RenderCache:
     art: Artwork
-    max_entries: int = 4
+    max_entries: int = 8                              # sizes x views; the settings panel adds a few
     max_tokens: int = 8                               # PNGs kept for /collage.png?v=
     renders: int = 0                                  # test observability
     _lock: threading.Lock = field(default_factory=threading.Lock)
-    _entries: dict[tuple[int, int, int, bool], tuple[tuple, Rendered]] = field(default_factory=dict)
+    _entries: dict[tuple[int, int, int, bool, int, int], tuple[tuple, Rendered]] = field(default_factory=dict)
     _tok_lock: threading.Lock = field(default_factory=threading.Lock)
     _by_token: OrderedDict[str, Rendered] = field(default_factory=OrderedDict)
 
     def get(self, species: list[Species], width: int, height: int, hours: int,
-            now: dt.datetime | None = None, names: bool = True) -> bytes:
-        return self.get_rendered(species, width, height, hours, now, names).png
+            now: dt.datetime | None = None, names: bool = True,
+            size: int = DEFAULT_SIZE, spacing: int = DEFAULT_SPACING) -> bytes:
+        return self.get_rendered(species, width, height, hours, now, names, size, spacing).png
 
     def get_rendered(self, species: list[Species], width: int, height: int, hours: int,
-                     now: dt.datetime | None = None, names: bool = True) -> Rendered:
+                     now: dt.datetime | None = None, names: bool = True,
+                     size: int = DEFAULT_SIZE, spacing: int = DEFAULT_SPACING) -> Rendered:
         with self._lock:
-            k = (width, height, hours, names)
+            k = (width, height, hours, names, size, spacing)
             key = cache_key(species, self.art)
             hit = self._entries.get(k)
             if hit and hit[0] == key:
                 out = hit[1]
             else:
                 t0 = time.monotonic()
-                out = render(species, self.art, width, height, hours, now=now, names=names)
+                out = render(species, self.art, width, height, hours, now=now, names=names,
+                             size=size, spacing=spacing)
                 self.renders += 1
                 log.info("rendered %sx%s in %d ms: %s species, %s dropped, %s deferred, quiet=%s",
                          width, height, (time.monotonic() - t0) * 1000,
