@@ -329,6 +329,7 @@ own read-only connection; it never changes what the loop records.
 | `GET /api/layout` | JSON `{token, w, h, shown, dropped, png, hours, names, targets: [{scientific_name, common_name, stem, art, x, y, w, h}]}`: the click targets of the current render as percentages of the image, and the URL of exactly that PNG. Same params as `/collage.png` |
 | `GET /api/species/<scientific name>` | JSON for the pop-up: `{scientific_name, common_name, hours, binomial, art, plate_url, heard: {count, visits, heard_s, max_conf, median_conf, first_heard, last_heard, first_local, last_local, cameras, by_hour[24], busiest_hour, typical_by_hour[24]?, typical_days?}, facts: {wikipedia, size, ebird, nearby}, links: {allaboutbirds}, pending, tz}`. Only names heard at `DISPLAY_MIN_CONFIDENCE` or in the Audubon table; anything else is 404, a malformed name 400. `?hours=` |
 | `GET /api/recent` | JSON `{hours, generated_at, species: [{scientific_name, common_name, last_heard, count, visits, cameras, first_ever, has_plate}]}`. `count`: rows; `visits`: see Visits below. `has_plate`: a Fugleramme cut-out, Audubon cut-out or Audubon plate is on disk. `?hours=` |
+| `GET /birds` | HTML table of every bird ever heard (#14): thumbnail, common and scientific name, the number of local days it was heard on, and the first and last day. Most days first, then most recent. Same rules as the board: `DISPLAY_MIN_CONFIDENCE`, `DISPLAY_SINGLE_CONFIDENCE`, and no non-bird labels. Linked from the board's footer. No script. |
 | `GET /plate/<stem>.png` | a Fugleramme or Audubon cut-out, or a cached vignette, as a 480 px PNG, from disk only |
 | `GET /fonts/LibreBaskerville.ttf`, `-Italic.ttf`, `OFL.txt` | the page's type and its licence |
 | `GET /static/page.js`, `/static/page.css` | the page's script and style (HTML responses carry a strict same-origin CSP) |
@@ -709,6 +710,6 @@ Other ideas:
 | `Dockerfile` | fleet template + Python 3.11 + Debian ffmpeg/libsndfile |
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
-| `.github/workflows/build.yml` | build + push `ghcr.io/joekraemer/birdlisten:main`, then a smoke test, the segment muxer self-test and the healthcheck script |
+| `.github/workflows/build.yml` | build the image, run a smoke test, the segment muxer self-test and the healthcheck script against it, then push `ghcr.io/joekraemer/birdlisten:main` only if they pass (pushes are skipped on PRs) |
 | `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |

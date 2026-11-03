@@ -4,6 +4,7 @@ Routes (all GET, LAN only, one consumer: a Home Assistant Webpage card):
   /                    HTML page that shows /collage.png and refreshes it
   /collage.png         the collage; ?hours= ?w= ?h=
   /api/recent          JSON of the species behind the collage; ?hours=
+  /birds               table of every bird ever heard: thumbnail, name, days heard
   /attribution         Fugleramme credit plus its ATTRIBUTION.md, and the Audubon credit
   /favicon.ico         204
 
@@ -437,6 +438,109 @@ def species_json(srv: "CollageServer", name: str, hours: int, now: dt.datetime) 
     }
 
 
+# ----------------------------------------------------------------- all birds heard (#14)
+@dataclass(frozen=True)
+class HeardBird:
+    scientific_name: str
+    common_name: str     # the most recent row's
+    days: int            # distinct local dates with a qualifying row
+    count: int           # qualifying rows
+    first_heard: str     # stored ISO-8601 UTC
+    last_heard: str
+
+
+def all_birds(cfg: ServeConfig, now: dt.datetime) -> list[HeardBird]:
+    """Every bird ever heard, most days first. The same rules as the board:
+    rows below DISPLAY_MIN_CONFIDENCE are ignored, non-bird labels are left
+    out, and a species needs one row at DISPLAY_SINGLE_CONFIDENCE or
+    REPEAT_DETECTIONS rows. Two grouped queries, so the cost does not grow
+    with one Python object per row: days are counted from distinct
+    (species, UTC hour) buckets turned into local dates. A zone whose offset
+    is not a whole hour can put one bucket on the wrong side of midnight."""
+    if not cfg.db_path.exists():
+        return []
+    single = cfg.min_confidence if cfg.single_confidence is None else cfg.single_confidence
+    conn = frame.open_ro(cfg.db_path)
+    try:
+        # The latest common_name, by an indexed probe per species (idx_detections_sci_time);
+        # a bare column beside both MIN() and MAX() would come from an arbitrary row.
+        summary = conn.execute(
+            "SELECT d.scientific_name,"
+            " (SELECT common_name FROM detections WHERE scientific_name = d.scientific_name"
+            "  AND confidence >= ? ORDER BY heard_at DESC, id DESC LIMIT 1),"
+            " MAX(heard_at), MIN(heard_at), COUNT(*), MAX(confidence)"
+            " FROM detections d WHERE confidence >= ? GROUP BY d.scientific_name",
+            (cfg.min_confidence, cfg.min_confidence)).fetchall()
+        hours = conn.execute(
+            "SELECT DISTINCT scientific_name, substr(heard_at, 1, 13) FROM detections WHERE confidence >= ?",
+            (cfg.min_confidence,)).fetchall()
+    finally:
+        conn.close()
+    dates: dict[str, set] = {}
+    for sci, hour in hours:
+        try:
+            t = dt.datetime.fromisoformat(hour + ":00").replace(tzinfo=dt.timezone.utc)
+        except ValueError:
+            continue      # never written by record(); a hand-edited row must not 500 the page
+        dates.setdefault(sci, set()).add(t.astimezone(cfg.tz).date())
+    out = [HeardBird(sci, com, len(dates.get(sci, ())), n, first, last)
+           for sci, com, last, first, n, best in summary
+           if taxa.is_bird(sci) and (best >= single or n >= frame.REPEAT_DETECTIONS)]
+    # most days first, then most recently heard (heard_at strings sort chronologically)
+    out.sort(key=lambda b: (b.days, b.last_heard), reverse=True)
+    return out
+
+
+def _local_date(heard_at: str, tz: dt.tzinfo, now_local: dt.datetime) -> str:
+    """'Oct 1' this year, 'Oct 1, 2025' otherwise."""
+    d = local_time(heard_at, tz).date()
+    text = f"{MONTHS[d.month - 1]} {d.day}"
+    return text if d.year == now_local.year else f"{text}, {d.year}"
+
+
+def birds_html(cfg: ServeConfig, now: dt.datetime) -> str:
+    """The /birds table. Every value from the db is escaped; stems are
+    [a-z0-9-] by construction. No script, so the strict CSP needs nothing new."""
+    esc = lambda v: html.escape(str(v), quote=True)  # noqa: E731
+    now_local = now.astimezone(cfg.tz)
+    birds = all_birds(cfg, now)
+    rows = []
+    for b in birds:
+        s = frame.stem(b.scientific_name)
+        thumb = (f'<img src="/plate/{s}.png" alt="" width="56" height="56" loading="lazy">'
+                 if s and cfg.art.has_art(b.scientific_name) else "")
+        days = f"{b.days} day" + ("" if b.days == 1 else "s")
+        rows.append(
+            f'<tr><td class="thumb">{thumb}</td>'
+            f'<td class="name">{esc(b.common_name)}<span class="sci">{esc(b.scientific_name)}</span></td>'
+            f'<td class="num">{days}</td>'
+            f'<td class="when">{_local_date(b.first_heard, cfg.tz, now_local)}</td>'
+            f'<td class="when">{_local_date(b.last_heard, cfg.tz, now_local)}</td></tr>')
+    body = "\n".join(rows) or '<tr><td colspan="5" class="empty">No birds heard yet.</td></tr>'
+    count = f"{len(birds)} species" if birds else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>all birds heard</title>
+<link rel="stylesheet" href="/static/page.css">
+</head>
+<body class="birds">
+<header><h1>All birds heard</h1><p>{count}</p></header>
+<table>
+<thead><tr><th scope="col"><span class="vh">Picture</span></th><th scope="col">Bird</th>
+<th scope="col" class="num">Heard on</th><th scope="col">First</th><th scope="col">Last</th></tr></thead>
+<tbody>
+{body}
+</tbody>
+</table>
+<footer><a href="/">Back to the board</a> · <a href="/attribution">Picture credits</a></footer>
+</body>
+</html>
+"""
+
+
 def plate_file(art: frame.Artwork, s: str) -> Path | None:
     """The cut-out, else the Audubon cut-out, else the vignette, on disk only;
     `s` is regex-checked."""
@@ -509,7 +613,7 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
 <img id="c" src="{layout['png']}" width="{int(w)}" height="{int(h)}" alt="birds heard recently" tabindex="-1">
 <div id="targets"></div>
 </div>
-<footer><a href="/attribution">{credit}</a></footer>
+<footer><a href="/birds">All birds heard</a> · <a href="/attribution">{credit}</a></footer>
 <div id="scrim" hidden></div>
 <section id="card" role="dialog" aria-modal="true" aria-labelledby="card-title" hidden>
 <header>
@@ -750,6 +854,8 @@ class Handler(BaseHTTPRequestHandler):
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)
                 body = json.dumps(recent_json(cfg, hours, now), ensure_ascii=False).encode()
                 self._send(200, "application/json; charset=utf-8", body)
+            elif path == "/birds":
+                self._send(200, "text/html; charset=utf-8", birds_html(cfg, now).encode())
             elif path == "/attribution":
                 page = attribution_html(cfg.art, cfg.facts.dir, cfg.facts.sizes)
                 self._send(200, "text/html; charset=utf-8", page.encode())
