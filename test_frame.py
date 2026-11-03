@@ -1393,3 +1393,54 @@ def test_render_cache_keeps_names_and_bare_apart(tmp_path: Path):
     assert cache.renders == 2 and named != bare
     assert cache.get(a, 800, 600, 24, now=T0) == named and cache.renders == 2
     assert cache.get(a, 800, 600, 24, now=T0, names=False) == bare and cache.renders == 2
+
+
+# ----------------------------------------------------------------- size and spacing (#16)
+def _plate_h(r) -> int:
+    return round(r.boxes[0].h / frame.CELL_RATIO)
+
+
+def test_size_shrinks_and_grows_plates(tmp_path: Path):
+    art = frame.Artwork(tmp_path / "art")
+    base = frame.render(many(3), art, 1600, 1200, 24, now=T0)
+    small = frame.render(many(3), art, 1600, 1200, 24, now=T0, size=50)
+    big = frame.render(many(3), art, 1600, 1200, 24, now=T0, size=150)
+    assert _plate_h(small) < _plate_h(base) < _plate_h(big)
+    assert abs(_plate_h(small) - _plate_h(base) // 2) <= 1
+    assert small.shown == base.shown == big.shown == 3
+
+
+def test_size_never_drops_a_bird(tmp_path: Path):
+    """Above 100 % only the one-bird cap grows, so a full page keeps every bird;
+    below 100 % plates stop shrinking at MIN_CELL."""
+    _, margin, gap, top = frame._metrics(800, 600)
+    for n in (5, 20, 40):
+        assert frame.pack(n, 800, 600, top, margin, gap, size=150)[1] == frame.pack(n, 800, 600, top, margin, gap)[1]
+    boxes, _ = frame.pack(3, 800, 600, top, margin, gap, size=frame.SIZE_RANGE[0])
+    assert round(boxes[0].h / frame.CELL_RATIO) >= frame.MIN_CELL
+
+
+def test_spacing_changes_gaps(tmp_path: Path):
+    art = frame.Artwork(tmp_path / "art")
+    gap_x = lambda r: r.boxes[1].x - r.boxes[0].x - r.boxes[0].w  # noqa: E731
+    tight = frame.render(many(6), art, 1600, 1200, 24, now=T0, spacing=0)
+    base = frame.render(many(6), art, 1600, 1200, 24, now=T0)
+    wide = frame.render(many(6), art, 1600, 1200, 24, now=T0, spacing=300)
+    assert gap_x(tight) < gap_x(base) < gap_x(wide)
+    assert tight.png != base.png != wide.png
+
+
+def test_default_size_and_spacing_are_the_old_render(tmp_path: Path):
+    art = frame.Artwork(tmp_path / "art")
+    assert (frame.render(many(7), art, 1000, 700, 24, now=T0).png
+            == frame.render(many(7), art, 1000, 700, 24, now=T0, size=100, spacing=100).png)
+
+
+def test_render_cache_keys_on_size_and_spacing(tmp_path: Path):
+    cache = frame.RenderCache(frame.Artwork(tmp_path / "art"))
+    a = [sp(), sp("Ixoreus naevius", "Varied Thrush")]
+    base = cache.get(a, 800, 600, 24, now=T0)
+    small = cache.get(a, 800, 600, 24, now=T0, size=60)
+    wide = cache.get(a, 800, 600, 24, now=T0, spacing=250)
+    assert cache.renders == 3 and len({base, small, wide}) == 3
+    assert cache.get(a, 800, 600, 24, now=T0, size=60) == small and cache.renders == 3
