@@ -138,6 +138,8 @@ class ServeConfig:
     visit_gap: dt.timedelta = frame.DEFAULT_VISIT_GAP
     clip: dt.timedelta = frame.DEFAULT_CLIP
     names: bool = True                          # COLLAGE_NAMES; ?names=0|1 overrides per request (#15)
+    size: int = frame.DEFAULT_SIZE              # COLLAGE_SIZE; ?size= overrides (#16)
+    spacing: int = frame.DEFAULT_SPACING        # COLLAGE_SPACING; ?spacing= overrides (#16)
 
 def load_serve_config(env=os.environ) -> ServeConfig | None:
     """None when SERVE_PORT is unset or empty (the server is off)."""
@@ -174,6 +176,16 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
     show_names = env.get("COLLAGE_NAMES", "1").strip() or "1"
     if show_names not in ("0", "1"):
         raise ConfigError("COLLAGE_NAMES must be 0 or 1")
+    view = {}
+    for var, (lo, hi), default in (("COLLAGE_SIZE", frame.SIZE_RANGE, frame.DEFAULT_SIZE),
+                                   ("COLLAGE_SPACING", frame.SPACING_RANGE, frame.DEFAULT_SPACING)):
+        raw = env.get(var, "").strip()
+        try:
+            view[var] = int(raw) if raw else default
+        except ValueError:
+            raise ConfigError(f"{var} must be {lo}..{hi}, got {raw!r}") from None
+        if not lo <= view[var] <= hi:
+            raise ConfigError(f"{var} must be {lo}..{hi}, got {view[var]}")
     facts_dir = Path(env.get("FACTS_DIR", "").strip() or data_dir / "facts")
     key = None
     raw_key = env.get("EBIRD_API_KEY", "").strip()
@@ -195,7 +207,8 @@ def load_serve_config(env=os.environ) -> ServeConfig | None:
                        single_confidence=thresholds.single,
                        facts=facts.FactsConfig(facts_dir, fetch == "1", key, lat, lon),
                        tz=load_tz(env), visit_gap=dt.timedelta(minutes=gap_min),
-                       clip=dt.timedelta(seconds=clip_s), names=show_names == "1")
+                       clip=dt.timedelta(seconds=clip_s), names=show_names == "1",
+                       size=view["COLLAGE_SIZE"], spacing=view["COLLAGE_SPACING"])
 
 
 _DEFAULT_ZONE = load_tz({})
@@ -231,6 +244,48 @@ def bool_param(qs: dict[str, list[str]], name: str, default: bool) -> bool:
     if raw not in ("0", "1"):
         raise BadRequest(f"{name} must be 0 or 1")
     return raw == "1"
+
+@dataclass(frozen=True)
+class View:
+    """How the collage is drawn (#16): names on or off, bird size and spacing in %."""
+    names: bool
+    size: int
+    spacing: int
+
+
+VIEW_COOKIE = "bl_view"   # written by the page's settings panel; read only by GET /
+
+
+def cookie_view(header: str | None) -> dict[str, list[str]]:
+    """The settings panel's saved choices as query-style params. A malformed
+    or out-of-range cookie value is dropped, never a 400: a stale cookie must
+    not lock a device out of the page."""
+    if not header:
+        return {}
+    for part in header.split(";"):
+        k, _, v = part.strip().partition("=")
+        if k != VIEW_COOKIE:
+            continue
+        qs = parse_qs(unquote(v)[:200])
+        good = {}
+        for name, check in (("names", lambda x: x in ("0", "1")),
+                            ("size", lambda x: x.isdigit() and frame.SIZE_RANGE[0] <= int(x) <= frame.SIZE_RANGE[1]),
+                            ("spacing", lambda x: x.isdigit()
+                             and frame.SPACING_RANGE[0] <= int(x) <= frame.SPACING_RANGE[1])):
+            if name in qs and check(qs[name][0]):
+                good[name] = qs[name][:1]
+        return good
+    return {}
+
+
+def view_params(qs: dict[str, list[str]], cfg: ServeConfig, saved: dict[str, list[str]] | None = None) -> View:
+    """?names= ?size= ?spacing=, then `saved` (the cookie, on / only), then
+    the COLLAGE_* defaults. A bad query value is a 400."""
+    merged = {**(saved or {}), **qs}
+    return View(bool_param(merged, "names", cfg.names),
+                int_param(merged, "size", cfg.size, *frame.SIZE_RANGE),
+                int_param(merged, "spacing", cfg.spacing, *frame.SPACING_RANGE))
+
 
 def load_species(cfg: ServeConfig, hours: int, now: dt.datetime) -> list[frame.Species]:
     """Per-request read-only connection; nothing shared with the capture loop.
@@ -574,12 +629,13 @@ def font_file(name: str) -> bytes:
     return (frame.FONT_DIR / name).read_bytes()
 
 
-def layout_json(rendered: frame.Rendered, w: int, h: int, hours: int, names: bool = True) -> dict:
+def layout_json(rendered: frame.Rendered, w: int, h: int, hours: int, names: bool = True,
+                size: int = frame.DEFAULT_SIZE, spacing: int = frame.DEFAULT_SPACING) -> dict:
     """What /api/layout returns and / embeds: the render's click targets and
-    the URL of exactly the PNG they were built from. `names` lets the page
-    ask for the same kind of render on refresh."""
+    the URL of exactly the PNG they were built from. `names`, `size` and
+    `spacing` let the page ask for the same kind of render on refresh."""
     return {**rendered.layout(w, h), "png": f"/collage.png?v={rendered.token}", "hours": hours,
-            "names": names}
+            "names": names, "size": size, "spacing": spacing}
 
 
 def _json_block(obj: dict) -> str:
@@ -588,8 +644,34 @@ def _json_block(obj: dict) -> str:
     return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
+def settings_html() -> str:
+    """The settings sidebar (#16). Hidden until page.js shows the button, so
+    without JS there is no dead control. Ranges come from frame's constants."""
+    (s_lo, s_hi), (g_lo, g_hi) = frame.SIZE_RANGE, frame.SPACING_RANGE
+    return f"""<button type="button" id="gear" aria-label="Settings" aria-controls="panel" aria-expanded="false" hidden>
+<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+<path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<circle cx="16" cy="6" r="2" stroke="currentColor" stroke-width="1.6" fill="none"/>
+<circle cx="9" cy="12" r="2" stroke="currentColor" stroke-width="1.6" fill="none"/>
+<circle cx="18" cy="18" r="2" stroke="currentColor" stroke-width="1.6" fill="none"/>
+</svg></button>
+<aside id="panel" aria-labelledby="panel-title" hidden>
+<header><h2 id="panel-title">Settings</h2><button type="button" class="close" aria-label="Close settings">&times;</button></header>
+<label class="check"><input type="checkbox" id="s-names"> Show bird names</label>
+<label for="s-size">Bird size <output id="o-size" for="s-size"></output></label>
+<input type="range" id="s-size" min="{s_lo}" max="{s_hi}" step="5">
+<label for="s-spacing">Spacing <output id="o-spacing" for="s-spacing"></output></label>
+<input type="range" id="s-spacing" min="{g_lo}" max="{g_hi}" step="10">
+<p class="note">Saved in this browser only. A link below sets the same view on any screen, such as the Home Assistant card.</p>
+<label for="s-link">Link for this view</label>
+<input type="text" id="s-link" readonly>
+<button type="button" id="s-reset">Reset to defaults</button>
+</aside>
+"""
+
+
 def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS * 1000,
-               audubon: bool = False) -> str:
+               audubon: bool = False, controls: bool = True) -> str:
     """The collage <img> plus its click targets' layout as a JSON data block.
     static/page.js draws the targets, swaps image and targets together on
     refresh, and runs the pop-up; without JS the page is the plain image and
@@ -627,7 +709,7 @@ def index_html(layout: dict, w: int, h: int, refresh_ms: int = REFRESH_SECONDS *
 <footer class="credits"></footer>
 </div>
 </section>
-<script type="application/json" id="layout">{_json_block(layout)}</script>
+{settings_html() if controls else ""}<script type="application/json" id="layout">{_json_block(layout)}</script>
 </body>
 </html>
 """
@@ -822,11 +904,14 @@ class Handler(BaseHTTPRequestHandler):
             now = frame.utcnow()   # once per request: window, generated_at, and marker checks agree
             if path == "/":
                 hours, w, h = self._size_params(qs)
-                names = bool_param(qs, "names", cfg.names)
+                v = view_params(qs, cfg, cookie_view(self.headers.get("Cookie")))
                 refresh_ms = int_param(qs, "refresh_ms", REFRESH_SECONDS * 1000, 500, 3_600_000)
+                controls = bool_param(qs, "controls", True)
                 r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now,
-                                                   names=names)
-                page = index_html(layout_json(r, w, h, hours, names), w, h, refresh_ms, cfg.art.audubon is not None)
+                                                   names=v.names, size=v.size, spacing=v.spacing)
+                layout = {**layout_json(r, w, h, hours, v.names, v.size, v.spacing),
+                          "defaults": {"names": cfg.names, "size": cfg.size, "spacing": cfg.spacing}}
+                page = index_html(layout, w, h, refresh_ms, cfg.art.audubon is not None, controls)
                 self._send(200, "text/html; charset=utf-8", page.encode())
             elif path == "/collage.png" and "v" in qs:
                 token = qs["v"][0]
@@ -840,15 +925,17 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, "image/png", r.png, cache=IMMUTABLE)
             elif path == "/collage.png":
                 hours, w, h = self._size_params(qs)
-                names = bool_param(qs, "names", cfg.names)
+                v = view_params(qs, cfg)
                 species = load_species(cfg, hours, now)
-                self._send(200, "image/png", self.server.cache.get(species, w, h, hours, now=now, names=names))
+                self._send(200, "image/png", self.server.cache.get(species, w, h, hours, now=now, names=v.names,
+                                                                   size=v.size, spacing=v.spacing))
             elif path == "/api/layout":
                 hours, w, h = self._size_params(qs)
-                names = bool_param(qs, "names", cfg.names)
+                v = view_params(qs, cfg)
                 r = self.server.cache.get_rendered(load_species(cfg, hours, now), w, h, hours, now=now,
-                                                   names=names)
-                body = json.dumps(layout_json(r, w, h, hours, names), ensure_ascii=False).encode()
+                                                   names=v.names, size=v.size, spacing=v.spacing)
+                body = json.dumps(layout_json(r, w, h, hours, v.names, v.size, v.spacing),
+                                  ensure_ascii=False).encode()
                 self._send(200, "application/json; charset=utf-8", body)
             elif path == "/api/recent":
                 hours = int_param(qs, "hours", cfg.hours, 1, MAX_HOURS)

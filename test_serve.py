@@ -13,6 +13,7 @@ import socket
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -725,7 +726,9 @@ def test_index_embeds_layout_matching_image(server, tmp_path: Path):
     assert re.search(r'src="/collage\.png\?v=([0-9a-f]{16})"', text).group(1) == lay["token"]
     r = srv.cache.by_token(lay["token"])
     assert r is not None and r.layout(1600, 1200)["targets"] == lay["targets"]
-    # The layout block is the same object /api/layout returns.
+    # The layout block is the same object /api/layout returns, plus the
+    # settings panel's defaults (#16).
+    assert lay.pop("defaults") == {"names": True, "size": 100, "spacing": 100}
     assert json.loads(get(base + "/api/layout")[2]) == lay
 
 
@@ -1450,6 +1453,77 @@ def test_collage_names_env_sets_the_default(tmp_path: Path):
         srv.server_close()
 
 
-def test_page_js_keeps_names_choice_on_refresh():
+def test_view_params_size_spacing_and_400s(server, tmp_path: Path):
+    _, base = server
+    seed(tmp_path)
+    lay = json.loads(get(base + "/api/layout?w=800&h=600&size=60&spacing=0")[2])
+    assert (lay["size"], lay["spacing"], lay["names"]) == (60, 0, True)
+    for bad in ("size=39", "size=151", "size=x", "spacing=-1", "spacing=301"):
+        for route in ("/", "/collage.png", "/api/layout"):
+            assert get_err(f"{base}{route}?{bad}") == 400, (route, bad)
+    a = get(base + "/collage.png?w=800&h=600")[2]
+    b = get(base + "/collage.png?w=800&h=600&size=60")[2]
+    assert a != b
+
+
+def _get_with_cookie(url: str, cookie: str) -> str:
+    req = urllib.request.Request(url, headers={"Cookie": cookie})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return resp.read().decode()
+
+
+def test_view_cookie_applies_to_the_page_only(server, tmp_path: Path):
+    """The settings panel's cookie sets the page's view; URL params win over
+    it; /collage.png and /api/layout ignore it; a bad cookie is ignored."""
+    _, base = server
+    seed(tmp_path)
+    ck = "other=1; bl_view=" + urllib.parse.quote("names=0&size=70&spacing=200")
+    lay = page_layout(_get_with_cookie(base + "/", ck))
+    assert (lay["names"], lay["size"], lay["spacing"]) == (False, 70, 200)
+    lay = page_layout(_get_with_cookie(base + "/?size=120&names=1", ck))
+    assert (lay["names"], lay["size"], lay["spacing"]) == (True, 120, 200)
+    api = json.loads(_get_with_cookie(base + "/api/layout", ck))
+    assert (api["names"], api["size"], api["spacing"]) == (True, 100, 100)
+    bad = "bl_view=" + urllib.parse.quote("names=7&size=9999&spacing=abc")
+    lay = page_layout(_get_with_cookie(base + "/", bad))           # 200, not 400
+    assert (lay["names"], lay["size"], lay["spacing"]) == (True, 100, 100)
+    lay = page_layout(_get_with_cookie(base + "/", "bl_view=" + urllib.parse.quote("size=50&names=x")))
+    assert (lay["names"], lay["size"]) == (True, 50)                # good parts kept
+
+
+def test_cookie_view_parser():
+    assert serve.cookie_view(None) == {} and serve.cookie_view("") == {}
+    assert serve.cookie_view("bl_view=size%3D80") == {"size": ["80"]}
+    assert serve.cookie_view("bl_viewx=size%3D80; a=b") == {}
+    assert serve.cookie_view("bl_view=size%3D80%26size%3D90") == {"size": ["80"]}
+
+
+def test_settings_panel_markup(server):
+    _, base = server
+    text = get(base + "/")[2].decode()
+    assert 'id="gear"' in text and 'id="panel"' in text and 'aria-controls="panel"' in text
+    assert re.search(r'<button type="button" id="gear"[^>]* hidden>', text)   # page.js shows it
+    assert 'id="s-size" min="40" max="150"' in text and 'id="s-spacing" min="0" max="300"' in text
+    assert "style=" not in text                                               # strict CSP: no inline styles
+    bare = get(base + "/?controls=0")[2].decode()
+    assert 'id="gear"' not in bare and 'id="panel"' not in bare
+    assert get_err(base + "/?controls=2") == 400
+
+
+def test_collage_view_env_settings(tmp_path: Path):
+    env = {"SERVE_PORT": "8085", "DATA_DIR": str(tmp_path), "AUDUBON_FALLBACK": "0"}
+    cfg = serve.load_serve_config(env)
+    assert (cfg.size, cfg.spacing) == (100, 100)
+    cfg = serve.load_serve_config({**env, "COLLAGE_SIZE": "80", "COLLAGE_SPACING": " 0 "})
+    assert (cfg.size, cfg.spacing) == (80, 0)
+    for var, val in (("COLLAGE_SIZE", "30"), ("COLLAGE_SIZE", "big"), ("COLLAGE_SPACING", "301")):
+        with pytest.raises(bl.ConfigError, match=var):
+            serve.load_serve_config({**env, var: val})
+
+
+def test_page_js_keeps_view_choice_on_refresh():
+    """The refresh asks for the view the page shows: names (#15), size and
+    spacing (#16)."""
     js = (Path(serve.__file__).parent / "static" / "page.js").read_text()
-    assert "'&names=' + (shown.names === false ? 0 : 1)" in js
+    assert "'&' + viewQuery(want)" in js
+    assert "'names=' + (v.names ? 1 : 0) + '&size=' + v.size + '&spacing=' + v.spacing" in js

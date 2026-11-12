@@ -41,10 +41,16 @@
   }
 
   // ------------------------------------------------------------ refresh
+  // `want` is the view to ask for: the one the page was opened with, until
+  // the settings panel (#16) changes it. A change during a fetch sets
+  // `again`, so the newest choice is always fetched next.
+  let want = {names: shown.names !== false, size: shown.size || 100, spacing: shown.spacing === undefined ? 100 : shown.spacing};
   let inflight = false;
+  let again = false;
   async function tick() {
-    if (inflight) return;
+    if (inflight) { again = true; return; }
     inflight = true;
+    again = false;
     const ac = new AbortController();
     let timer;
     const deadline = new Promise(function (_, reject) {
@@ -52,8 +58,7 @@
     });
     deadline.catch(function () {});   // only ever awaited inside Promise.race
     try {
-      const url = '/api/layout?hours=' + shown.hours + '&w=' + shown.w + '&h=' + shown.h
-        + '&names=' + (shown.names === false ? 0 : 1);   // keep the kind of render the page was opened with
+      const url = '/api/layout?hours=' + shown.hours + '&w=' + shown.w + '&h=' + shown.h + '&' + viewQuery(want);
       const r = await Promise.race([fetch(url, {cache: 'no-store', signal: ac.signal}), deadline]);
       if (!r.ok) return;
       const layout = await Promise.race([r.json(), deadline]);
@@ -79,7 +84,101 @@
     } finally {
       clearTimeout(timer);
       inflight = false;
+      if (again) tick();
     }
+  }
+
+  function viewQuery(v) {
+    return 'names=' + (v.names ? 1 : 0) + '&size=' + v.size + '&spacing=' + v.spacing;
+  }
+
+  // ------------------------------------------------------------ settings (#16)
+  // A sidebar, not a modal: the collage stays visible and redraws as the
+  // controls change. Choices are saved in a cookie that only GET / reads, so
+  // each browser keeps its own view; the address bar and the "link" field
+  // carry the same view as URL parameters, for a Home Assistant card or an
+  // e-ink screenshot, and URL parameters always win over the cookie.
+  const gear = document.getElementById('gear');
+  const panel = document.getElementById('panel');
+  if (gear && panel) {
+    const defaults = shown.defaults || {names: true, size: 100, spacing: 100};
+    const sNames = document.getElementById('s-names');
+    const sSize = document.getElementById('s-size');
+    const sSpacing = document.getElementById('s-spacing');
+    const oSize = document.getElementById('o-size');
+    const oSpacing = document.getElementById('o-spacing');
+    const sLink = document.getElementById('s-link');
+    const panelClose = panel.querySelector('.close');
+    let debounce = null;
+
+    const show = function (v) {
+      sNames.checked = v.names;
+      sSize.value = String(v.size);
+      sSpacing.value = String(v.spacing);
+      oSize.textContent = v.size + '%';
+      oSpacing.textContent = v.spacing + '%';
+    };
+    const pageUrl = function (v) {
+      const u = new URL(location.href);
+      u.hash = '';
+      ['names', 'size', 'spacing'].forEach(function (k) { u.searchParams.delete(k); });
+      if (v) viewQuery(v).split('&').forEach(function (kv) {
+        const p = kv.split('='); u.searchParams.set(p[0], p[1]);
+      });
+      return u;
+    };
+    const save = function (v) {
+      const value = v ? encodeURIComponent(viewQuery(v)) : '';
+      document.cookie = 'bl_view=' + value + '; Path=/; SameSite=Lax; Max-Age=' + (v ? 31536000 : 0);
+      if (history.replaceState) {
+        const u = pageUrl(v);
+        history.replaceState(null, '', u.pathname + u.search + location.hash);
+      }
+      sLink.value = pageUrl(v || want).href;
+    };
+    const apply = function (persist) {
+      want = {names: sNames.checked, size: Number(sSize.value), spacing: Number(sSpacing.value)};
+      show(want);
+      clearTimeout(debounce);
+      // dragging a slider redraws at most every 350 ms: each step is a render on the server
+      debounce = setTimeout(function () {
+        if (persist) save(want);
+        tick();
+      }, 350);
+    };
+    const openPanel = function () {
+      panel.hidden = false;
+      gear.setAttribute('aria-expanded', 'true');
+      sNames.focus();
+    };
+    const closePanel = function () {
+      if (panel.hidden) return;
+      panel.hidden = true;
+      gear.setAttribute('aria-expanded', 'false');
+      gear.focus();
+    };
+
+    show(want);
+    sLink.value = pageUrl(want).href;
+    gear.hidden = false;
+    gear.addEventListener('click', function () { if (panel.hidden) openPanel(); else closePanel(); });
+    panelClose.addEventListener('click', closePanel);
+    sNames.addEventListener('change', function () { apply(true); });
+    [sSize, sSpacing].forEach(function (s) {
+      s.addEventListener('input', function () { apply(true); });
+    });
+    sLink.addEventListener('focus', function () { sLink.select(); });
+    document.getElementById('s-reset').addEventListener('click', function () {
+      show({names: defaults.names !== false, size: defaults.size, spacing: defaults.spacing});
+      want = {names: defaults.names !== false, size: defaults.size, spacing: defaults.spacing};
+      clearTimeout(debounce);
+      save(null);
+      tick();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!card.hidden || panel.hidden) return;   // the pop-up card handles its own keys
+      if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); closePanel(); }
+    });
   }
 
   // ------------------------------------------------------------ card
