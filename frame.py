@@ -879,6 +879,7 @@ DEFAULT_SIZE = 100           # %, bird size (#16): 100 = the largest that fits
 DEFAULT_SPACING = 100        # %, space between birds (#16): 100 = the standard gaps
 SIZE_RANGE = (40, 150)
 SPACING_RANGE = (0, 300)
+BIRD_GAP = 2.5               # x pack's gutters, as the space between drawn birds
 
 
 def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
@@ -1101,6 +1102,90 @@ def _vignette_card(img: Image.Image, draw: ImageDraw.ImageDraw, path: Path,
     return True
 
 
+@dataclass(frozen=True)
+class _ArtPlan:
+    """What one plate area will show, worked out before the rows are placed.
+    `image` is the contained cut-out or plate; `vis_x`, `vis_w` are the
+    columns of it (or of the card frame) that are not see-through, and
+    `vis_top` is how far below the plate area's top the art starts."""
+    kind: str | None
+    vis_w: int
+    vis_top: int
+    vis_x: int = 0
+    image: Image.Image | None = None
+
+
+def _plan_art(name: str, art: "Artwork", pw: int, ph: int) -> _ArtPlan:
+    """Load (or pick the card for) a species' art in a pw x ph plate area.
+    A corrupt cached plate is deleted, as before, and the next source is used."""
+    kind = art.art_kind(name) if stem(name) else None
+    if kind in ("fugleramme", "cutout"):
+        path = art.plate_path(name) if kind == "fugleramme" else art.cutouts.path(name)
+        try:
+            with Image.open(path) as im:
+                im = ImageOps.contain(im.convert("RGBA"), (pw, ph))
+            box = im.getchannel("A").point(lambda v: 255 if v > 16 else 0).getbbox() or (0, 0, *im.size)
+            return _ArtPlan(kind, box[2] - box[0], ph - im.height + box[1], box[0], im)
+        except Exception as exc:  # noqa: BLE001 -- corrupt cached file
+            if kind == "cutout":   # committed, not a cache: never delete it
+                log.warning("bad cut-out %s: %s", path, exc)
+            else:
+                log.warning("bad cached plate %s: %s; deleting", path, exc)
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+    aud = art.audubon
+    if aud is not None and aud.has_art(name):
+        try:
+            with Image.open(aud.vignette_path(name)) as im:
+                aspect = im.width / im.height
+            x0, y0, x1, _ = _vignette_frame_box(0, 0, pw, ph, aspect)
+            return _ArtPlan("audubon", x1 - x0 + 1, y0)
+        except Exception:  # noqa: BLE001 -- _vignette_card logs, deletes and falls back
+            pass
+    x0, y0, x1, _ = _placeholder_box(0, 0, pw, ph)
+    return _ArtPlan("audubon" if aud is not None and aud.has_art(name) else None, x1 - x0 + 1, y0)
+
+
+def _close_rows(boxes: list[Box], widths: list[int], tops: list[int], margin: int,
+                width: int, height: int, top: int) -> list[Box]:
+    """Fit the grid to what is drawn rather than to uniform cells, so pack's
+    gutters become the space between birds. Each box takes the width of its
+    art or name (`widths`) and every row is re-centred; rows then move up
+    under each other by the empty band above their tallest art (`tops`, px
+    below the box top), and the grid is centred again as pack centres it.
+    Box heights are kept."""
+    rows: dict[int, list[int]] = {}
+    for i, b in enumerate(boxes):
+        rows.setdefault(b.y, []).append(i)
+    W, H = width - 2 * margin, height - top - 2 * margin
+    gx = next((boxes[r[1]].x - boxes[r[0]].x - boxes[r[0]].w for r in rows.values() if len(r) > 1), 0)
+    ys = sorted(rows)
+    gy = ys[1] - ys[0] - boxes[0].h if len(ys) > 1 else 0
+    offs = [min(tops[i] for i in rows[y]) for y in ys]
+    body = sum(boxes[0].h - o for o in offs)
+    # pack's gutters were sized for cells; between birds they read tight, so
+    # widen them by BIRD_GAP, as far as the page has room (pack's own gutters
+    # always fit, since the rows only got narrower and shorter).
+    gx = round(gx * BIRD_GAP)
+    if len(ys) > 1:
+        gy = max(0, min(round(gy * BIRD_GAP), (H - body) // (len(ys) - 1)))
+    total = body + gy * (len(ys) - 1)
+    y = top + margin + max(0, H - total) * 2 // 5
+    out = list(boxes)
+    for row_y, off in zip(ys, offs):
+        idx = rows[row_y]
+        ws = [max(1, widths[i]) for i in idx]
+        g = gx if len(ws) < 2 else max(0, min(gx, (W - sum(ws)) // (len(ws) - 1)))
+        x = margin + max(0, (W - sum(ws) - g * (len(ws) - 1)) // 2)
+        for i, w in zip(idx, ws):
+            out[i] = Box(x, y - off, w, boxes[i].h)
+            x += w + g
+        y += boxes[0].h - off + gy
+    return out
+
+
 # ----------------------------------------------------------------- render
 @dataclass(frozen=True)
 class Rendered:
@@ -1215,34 +1300,26 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
         line_h = round((ascent + descent) * 1.1)
     else:
         labels = [[] for _ in boxes]
+    pw, ph = bw - 2 * inset, cell - 2 * inset
+    plans = [_plan_art(sp.scientific_name, art, pw, ph) for sp in species[:len(boxes)]]
+    # Close each row up around what is actually drawn: most art is narrower
+    # than its cell, so uniform cells left wide empty strips between birds
+    # and the spacing setting could not bring them together.
+    widths = [max(p.vis_w, max((round(draw.textlength(s, font=font)) for s in lines), default=0))
+              for p, lines in zip(plans, labels)]
+    boxes = _close_rows(boxes, widths, [inset + p.vis_top for p in plans], margin, width, height, top)
     arts: list[str | None] = []
-    for sp, box, lines in zip(species, boxes, labels):
-        px, py, pw, ph = box.x + inset, box.y + inset, bw - 2 * inset, cell - 2 * inset
-        name = sp.scientific_name
-        kind = art.art_kind(name) if stem(name) else None
-        drawn = False
-        drew: str | None = None
-        if kind in ("fugleramme", "cutout"):
-            path = art.plate_path(name) if kind == "fugleramme" else art.cutouts.path(name)
-            try:
-                with Image.open(path) as im:
-                    im = ImageOps.contain(im.convert("RGBA"), (pw, ph))
-                img.paste(im, (px + (pw - im.width) // 2, py + ph - im.height), im)
-                drawn = True
-                drew = kind
-            except Exception as exc:  # noqa: BLE001 -- corrupt cached file
-                if kind == "cutout":   # committed, not a cache: never delete it
-                    log.warning("bad cut-out %s: %s", path, exc)
-                else:
-                    log.warning("bad cached plate %s: %s; deleting", path, exc)
-                    try:
-                        path.unlink()
-                    except OSError:
-                        pass
-        if not drawn and aud is not None and aud.has_art(name):
-            drawn = _vignette_card(img, draw, aud.vignette_path(name), px, py, pw, ph)
-            drew = "audubon" if drawn else None
-        if not drawn:
+    for sp, box, lines, plan in zip(species, boxes, labels, plans):
+        mid = box.x + box.w // 2
+        px, py = mid - pw // 2, box.y + inset
+        drew = plan.kind
+        if plan.image is not None:
+            img.paste(plan.image, (mid - plan.vis_w // 2 - plan.vis_x, py + ph - plan.image.height), plan.image)
+        elif drew == "audubon":
+            if not _vignette_card(img, draw, aud.vignette_path(sp.scientific_name), px, py, pw, ph):
+                drew = None
+                _plate_card(draw, px, py, pw, ph)
+        else:
             _plate_card(draw, px, py, pw, ph)
         arts.append(drew)
         # Names hang from the same line in every cell; a wrapped name adds a
@@ -1251,7 +1328,7 @@ def render(species: list[Species], art: Artwork, width: int, height: int, hours:
             continue
         y = box.y + cell - inset + round(cell * 0.04) + ascent
         for line in lines:
-            draw.text((box.x + bw // 2, y), line, font=font, fill=INK, anchor="ms")
+            draw.text((mid, y), line, font=font, fill=INK, anchor="ms")
             y += line_h
 
     return Rendered(_png(img), len(boxes), dropped, False, deferred, tuple(boxes),

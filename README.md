@@ -585,7 +585,7 @@ sensor:
 | `COLLAGE_HOURS` | `24` | window for `/`, `/collage.png` and `/api/recent`, 1..720 |
 | `COLLAGE_NAMES` | `1` | `0` hides the bird names under the plates by default (the plates grow into the space); a request's `?names=` overrides it, so a card or e-ink display and a browser can differ |
 | `COLLAGE_SIZE` | `100` | default bird size, 40..150 (% of the largest plate that fits). Below 100 the plates shrink (never under the minimum cell); above 100 only a page with few birds gets bigger plates, so no bird is ever dropped for it. `?size=` overrides it |
-| `COLLAGE_SPACING` | `100` | default space between birds, 0..300 (% of the standard gaps). More spacing can mean smaller plates on a full page. `?spacing=` overrides it |
+| `COLLAGE_SPACING` | `100` | default space between birds, 0..300 (% of the standard gaps). The gap is measured between the drawn birds, not their cells, so `0` puts them edge to edge. More spacing can mean smaller plates on a full page. `?spacing=` overrides it |
 | `MIN_CONFIDENCE` | `0.5` | default for `DISPLAY_MIN_CONFIDENCE` (and the capture loop's `RECORD_MIN_CONFIDENCE`), 0..1 |
 | `DISPLAY_MIN_CONFIDENCE` | `MIN_CONFIDENCE` (`0.5`) | rows below it are left off the page, the pop-up and `/api/recent`, 0..1 |
 | `DISPLAY_SINGLE_CONFIDENCE` | `DISPLAY_MIN_CONFIDENCE` | one row at or above it puts a species on the board; below it takes two rows at `DISPLAY_MIN_CONFIDENCE`. Must be at least `DISPLAY_MIN_CONFIDENCE` |
