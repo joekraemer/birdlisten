@@ -879,6 +879,7 @@ DEFAULT_SIZE = 100           # %, bird size (#16): 100 = the largest that fits
 DEFAULT_SPACING = 100        # %, space between birds (#16): 100 = the standard gaps
 SIZE_RANGE = (40, 150)
 SPACING_RANGE = (0, 300)
+BIRD_GAP = 2.5               # x pack's gutters, as the space between drawn birds
 
 
 def pack(n: int, width: int, height: int, top: int, margin: int, gap: int,
@@ -1163,7 +1164,14 @@ def _close_rows(boxes: list[Box], widths: list[int], tops: list[int], margin: in
     ys = sorted(rows)
     gy = ys[1] - ys[0] - boxes[0].h if len(ys) > 1 else 0
     offs = [min(tops[i] for i in rows[y]) for y in ys]
-    total = sum(boxes[0].h - o for o in offs) + gy * (len(ys) - 1)
+    body = sum(boxes[0].h - o for o in offs)
+    # pack's gutters were sized for cells; between birds they read tight, so
+    # widen them by BIRD_GAP, as far as the page has room (pack's own gutters
+    # always fit, since the rows only got narrower and shorter).
+    gx = round(gx * BIRD_GAP)
+    if len(ys) > 1:
+        gy = max(0, min(round(gy * BIRD_GAP), (H - body) // (len(ys) - 1)))
+    total = body + gy * (len(ys) - 1)
     y = top + margin + max(0, H - total) * 2 // 5
     out = list(boxes)
     for row_y, off in zip(ys, offs):

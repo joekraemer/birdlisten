@@ -615,13 +615,13 @@ def golden_renders(tmp: Path) -> dict[tuple[int, int, bool], bytes]:
 # (wider plates, tighter gaps), and again when rows started closing up
 # around the drawn art; the quiet page did not change.
 GOLDEN_PX = {
-    (1600, 1200, False): '85b249c6b595d4e9583e832954c15064dccd08e90cbb7c760a476f692b1a9dfc',
-    (533, 400, False): '8d2e30d2cbaa8a1c649269066a54e620ade2621088628e739613daeeaa4506e1',
+    (1600, 1200, False): '2714228f70fa774f1c866ae7361a182619609880547e88565cb9b95ce5d95a5d',
+    (533, 400, False): 'e7731926a6e09715c3a43746eb2ad667b5247a4ba54abd2d7a6562c6d59cbe27',
     (1600, 1200, True): '2022876fe517928f0f6b77571a8ee1b07fb89aa0a54af676c1a98dc5ca3658f0',
 }
 GOLDEN_RAW = {   # macOS only: the PNG bytes depend on the platform's zlib build
-    (1600, 1200, False): 'aa8ce70f33aa5c9316f97768dbf6b4280145c6c4c7912064bffff81b197013ea',
-    (533, 400, False): '934019855ad62f110c14850758ed9566918497cf308fe4a472ab43d616cef4c0',
+    (1600, 1200, False): '61be7d197a6a0512a1b5b1a7dd4cfa8bc7c30312817eb0f2887f87d5d78ee5b7',
+    (533, 400, False): '3c0285fc902336d4ce95b2934c941aa7aae4c36772ec4220b09e849ccd4507e8',
     (1600, 1200, True): 'bb9d25f56394eec829be041fe168fdc73e6074a90a958dc9dd166dec46b4ea35',
 }
 
