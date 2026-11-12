@@ -612,15 +612,16 @@ def golden_renders(tmp: Path) -> dict[tuple[int, int, bool], bytes]:
 # Recorded by tools/golden_render.py at beead01, before the pop-up change
 # touched frame.py. Never regenerate these from changed rendering code. The
 # non-quiet renders were re-recorded once for the deliberate layout change
-# (wider plates, tighter gaps); the quiet page did not change.
+# (wider plates, tighter gaps), and again when rows started closing up
+# around the drawn art; the quiet page did not change.
 GOLDEN_PX = {
-    (1600, 1200, False): '7e3bd74bce0f3e37823e7a2d4953bb94cd6706bdf4d2ef8b026bde9b45cdebc9',
-    (533, 400, False): '25e57fdb0f24a240ddafb98502cec0397404805538c4f4760c27bfaa4da6a6f1',
+    (1600, 1200, False): '85b249c6b595d4e9583e832954c15064dccd08e90cbb7c760a476f692b1a9dfc',
+    (533, 400, False): '8d2e30d2cbaa8a1c649269066a54e620ade2621088628e739613daeeaa4506e1',
     (1600, 1200, True): '2022876fe517928f0f6b77571a8ee1b07fb89aa0a54af676c1a98dc5ca3658f0',
 }
 GOLDEN_RAW = {   # macOS only: the PNG bytes depend on the platform's zlib build
-    (1600, 1200, False): '6f89e3fa88b8862f353c6cb5a57edbd1f5bff0077c727306630ffd622950b6c8',
-    (533, 400, False): '47c4df7ad5ee2b7be67555cb5fcf92304910049fe3b25f6aa8c1b090cf477e60',
+    (1600, 1200, False): 'aa8ce70f33aa5c9316f97768dbf6b4280145c6c4c7912064bffff81b197013ea',
+    (533, 400, False): '934019855ad62f110c14850758ed9566918497cf308fe4a472ab43d616cef4c0',
     (1600, 1200, True): 'bb9d25f56394eec829be041fe168fdc73e6074a90a958dc9dd166dec46b4ea35',
 }
 
@@ -1268,7 +1269,10 @@ def test_render_boxes_names_arts(tmp_path: Path):
     out = frame.render(species, art, 1600, 1200, 24, now=now)
     _, margin, gap, top = frame._metrics(1600, 1200)
     boxes, dropped = frame.pack(len(species), 1600, 1200, top, margin, gap)
-    assert out.boxes == tuple(boxes) and out.dropped == dropped == 0
+    assert len(out.boxes) == len(boxes) and out.dropped == dropped == 0
+    # Same rows and heights as pack; widths shrink to the drawn art or name.
+    assert len({b.y for b in out.boxes}) == len({b.y for b in boxes})
+    assert all(o.h == b.h and o.w <= b.w for o, b in zip(out.boxes, boxes))
     assert out.names == tuple((s.scientific_name, s.common_name) for s in species)
     assert out.arts == ("fugleramme", "audubon", None, None)
     assert [t["art"] for t in out.layout(1600, 1200)["targets"]] == list(out.arts)
@@ -1428,6 +1432,40 @@ def test_spacing_changes_gaps(tmp_path: Path):
     wide = frame.render(many(6), art, 1600, 1200, 24, now=T0, spacing=300)
     assert gap_x(tight) < gap_x(base) < gap_x(wide)
     assert tight.png != base.png != wide.png
+
+
+def _strip(w: int, h: int, color=(40, 30, 20, 255)) -> Image.Image:
+    """A see-through canvas w x h with a narrow opaque bird in the middle third."""
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    im.paste(color, (w // 3, h // 4, 2 * w // 3, h))
+    return im
+
+
+def test_rows_close_up_around_the_drawn_art(tmp_path: Path):
+    """Spacing is measured between what is drawn, not between cells: with
+    see-through margins around narrow art, spacing=0 puts the visible birds
+    side by side, and each box is only as wide as its art."""
+    art = frame.Artwork(tmp_path / "art")
+    names = ["Turdus migratorius", "Ixoreus naevius", "Corvus corax"]   # 2 + 1 rows
+    for n in names:
+        p = art.plate_path(n)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        _strip(300, 400).save(p, "WEBP", lossless=True)
+    species = [sp(n, f"Bird {i}") for i, n in enumerate(names)]
+    out = frame.render(species, art, 1600, 600, 24, now=T0, names=False, spacing=0)
+    a, b, _ = out.boxes
+    assert a.y == b.y and b.x == a.x + a.w            # touching, no gutter
+    _, margin, gap, top = frame._metrics(1600, 600)
+    cells, _ = frame.pack(3, 1600, 600, top, margin, 0, frame.BARE_RATIO)
+    assert a.w < cells[0].w // 2                      # the empty thirds are gone
+    # The visible art fills each box edge to edge: opaque pixels at both edges.
+    im = Image.open(io.BytesIO(out.png)).convert("RGB")
+    y = a.y + a.h - 10
+    for x in (a.x + 1, a.x + a.w - 2, b.x + 1, b.x + b.w - 2):
+        assert im.getpixel((x, y)) != frame.PAPER, x
+    base = frame.render(species, art, 1600, 600, 24, now=T0, names=False)
+    a2, b2, _ = base.boxes
+    assert b2.x - a2.x - a2.w > 0                     # the default keeps a gutter between birds
 
 
 def test_default_size_and_spacing_are_the_old_render(tmp_path: Path):
