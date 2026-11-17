@@ -82,6 +82,16 @@ jobs:
       - name: Segment muxer self-test
         run: docker run --rm --entrypoint python birdlisten:test stream.py --selftest
 
+      # The shared audio listener (listener.py, issue #40) in the same image:
+      # real ffmpeg cuts the test tone, every segment is hard-linked into two
+      # inboxes (2 links each), nothing is left in segments/, and status.json
+      # is written. Then its healthcheck passes in start-up grace (no
+      # status.json yet, PID 1 just started).
+      - name: Listener self-test
+        run: |
+          docker run --rm --entrypoint python birdlisten:test listener.py --selftest
+          docker run --rm -e AUDIO_DIR=/tmp/audio --entrypoint python birdlisten:test listener.py --healthcheck
+
       # The HEALTHCHECK script is in the image and runs. With SERVE_PORT unset
       # and no heartbeat yet (start-up grace) it must pass; pointed at a port
       # nothing listens on it must fail. Then the heartbeat against the

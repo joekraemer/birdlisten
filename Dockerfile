@@ -39,7 +39,8 @@ RUN /app/.venv/bin/python -c "import zoneinfo; zoneinfo.ZoneInfo('America/Los_An
 # ship an image that falls back to the sans, placeholder cards or a dead page.
 COPY . .
 RUN test -f fonts/LibreBaskerville.ttf && test -f fonts/LibreBaskerville-Italic.ttf && test -f fonts/OFL.txt \
- && test -f audubon.json && test -f cutouts/index.json && test -f static/page.js && test -f static/page.css && test -f facts.py && test -f taxa.py && test -f sizes.json && test -f healthcheck.py
+ && test -f audubon.json && test -f cutouts/index.json && test -f static/page.js && test -f static/page.css && test -f facts.py && test -f taxa.py && test -f sizes.json && test -f healthcheck.py \
+ && test -f listener.py
 # /data holds the SQLite db, optional clips, and the artwork cache; compose
 # mounts a volume there.
 RUN useradd --create-home --uid 10001 app && mkdir /data && chown -R app:app /app /data
