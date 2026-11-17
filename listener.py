@@ -71,9 +71,9 @@ log = logging.getLogger("birdlisten.listener")
 STATUS_FILE = "status.json"
 STATUS_VERSION = 1
 CONSUMER_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
-# An inbox file: <camera dir>_<segment name>. The camera dir is the shortest
-# match so a camera name containing "_r0001_" cannot shift the split.
-INBOX_RE = re.compile(r"^(\d{2,}-[A-Za-z0-9_-]+?)_(r\d{4,}_\d{8}T\d{6}Z\.wav)$")
+# An inbox file: <camera dir>_<segment name>, the same name stream.py queues
+# (and that AUDIO_SOURCE=inbox reads back).
+INBOX_RE = stream.QUEUED_SPLIT_RE
 
 
 # ----------------------------------------------------------------- config

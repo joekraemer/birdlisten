@@ -45,6 +45,13 @@ Environment (all read at startup):
                   absolute, not DATA_DIR or inside it
   LOOP_ONCE       1 = stream mode listens for one window (every camera hands
                   off one clip), analyzes it and returns
+  AUDIO_SOURCE    rtsp (default): stream mode opens the cameras itself.
+                  inbox: read finished segments from the shared audio
+                  listener's inbox instead (listener.py, issue #40); no camera
+                  connections, CAMERAS optional, camera names come from the
+                  file names. Stream mode only; --dry-run needs rtsp.
+  INBOX_DIR       the inbox read with AUDIO_SOURCE=inbox (default
+                  /audio/inbox/birdlisten); each file is deleted once analyzed
 
 Exit codes: 2 config error. Round-robin: 0 ok (even with zero detections),
 1 every camera failed this pass (BirdNET model missing, ffmpeg missing, all
@@ -174,6 +181,8 @@ class Config:
     queue_size: int = 0
     summary_minutes: int = 5
     segment_dir: Path = Path("/tmp/birdlisten-segments")
+    audio_source: str = "rtsp"
+    inbox_dir: Path = Path("/audio/inbox/birdlisten")
 
 
 def main_stream_urls(cfg: Config) -> list[str]:
@@ -220,7 +229,13 @@ def load_config(env=os.environ) -> Config:
         return env.get(k, "").strip()
 
     try:
-        cameras = parse_cameras(req("CAMERAS"))
+        audio_source = opt("AUDIO_SOURCE").lower() or "rtsp"
+        if audio_source not in ("rtsp", "inbox"):
+            raise ConfigError(f"AUDIO_SOURCE must be rtsp or inbox, not {audio_source!r}")
+        inbox = audio_source == "inbox"
+        # In inbox mode the listener owns the cameras; CAMERAS is optional.
+        cameras = parse_cameras(opt("CAMERAS")) if inbox and opt("CAMERAS") else \
+            () if inbox else parse_cameras(req("CAMERAS"))
         lat, lon = float(req("LATITUDE")), float(req("LONGITUDE"))
         data_dir = Path(env.get("DATA_DIR", "/data"))
         clip_seconds = int(env.get("CLIP_SECONDS", "30"))
@@ -230,8 +245,15 @@ def load_config(env=os.environ) -> Config:
         capture_mode = opt("CAPTURE_MODE").lower() or "stream"
         if capture_mode not in ("stream", "roundrobin"):
             raise ConfigError(f"CAPTURE_MODE must be stream or roundrobin, not {capture_mode!r}")
+        if inbox and capture_mode != "stream":
+            raise ConfigError("AUDIO_SOURCE=inbox needs CAPTURE_MODE=stream")
 
-        queue_size = int(opt("QUEUE_SIZE") or 2 * len(cameras))
+        raw_inbox = opt("INBOX_DIR")
+        inbox_dir = Path(raw_inbox) if raw_inbox else Config.inbox_dir
+        if not inbox_dir.is_absolute():
+            raise ConfigError("INBOX_DIR must be an absolute path")
+
+        queue_size = int(opt("QUEUE_SIZE") or (8 if inbox else 2 * len(cameras)))
         if not 1 <= queue_size <= 1000:
             raise ConfigError("QUEUE_SIZE must be 1..1000")
 
@@ -268,6 +290,8 @@ def load_config(env=os.environ) -> Config:
             queue_size=queue_size,
             summary_minutes=summary_minutes,
             segment_dir=segment_dir,
+            audio_source=audio_source,
+            inbox_dir=inbox_dir,
         )
     except ValueError as exc:
         raise ConfigError(f"bad numeric setting: {exc}") from exc
@@ -552,6 +576,11 @@ def main() -> int:
     if args.check:
         return check(cfg)
 
+    if args.dry_run and cfg.audio_source == "inbox":
+        print("config error: --dry-run captures from the cameras itself; it needs AUDIO_SOURCE=rtsp",
+              file=sys.stderr)
+        return 2
+
     if args.dry_run or cfg.capture_mode == "roundrobin":
         conn = open_db(cfg.data_dir)
         ok = listen_once(cfg, conn, dry_run=args.dry_run)
@@ -589,6 +618,8 @@ def check(cfg: Config) -> int:
                 problems += 1
     if cfg.capture_mode == "roundrobin":
         print("capture: roundrobin, one camera at a time")
+    elif cfg.audio_source == "inbox":
+        problems += _check_inbox_dir(cfg)
     else:
         problems += _check_segment_dir(cfg)
     for name in main_stream_urls(cfg):
@@ -602,6 +633,21 @@ def check(cfg: Config) -> int:
         print(f"display: {exc}")
         problems += 1
     return 1 if problems else 0
+
+
+def _check_inbox_dir(cfg: Config) -> int:
+    """Print the inbox capture line; 1 if INBOX_DIR is missing or files in it
+    could not be deleted. Read-only: --check may run next to a live pipeline."""
+    d = Path(cfg.inbox_dir)
+    if not d.is_dir():
+        print(f"capture: inbox {d} NOT FOUND (is the listener's audio volume mounted?)", file=sys.stderr)
+        return 1
+    if not os.access(d, os.W_OK | os.X_OK):
+        print(f"capture: inbox {d} NOT WRITABLE (analyzed files could not be deleted)", file=sys.stderr)
+        return 1
+    waiting = sum(1 for n in os.listdir(d) if n.endswith(".wav"))
+    print(f"capture: inbox {d}, queue {cfg.queue_size}, {waiting} files waiting")
+    return 0
 
 
 def _check_segment_dir(cfg: Config) -> int:

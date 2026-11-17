@@ -68,6 +68,10 @@ SEG_RE = re.compile(r"^r(\d{4,})_(\d{8}T\d{6})Z\.wav$")
 CAMDIR_RE = re.compile(r"^\d{2,}-[A-Za-z0-9_-]+$")
 # A segment handed to the queue: <camera dir>_<segment name>.
 QUEUED_RE = re.compile(r"^\d{2,}-[A-Za-z0-9_-]+_r\d{4,}_\d{8}T\d{6}Z\.wav$")
+# The same name split into (camera dir, segment name). The camera dir is the
+# shortest match so a camera name containing "_r0001_" cannot shift the split.
+# Also the name of a file in a listener inbox (listener.py, issue #40).
+QUEUED_SPLIT_RE = re.compile(r"^(\d{2,}-[A-Za-z0-9_-]+?)_(r\d{4,}_\d{8}T\d{6}Z\.wav)$")
 # An ffmpeg exit reason that means the NVR refused the session.
 REFUSED_RE = re.compile(r"\b(453|503)\b|Not Enough Bandwidth|Service Unavailable|Connection refused", re.I)
 
@@ -736,6 +740,80 @@ class CameraSupervisor(threading.Thread):
         return d
 
 
+# ----------------------------------------------------------------- inbox reader
+class InboxReader(threading.Thread):
+    """AUDIO_SOURCE=inbox: feeds the queue from the shared listener's inbox
+    (listener.py, issue #40) in place of the camera supervisors. Oldest segment
+    first across cameras. It never overfills the queue: when the queue is full
+    the files simply wait in the inbox, which the listener caps, so nothing is
+    dropped here. The worker deletes each file after analysis, as it does for a
+    supervisor's clip; that deletes only this consumer's hard link."""
+
+    def __init__(self, inbox_dir: Path, *, queue: ClipQueue, stats: Stats, stop: threading.Event,
+                 signalled, once: bool, tuning: StreamTuning, clock, now_utc):
+        super().__init__(name="inbox-reader", daemon=True)
+        self.inbox = Path(inbox_dir)
+        self.cam = bl.Camera("inbox", "")             # the main loop's dead-thread log reads .cam.name
+        self.up = False                               # not a camera: never counted in cameras_up
+        self._queue = queue
+        self._stats = stats
+        self._stop_event = stop
+        self._signalled = signalled
+        self._once = once
+        self._tuning = tuning
+        self._clock = clock
+        self._now_utc = now_utc
+        self._queued: set[str] = set()                # handed to the queue, still on disk
+        self._unreadable = False
+
+    def run(self) -> None:
+        while not (self._stop_event.is_set() or self._signalled()):
+            try:
+                self.poll_once()
+            except Exception:                         # keep reading; the next poll may succeed
+                log.error("inbox reader: %s", bl.scrub(traceback.format_exc()))
+            if self._once or self._stop_event.wait(self._tuning.poll_s):
+                return
+
+    def poll_once(self) -> int:
+        """Queue the oldest waiting segments the queue has room for. Returns how many."""
+        try:
+            names = os.listdir(self.inbox)
+        except OSError as exc:
+            if not self._unreadable:
+                self._unreadable = True
+                log.error("inbox %s unreadable: %s", self.inbox, bl.scrub(str(exc)))
+            return 0
+        if self._unreadable:
+            self._unreadable = False
+            log.info("inbox %s readable again", self.inbox)
+        self._queued &= set(names)                    # the worker deleted the rest
+        todo = []
+        for n in names:
+            m = QUEUED_SPLIT_RE.match(n)
+            if m and n not in self._queued:
+                todo.append((parse_start_utc(m.group(2)), n, m.group(1)))
+        todo.sort()
+        handed = 0
+        for start, n, camdir in todo:
+            if len(self._queue) >= self._queue.maxsize:
+                break
+            path = self.inbox / n
+            if not path.exists():                     # pruned by the listener since listdir
+                continue
+            status, duration, why = validate_segment(path, self._tuning.min_segment_s)
+            if status != "ok":
+                log.warning("inbox: %s segment %s (%s), deleted", status, n, why or f"{duration:.1f}s")
+                safe_unlink(path)
+                self._stats.add(**{"failed" if status == "bad" else "short": 1})
+                continue
+            self._queued.add(n)
+            self._queue.put(Clip(camera=camdir.split("-", 1)[1], path=path, start_utc=start,
+                                 duration_s=duration, ready_utc=self._now_utc(), ready_mono=self._clock()))
+            handed += 1
+        return handed
+
+
 # ----------------------------------------------------------------- worker
 HEARTBEAT_FILE = "heartbeat"   # in DATA_DIR; healthcheck.py fails when it goes stale (#32)
 
@@ -810,7 +888,7 @@ class Worker(threading.Thread):
                 analyze_s, cpu_s = self._clock() - t0, _self_cpu_seconds() - c0
             best = bl.best_per_species(dets)
             log.info("%s", self._timing(clip, lag, queue_wait, analyze_s, len(best), cpu_s))
-            bl.store_clip(self.cfg, conn, self._cameras[clip.camera], clip.start_utc,
+            bl.store_clip(self.cfg, conn, self._camera(clip.camera), clip.start_utc,
                           clip.path, best, clip_s=clip.duration_s, dry_run=False)
             self._stats.analyzed(analyze_s)
         except Exception as exc:                      # one bad clip never stops the worker
@@ -821,6 +899,11 @@ class Worker(threading.Thread):
         finally:
             safe_unlink(clip.path)
             self._stats.busy_end()
+
+    def _camera(self, name: str) -> bl.Camera:
+        """The configured Camera, or (inbox mode, where CAMERAS is optional and
+        the name comes from the file) a URL-less one. Only .name is stored."""
+        return self._cameras.get(name) or bl.Camera(name, "")
 
     @staticmethod
     def _timing(clip: Clip, lag, queue_wait, analyze_s, detections, cpu_s, error=None) -> str:
@@ -1041,7 +1124,8 @@ def _run(cfg: bl.Config, p: _Pipeline, *, stop, signalled, once, spawn, analyze_
     if rng is None:
         rng = random.Random()
     seg_dir = Path(cfg.segment_dir)
-    p.cameras = len(cfg.cameras)
+    inbox = cfg.audio_source == "inbox"
+    p.cameras = 0 if inbox else len(cfg.cameras)
     qsize = cfg.queue_size or 2 * p.cameras
     interval = summary_s if summary_s is not None else cfg.summary_minutes * 60
 
@@ -1051,17 +1135,28 @@ def _run(cfg: bl.Config, p: _Pipeline, *, stop, signalled, once, spawn, analyze_
             _wait(t.fatal_wait_s, signalled, t.tick_s, clock)
         return 1
 
-    log.info("stream mode: %d cameras, queue %d, summary every %d min, segments %s",
-             p.cameras, qsize, cfg.summary_minutes, seg_dir)
-    for name in bl.main_stream_urls(cfg):
-        log.warning("%s: main-stream URL; use the sub-stream (same audio, less NVR bandwidth)", name)
+    if inbox:
+        log.info("stream mode, inbox %s: queue %d, summary every %d min (cameras are the listener's)",
+                 cfg.inbox_dir, qsize, cfg.summary_minutes)
+    else:
+        log.info("stream mode: %d cameras, queue %d, summary every %d min, segments %s",
+                 p.cameras, qsize, cfg.summary_minutes, seg_dir)
+        for name in bl.main_stream_urls(cfg):
+            log.warning("%s: main-stream URL; use the sub-stream (same audio, less NVR bandwidth)", name)
 
-    # 1. segment dir, writability probe, startup cleanup
-    try:
-        prepare_segment_dir(seg_dir, peak_bytes=(p.cameras + qsize + 1) * (cfg.clip_seconds * 96000 + 44))
-        cleanup_stale(seg_dir)
-    except OSError as exc:
-        return fatal(f"segment dir {seg_dir} not writable: {bl.scrub(str(exc))}")
+    # 1. segment dir, writability probe, startup cleanup; or the inbox
+    if inbox:
+        d = Path(cfg.inbox_dir)
+        if not d.is_dir():
+            return fatal(f"inbox {d} not found (is the listener's audio volume mounted?)")
+        if not os.access(d, os.W_OK | os.X_OK):
+            return fatal(f"inbox {d} not writable: analyzed files could not be deleted")
+    else:
+        try:
+            prepare_segment_dir(seg_dir, peak_bytes=(p.cameras + qsize + 1) * (cfg.clip_seconds * 96000 + 44))
+            cleanup_stale(seg_dir)
+        except OSError as exc:
+            return fatal(f"segment dir {seg_dir} not writable: {bl.scrub(str(exc))}")
     # 2-4. the model, once, in this thread, between two signal checks
     if signalled():
         return 0
@@ -1091,8 +1186,15 @@ def _run(cfg: bl.Config, p: _Pipeline, *, stop, signalled, once, spawn, analyze_
         _join_until([p.worker], clock() + t.worker_ready_s, t.tick_s, clock)
         return fatal("database open failed: " + ("timed out" if timed_out else p.worker.open_error))
 
-    # 6. one supervisor per camera; each staggers its own first spawn
-    for i, cam in enumerate(cfg.cameras):
+    # 6. one supervisor per camera; each staggers its own first spawn. In inbox
+    # mode one reader stands in for them (same list, so the dead-thread check,
+    # the joins and once mode treat it like a supervisor).
+    if inbox:
+        reader = InboxReader(cfg.inbox_dir, queue=p.queue, stats=p.stats, stop=stop, signalled=signalled,
+                             once=once, tuning=t, clock=clock, now_utc=now_utc)
+        p.supervisors.append(reader)
+        _start(p, reader)
+    for i, cam in enumerate(() if inbox else cfg.cameras):
         sup = CameraSupervisor(i, cam, seg_dir=seg_dir, clip_seconds=cfg.clip_seconds, queue=p.queue,
                                stats=p.stats, registry=p.registry, stop=stop, signalled=signalled,
                                once=once, spawn=spawn, tuning=t, clock=clock, now_utc=now_utc,
@@ -1134,7 +1236,7 @@ def _run(cfg: bl.Config, p: _Pipeline, *, stop, signalled, once, spawn, analyze_
         maybe_summary()
         time.sleep(t.tick_s)
     p.queue.close()
-    end = clock() + p.cameras * t.once_worker_per_clip_s
+    end = clock() + max(1, p.cameras, len(p.queue)) * t.once_worker_per_clip_s
     while p.worker.is_alive() and clock() < end:
         if signalled() or stop.is_set():
             return _shutdown(p, stop, t, clock)
