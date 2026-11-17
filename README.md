@@ -667,15 +667,27 @@ Running it needs one shared volume at `/audio` for the listener and every
 consumer (hard links don't cross filesystems; start-up fails if they would),
 consumers running as uid 10001 like this image, and a compose
 `healthcheck:` of `["CMD", "python", "listener.py", "--healthcheck"]`, which
-replaces this image's birdlisten `HEALTHCHECK`. Birdlisten itself does not
-read an inbox yet; that is the next step in #40.
+replaces this image's birdlisten `HEALTHCHECK`.
+
+Birdlisten reads its inbox with `AUDIO_SOURCE=inbox` (stream mode only):
+no camera connections, `CAMERAS` optional (camera names come from the file
+names, so keep the listener's names the same as before to keep the history
+continuous), `INBOX_DIR` default `/audio/inbox/birdlisten`, `QUEUE_SIZE`
+default 8. An inbox reader thread replaces the camera supervisors and queues
+the oldest files first. When the queue is full, files wait in the inbox
+(which the listener caps) instead of being dropped, so `dropped` stays 0 and
+`cameras`/`cameras_up` in the summary are 0; the listener's `status.json`
+reports the cameras. Each file is deleted once analyzed. That removes only
+birdlisten's link, so other consumers keep their copy. Up to `QUEUE_SIZE`
+files already queued are deleted unanalyzed at shutdown, as in RTSP mode.
+`--check` reports the inbox; `--dry-run` needs `AUDIO_SOURCE=rtsp`.
 
 ## Tests
 
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_stream.py test_listener.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_build_cutouts.py test_facts.py test_taxa.py   # arm64 macOS
+  test_birdlisten.py test_stream.py test_listener.py test_inbox.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_build_cutouts.py test_facts.py test_taxa.py   # arm64 macOS
 ```
 
 The stream-capture tests (`test_stream.py`) drive the real supervisors,
@@ -686,6 +698,8 @@ none is installed. CI covers it in the built image with
 exact stream-mode ffmpeg flags and fails the build if the result is wrong.
 `test_listener.py` runs the listener against the same fake ffmpeg, and CI
 runs `python listener.py --selftest` (real ffmpeg, real hard links) in the image.
+`test_inbox.py` covers `AUDIO_SOURCE=inbox`, including a run with the real
+listener feeding birdlisten's inbox while a second inbox keeps its copy.
 
 The second form exists because `tflite-runtime` has no macOS arm64 wheel, so
 the project environment cannot resolve there; the tests only need stdlib plus
@@ -766,5 +780,5 @@ Other ideas:
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build the image, run a smoke test, the segment muxer self-test and the healthcheck script against it, then push `ghcr.io/joekraemer/birdlisten:main` only if they pass (pushes are skipped on PRs) |
-| `test_birdlisten.py`, `test_stream.py`, `test_listener.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
+| `test_birdlisten.py`, `test_stream.py`, `test_listener.py`, `test_inbox.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
