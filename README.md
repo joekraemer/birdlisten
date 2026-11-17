@@ -640,12 +640,42 @@ nothing changes on the fleet side. `HEARTBEAT_MAX_AGE_S` is read only by
 the healthcheck; a bad value falls back to 300 and says so in the check
 output (`docker inspect --format '{{json .State.Health}}' <container>`).
 
+## Shared audio listener
+
+`listener.py` (issue #40) lets several apps share one camera connection. It
+runs from this image with its own command and owns the RTSP connections,
+using the same capture code as stream mode. Each finished 30 s segment is
+hard-linked into one inbox per consumer:
+
+```
+/audio/segments/<NN-cam>/        ffmpeg writes here
+/audio/inbox/<consumer>/<NN-cam>_r<run>_<UTC start>Z.wav
+/audio/status.json               cameras + inboxes, every 10 s
+```
+
+A consumer deletes each file when it is done, and the audio is freed when
+the last consumer has deleted its link. Each inbox is capped by
+`INBOX_MAX_AGE_S` (default 3600) and `INBOX_MAX_MB` (default 512), oldest
+first, so a stopped consumer can't fill the volume. `python listener.py
+--healthcheck` fails when any camera has produced no segment for
+`CAMERA_STALE_S` (default 300) or `status.json` is over 60 s old; unlike
+birdlisten's own healthcheck, a camera outage is the thing it catches.
+Settings: `CAMERAS`, `CONSUMERS` (e.g. `birdlisten,transcriber`),
+`AUDIO_DIR` (default `/audio`), `CLIP_SECONDS`; see the docstring.
+
+Running it needs one shared volume at `/audio` for the listener and every
+consumer (hard links don't cross filesystems; start-up fails if they would),
+consumers running as uid 10001 like this image, and a compose
+`healthcheck:` of `["CMD", "python", "listener.py", "--healthcheck"]`, which
+replaces this image's birdlisten `HEALTHCHECK`. Birdlisten itself does not
+read an inbox yet; that is the next step in #40.
+
 ## Tests
 
 ```
 uv run --group dev pytest -q                     # Linux / inside the image
 uv run --no-project --python 3.11 --with pillow==12.3.0 --with pytest==8.3.4 pytest -q \
-  test_birdlisten.py test_stream.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_build_cutouts.py test_facts.py test_taxa.py   # arm64 macOS
+  test_birdlisten.py test_stream.py test_listener.py test_frame.py test_serve.py test_build_audubon_map.py test_build_sizes.py test_build_cutouts.py test_facts.py test_taxa.py   # arm64 macOS
 ```
 
 The stream-capture tests (`test_stream.py`) drive the real supervisors,
@@ -654,6 +684,8 @@ run without ffmpeg. The one test that needs a real ffmpeg is skipped when
 none is installed. CI covers it in the built image with
 `python stream.py --selftest`, which cuts a 7 s test tone into clips with the
 exact stream-mode ffmpeg flags and fails the build if the result is wrong.
+`test_listener.py` runs the listener against the same fake ffmpeg, and CI
+runs `python listener.py --selftest` (real ffmpeg, real hard links) in the image.
 
 The second form exists because `tflite-runtime` has no macOS arm64 wheel, so
 the project environment cannot resolve there; the tests only need stdlib plus
@@ -717,6 +749,7 @@ Other ideas:
 |---|---|
 | `birdlisten.py` | the app; `main() -> int`, `--check`, `--dry-run`, `--report N`; round-robin capture |
 | `stream.py` | stream capture: one ffmpeg supervisor per camera, the drop-oldest queue, the analysis worker, the summary line, shutdown and crash safety; `python stream.py --selftest` for CI |
+| `listener.py` | shared audio listener (#40): stream.py's supervisors fanned out to per-consumer inboxes by hard link, inbox caps, `status.json`; `--healthcheck`, `--selftest` |
 | `frame.py` | collage: recent-species query, Fugleramme and Audubon plate caches, vignette processing, packer, Pillow renderer, render cache |
 | `audubon.json` | BirdNET scientific name → Havell plate on Commons (file, page, credit); generated, committed |
 | `tools/build_audubon_map.py` | offline builder of `audubon.json`; not in the image |
@@ -733,5 +766,5 @@ Other ideas:
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build the image, run a smoke test, the segment muxer self-test and the healthcheck script against it, then push `ghcr.io/joekraemer/birdlisten:main` only if they pass (pushes are skipped on PRs) |
-| `test_birdlisten.py`, `test_stream.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
+| `test_birdlisten.py`, `test_stream.py`, `test_listener.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
