@@ -1,0 +1,37 @@
+# Transcriber image (transcriber.py, issue #40): faster-whisper on the shared
+# listener's inbox. Separate from the birdlisten image so neither carries the
+# other's model stack. Published as ghcr.io/<owner>/birdlisten-transcriber.
+FROM python:3.11-slim
+# tzdata for zoneinfo (transcript dates and times are local).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tzdata \
+ && apt-get clean \
+ && find /var/lib/apt/lists -mindepth 1 -delete
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /app
+# Every package pinned with hashes (requirements-transcriber.in says how to
+# regenerate). av bundles its own ffmpeg libraries; onnxruntime runs Silero VAD.
+COPY requirements-transcriber.txt ./
+RUN pip install --require-hashes -r requirements-transcriber.txt
+# The model is baked in at a pinned revision, so the Mac never downloads at
+# runtime and every image transcribes the same way. small.en: ~0.45x real
+# time per 2 threads on the fleet Mac (benchmark in #40).
+ARG MODEL_REPO=Systran/faster-whisper-small.en
+ARG MODEL_REVISION=d1d751a5f8271d482d14ca55d9e2deeebbae577f
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('${MODEL_REPO}', revision='${MODEL_REVISION}', local_dir='/opt/models/small.en', allow_patterns=['config.json','model.bin','tokenizer.json','vocabulary.txt'])" \
+ && test -s /opt/models/small.en/model.bin
+ENV HF_HUB_OFFLINE=1 \
+    MODEL=/opt/models/small.en
+COPY transcriber.py healthcheck.py ./
+COPY selftest/speech.wav ./selftest/speech.wav
+RUN useradd --create-home --uid 10001 app && mkdir /data && chown -R app:app /app /data
+USER app
+VOLUME /data
+# healthcheck.py with SERVE_PORT unset checks only the heartbeat the loop
+# touches in DATA_DIR every second (stale after 300 s = hung or dead).
+HEALTHCHECK --interval=60s --timeout=10s --start-period=120s --retries=3 \
+  CMD ["python", "healthcheck.py"]
+CMD ["python", "transcriber.py"]

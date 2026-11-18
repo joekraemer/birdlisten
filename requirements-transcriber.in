@@ -1,0 +1,5 @@
+# Transcriber image only (Dockerfile.transcriber); birdlisten uses pyproject/uv.lock.
+# Regenerate requirements-transcriber.txt with:
+#   uv pip compile requirements-transcriber.in --python-version 3.11 \
+#     --python-platform x86_64-manylinux_2_28 --generate-hashes -o requirements-transcriber.txt
+faster-whisper==1.2.1

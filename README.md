@@ -682,6 +682,35 @@ birdlisten's link, so other consumers keep their copy. Up to `QUEUE_SIZE`
 files already queued are deleted unanalyzed at shutdown, as in RTSP mode.
 `--check` reports the inbox; `--dry-run` needs `AUDIO_SOURCE=rtsp`.
 
+## Transcriber
+
+`transcriber.py` is a second listener consumer in its own image,
+`ghcr.io/joekraemer/birdlisten-transcriber` (`Dockerfile.transcriber`). It
+reads `/audio/inbox/transcriber` and appends what was said to
+`/data/transcripts/<YYYY-MM-DD>/<camera>.txt` as `[HH:MM:SS] text` lines
+(local `TZ`).
+
+Each file goes through a 100 Hz high-pass, then Silero VAD, then
+faster-whisper `small.en` (int8, 2 threads; the model is baked into the image
+at a pinned revision). Audio without speech never reaches Whisper, which
+keeps the idle cost near zero and stops Whisper inventing text from silence.
+Segments Whisper itself rates unreliable are dropped (`NO_SPEECH_MAX`,
+`LOGPROB_MIN`, `COMPRESSION_MAX`). Speech still running at the end of a
+file is held back and transcribed together with the next file of that
+camera, so a sentence crossing the 30 s boundary is transcribed once, whole.
+
+Transcripts are owner-only and never logged (logs carry counts and timings
+only, because fleet logs reach the GitHub health issue). Days older than
+`RETENTION_DAYS` (30) are deleted. `TRANSCRIBE_CAMERAS` limits it to some
+cameras; files from the others are deleted unread. Its healthcheck is
+`healthcheck.py`'s heartbeat check, touched before every file.
+
+Benchmark on the fleet Mac (#40): VAD ~0.2% of a core per camera, Whisper
+~0.45x real time on speech, ~1 GB RAM.
+
+Dependencies are pinned with hashes in `requirements-transcriber.txt`
+(regenerate from `requirements-transcriber.in`; the command is in it).
+
 ## Tests
 
 ```
@@ -700,6 +729,10 @@ exact stream-mode ffmpeg flags and fails the build if the result is wrong.
 runs `python listener.py --selftest` (real ffmpeg, real hard links) in the image.
 `test_inbox.py` covers `AUDIO_SOURCE=inbox`, including a run with the real
 listener feeding birdlisten's inbox while a second inbox keeps its copy.
+`test_transcriber.py` uses a fake VAD and model (needs numpy:
+`uv run --no-project --python 3.11 --with numpy --with pytest==8.3.4 pytest -q test_transcriber.py`);
+CI runs `python transcriber.py --selftest` in the transcriber image with
+the real model and no network.
 
 The second form exists because `tflite-runtime` has no macOS arm64 wheel, so
 the project environment cannot resolve there; the tests only need stdlib plus
@@ -764,6 +797,7 @@ Other ideas:
 | `birdlisten.py` | the app; `main() -> int`, `--check`, `--dry-run`, `--report N`; round-robin capture |
 | `stream.py` | stream capture: one ffmpeg supervisor per camera, the drop-oldest queue, the analysis worker, the summary line, shutdown and crash safety; `python stream.py --selftest` for CI |
 | `listener.py` | shared audio listener (#40): stream.py's supervisors fanned out to per-consumer inboxes by hard link, inbox caps, `status.json`; `--healthcheck`, `--selftest` |
+| `transcriber.py`, `Dockerfile.transcriber`, `requirements-transcriber.in/.txt`, `selftest/speech.wav` | camera speech-to-text (#40), its own image; `--selftest` for CI |
 | `frame.py` | collage: recent-species query, Fugleramme and Audubon plate caches, vignette processing, packer, Pillow renderer, render cache |
 | `audubon.json` | BirdNET scientific name → Havell plate on Commons (file, page, credit); generated, committed |
 | `tools/build_audubon_map.py` | offline builder of `audubon.json`; not in the image |
@@ -780,5 +814,5 @@ Other ideas:
 | `pyproject.toml`, `uv.lock` | birdnetlib 0.18, tflite-runtime 2.14, numpy<2, pillow 12.3 |
 | `compose.yaml` | local dev; production compose lives in the fleet repo |
 | `.github/workflows/build.yml` | build the image, run a smoke test, the segment muxer self-test and the healthcheck script against it, then push `ghcr.io/joekraemer/birdlisten:main` only if they pass (pushes are skipped on PRs) |
-| `test_birdlisten.py`, `test_stream.py`, `test_listener.py`, `test_inbox.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
+| `test_birdlisten.py`, `test_stream.py`, `test_listener.py`, `test_inbox.py`, `test_transcriber.py`, `test_frame.py`, `test_serve.py`, `test_build_audubon_map.py`, `test_build_sizes.py`, `test_facts.py`, `test_taxa.py` | see Tests |
 | `tests/fixtures/audubon/` | three Havell thumbnails for the vignette tests |
