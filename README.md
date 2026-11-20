@@ -694,6 +694,11 @@ Each file goes through a 100 Hz high-pass, then Silero VAD, then
 faster-whisper `small.en` (int8, 2 threads; the model is baked into the image
 at a pinned revision). Audio without speech never reaches Whisper, which
 keeps the idle cost near zero and stops Whisper inventing text from silence.
+A clip also skips Whisper unless at least one speech region lasts
+`MIN_SPEECH_S` (default 1.0 s, VAD padding included). Shorter blips, such as
+a car, a bird or a door, were what Whisper turned into "Thank you." (320 of
+the first 611 lines). `MIN_SPEECH_S_BY_CAMERA` sets a stricter value for
+cameras that rarely hear people, e.g. `west-rooftop=1.5,east-rooftop=1.5`.
 Segments Whisper itself rates unreliable are dropped (`NO_SPEECH_MAX`,
 `LOGPROB_MIN`, `COMPRESSION_MAX`). Speech still running at the end of a
 file is held back and transcribed together with the next file of that
