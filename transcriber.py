@@ -32,6 +32,12 @@ Environment:
   MODEL            default /opt/models/small.en (baked into the image)
   CPU_THREADS      default 2
   HIGHPASS_HZ      default 100 (0 = off)
+  MIN_SPEECH_S     default 1.0 (0 = off): skip Whisper unless the VAD found at
+                   least one speech region this long (padding included, so
+                   1.0 is ~0.6 s of sound). Short car/bird/door blips are what
+                   Whisper turns into "Thank you." on otherwise quiet clips.
+  MIN_SPEECH_S_BY_CAMERA  optional per-camera override, e.g.
+                   "west-rooftop=1.5,east-rooftop=1.5"
   NO_SPEECH_MAX, LOGPROB_MIN, COMPRESSION_MAX  segment filter (0.6, -1.0, 2.4)
   TZ               local time for file dates and line times
 
@@ -88,11 +94,33 @@ class Config:
     model: str = "/opt/models/small.en"
     cpu_threads: int = 2
     highpass_hz: float = 100.0
+    min_speech_s: float = 1.0
+    min_speech_by_camera: tuple[tuple[str, float], ...] = ()
     no_speech_max: float = 0.6
     logprob_min: float = -1.0
     compression_max: float = 2.4
     tz: str = "UTC"
     poll_s: float = 1.0
+
+    def min_speech_for(self, camera: str) -> float:
+        return dict(self.min_speech_by_camera).get(camera, self.min_speech_s)
+
+
+def _parse_min_speech_by_camera(raw: str) -> tuple[tuple[str, float], ...]:
+    out = {}
+    for item in (p.strip() for p in raw.split(",")):
+        if not item:
+            continue
+        cam, sep, val = item.partition("=")
+        cam = cam.strip()
+        try:
+            v = float(val) if sep and cam else None
+        except ValueError:
+            v = None
+        if v is None or not 0 <= v <= 30:
+            raise ConfigError(f"MIN_SPEECH_S_BY_CAMERA: expected camera=seconds (0..30), got {item!r}")
+        out[cam] = v
+    return tuple(sorted(out.items()))
 
 
 def load_config(env=os.environ) -> Config:
@@ -131,6 +159,8 @@ def load_config(env=os.environ) -> Config:
         model=env.get("MODEL", "").strip() or "/opt/models/small.en",
         cpu_threads=num("CPU_THREADS", 2, 1, 16, int),
         highpass_hz=num("HIGHPASS_HZ", 100.0, 0, 1000),
+        min_speech_s=num("MIN_SPEECH_S", 1.0, 0, 30),
+        min_speech_by_camera=_parse_min_speech_by_camera(env.get("MIN_SPEECH_S_BY_CAMERA", "")),
         no_speech_max=num("NO_SPEECH_MAX", 0.6, 0, 1),
         logprob_min=num("LOGPROB_MIN", -1.0, -10, 0),
         compression_max=num("COMPRESSION_MAX", 2.4, 1, 10),
@@ -280,6 +310,7 @@ class Stats:
     speech_s: float = 0.0
     whisper_s: float = 0.0
     dropped_segments: int = 0
+    short_skipped: int = 0            # had speech, but no region reached MIN_SPEECH_S
 
 
 class Transcriber:
@@ -341,7 +372,7 @@ class Transcriber:
                 audio, speech = audio[:i], speech[:-1]
         if speech:
             self.stats.speech_s += sum(e - s for s, e in speech)
-            written += self._run(camera, base, audio)
+            written += self._run(camera, base, audio, speech)
         return written
 
     def flush_idle(self, *, force: bool = False) -> int:
@@ -354,9 +385,16 @@ class Transcriber:
                 written += self._run(camera, c.start_utc, c.audio)
         return written
 
-    def _run(self, camera: str, base: dt.datetime, audio) -> int:
+    def _run(self, camera: str, base: dt.datetime, audio, speech=None) -> int:
         if len(audio) < SR // 10:
             return 0
+        need = self.cfg.min_speech_for(camera)
+        if need > 0:
+            if speech is None:                        # carried audio: not run through the VAD yet
+                speech = self._vad(audio)
+            if not any(e - s >= need for s, e in speech):
+                self.stats.short_skipped += 1
+                return 0
         t0 = self._clock()
         segs = self._transcribe(audio)
         self.stats.whisper_s += self._clock() - t0
@@ -417,8 +455,9 @@ def run(cfg: Config, *, transcribe=None, vad=silero_vad, stop: threading.Event |
             return 1
     t = Transcriber(cfg, transcribe=transcribe, vad=vad, clock=clock)
     cams = "all cameras" if cfg.cameras is None else ",".join(sorted(cfg.cameras))
-    log.info("transcriber: inbox %s, %s, transcripts %s, keep %d days", cfg.inbox_dir, cams,
-             cfg.transcript_dir, cfg.retention_days)
+    mins = ", ".join([f"min speech {cfg.min_speech_s:g}s"] + [f"{c}={v:g}s" for c, v in cfg.min_speech_by_camera])
+    log.info("transcriber: inbox %s, %s, transcripts %s, keep %d days, %s", cfg.inbox_dir, cams,
+             cfg.transcript_dir, cfg.retention_days, mins)
     next_summary = clock() + summary_s
     pruned_on = None
     try:
@@ -434,8 +473,9 @@ def run(cfg: Config, *, transcribe=None, vad=silero_vad, stop: threading.Event |
             if clock() >= next_summary:
                 s = t.stats
                 log.info("transcriber summary files=%d skipped=%d failed=%d audio_s=%.0f speech_s=%.0f "
-                         "whisper_s=%.1f lines=%d dropped_segments=%d carried=%d", s.files, s.skipped,
-                         s.failed, s.audio_s, s.speech_s, s.whisper_s, s.lines, s.dropped_segments, len(t.carry))
+                         "whisper_s=%.1f lines=%d dropped_segments=%d short_skipped=%d carried=%d", s.files,
+                         s.skipped, s.failed, s.audio_s, s.speech_s, s.whisper_s, s.lines, s.dropped_segments,
+                         s.short_skipped, len(t.carry))
                 t.stats = Stats()
                 next_summary = clock() + summary_s
             stop.wait(cfg.poll_s)

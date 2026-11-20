@@ -107,10 +107,24 @@ def test_config_defaults_and_overrides():
     ({"RETENTION_DAYS": "a"}, "must be a number"),
     ({"TZ": "Mars/Olympus"}, "time zone"),
     ({"NO_SPEECH_MAX": "2"}, "0..1"),
+    ({"MIN_SPEECH_S": "-1"}, "0..30"),
+    ({"MIN_SPEECH_S_BY_CAMERA": "west-rooftop"}, "camera=seconds"),
+    ({"MIN_SPEECH_S_BY_CAMERA": "west-rooftop=abc"}, "camera=seconds"),
+    ({"MIN_SPEECH_S_BY_CAMERA": "=2"}, "camera=seconds"),
+    ({"MIN_SPEECH_S_BY_CAMERA": "garage=99"}, "camera=seconds"),
 ])
 def test_config_errors(env, msg):
     with pytest.raises(tr.ConfigError, match=msg):
         tr.load_config(env)
+
+
+def test_config_min_speech_default_and_per_camera():
+    cfg = tr.load_config({})
+    assert cfg.min_speech_s == 1.0 and cfg.min_speech_for("garage") == 1.0
+    cfg = tr.load_config({"MIN_SPEECH_S": "0.8",
+                          "MIN_SPEECH_S_BY_CAMERA": " west-rooftop=1.5, east-rooftop = 2 ,"})
+    assert cfg.min_speech_for("garage") == 0.8
+    assert (cfg.min_speech_for("west-rooftop"), cfg.min_speech_for("east-rooftop")) == (1.5, 2.0)
 
 
 def test_inbox_pattern_matches_stream():
@@ -188,6 +202,61 @@ def test_silence_never_reaches_whisper(tmp_path):
     t = tr.Transcriber(cfg, transcribe=fw, vad=fake_vad)
     assert t.process_audio("garage", T0, clip()) == 0
     assert fw.calls == [] and lines(cfg, "garage") == []
+
+
+# The "Thank you." problem: a car, bird or door blip ~0.5 s long passes the VAD
+# and Whisper fills it with a stock phrase. Clips whose longest speech region is
+# under MIN_SPEECH_S never reach Whisper.
+def test_short_blip_never_reaches_whisper(tmp_path):
+    cfg, _ = make(tmp_path)
+    fw = FakeWhisper()
+    t = tr.Transcriber(cfg, transcribe=fw, vad=fake_vad)
+    assert t.process_audio("garage", T0, clip(30, [(10.0, 10.5), (20.0, 20.6)])) == 0
+    assert fw.calls == [] and lines(cfg, "garage") == [] and t.stats.short_skipped == 1
+
+
+def test_one_long_region_sends_the_whole_clip_short_words_included(tmp_path):
+    cfg, _ = make(tmp_path)
+    fw = FakeWhisper()
+    t = tr.Transcriber(cfg, transcribe=fw, vad=fake_vad)
+    # a quick "yes" (0.4 s) in a conversation is kept once real speech is there
+    assert t.process_audio("garage", T0, clip(30, [(5.0, 5.4), (12.0, 14.5)])) == 2
+    assert fw.calls == [30.0] and t.stats.short_skipped == 0
+
+
+def test_rooftop_override_is_stricter_than_the_default(tmp_path):
+    cfg, _ = make(tmp_path, MIN_SPEECH_S_BY_CAMERA="west-rooftop=1.5")
+    fw = FakeWhisper()
+    t = tr.Transcriber(cfg, transcribe=fw, vad=fake_vad)
+    burst = clip(30, [(10.0, 11.2)])                             # 1.2 s
+    assert t.process_audio("west-rooftop", T0, burst) == 0
+    assert t.process_audio("garage", T0, burst) == 1
+    assert lines(cfg, "west-rooftop") == [] and lines(cfg, "garage") == ["[12:00:10] at 10.0 for 1.2"]
+    assert t.process_audio("west-rooftop", T0 + dt.timedelta(seconds=30), clip(30, [(3.0, 5.0)])) == 1
+
+
+def test_min_speech_zero_turns_the_gate_off(tmp_path):
+    cfg, _ = make(tmp_path, MIN_SPEECH_S="0")
+    t = tr.Transcriber(cfg, transcribe=FakeWhisper(), vad=fake_vad)
+    assert t.process_audio("garage", T0, clip(30, [(10.0, 10.3)])) == 1
+
+
+def test_short_carried_tail_with_no_continuation_is_gated_too(tmp_path):
+    cfg, _ = make(tmp_path)
+    fw = FakeWhisper()
+    t = tr.Transcriber(cfg, transcribe=fw, vad=fake_vad)
+    t.process_audio("garage", T0, clip(30, [(29.6, 30.0)]))       # 0.4 s blip at the boundary: carried
+    assert "garage" in t.carry
+    assert t.flush_idle(force=True) == 0 and fw.calls == [] and t.stats.short_skipped == 1
+
+
+def test_carry_joined_across_the_boundary_counts_as_one_region(tmp_path):
+    cfg, _ = make(tmp_path)
+    t = tr.Transcriber(cfg, transcribe=FakeWhisper(), vad=fake_vad)
+    # 0.6 s at the end of one clip + 0.6 s at the start of the next = one 1.2 s region
+    assert t.process_audio("garage", T0, clip(30, [(29.4, 30.0)])) == 0
+    assert t.process_audio("garage", T0 + dt.timedelta(seconds=30), clip(30, [(0.0, 0.6)])) == 1
+    assert len(lines(cfg, "garage")) == 1
 
 
 def test_speech_mid_clip_gets_its_own_timestamp(tmp_path):
